@@ -59,7 +59,7 @@ jobs:
           script: |
             chmod +x gradlew
             ./gradlew connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/dev.raf.radar/files/screens ./screens || true
+            adb pull /sdcard/Pictures/RadarSmoke ./screens || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

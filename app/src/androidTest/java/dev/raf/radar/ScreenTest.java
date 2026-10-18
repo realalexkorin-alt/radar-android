@@ -55,22 +55,76 @@ public class ScreenTest {
 
   static void capture(String name) {
     try {
-      android.graphics.Bitmap b =
+      android.graphics.Bitmap bitmap =
           InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
-      if (b == null) return;
-      java.io.File dir =
-          new java.io.File(
-              InstrumentationRegistry.getInstrumentation()
-                  .getTargetContext()
-                  .getExternalFilesDir(null),
-              "screens");
-      dir.mkdirs();
-      try (java.io.FileOutputStream out =
-          new java.io.FileOutputStream(new java.io.File(dir, name + ".png"))) {
-        b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
-      }
-      b.recycle();
-    } catch (Exception ignored) {
+      if (bitmap == null) return;
+      android.content.Context context =
+          InstrumentationRegistry.getInstrumentation().getTargetContext();
+      android.content.ContentValues values = new android.content.ContentValues();
+      values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name + ".png");
+      values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+      values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RadarSmoke");
+      android.net.Uri uri =
+          context
+              .getContentResolver()
+              .insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+      if (uri != null)
+        try (java.io.OutputStream out = context.getContentResolver().openOutputStream(uri)) {
+          bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+        }
+      bitmap.recycle();
+    } catch (Exception e) {
+      android.util.Log.w("RadarScreens", "Cannot capture test screen", e);
+    }
+  }
+
+  static void shell(String command) throws Exception {
+    try (android.os.ParcelFileDescriptor fd =
+            InstrumentationRegistry.getInstrumentation()
+                .getUiAutomation()
+                .executeShellCommand(command);
+        java.io.InputStream in = new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)) {
+      byte[] bytes = new byte[1024];
+      while (in.read(bytes) != -1) {}
+    }
+  }
+
+  @Test
+  public void overlaySingleTariffAndScale() throws Exception {
+    shell("pm grant dev.raf.radar android.permission.ACCESS_COARSE_LOCATION");
+    shell("pm grant dev.raf.radar android.permission.ACCESS_FINE_LOCATION");
+    shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
+    try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+      scenario.onActivity(
+          a -> {
+            Store s = new Store(a);
+            Point me = s.points().get(0);
+            me.tariffs = java.util.Collections.singletonList("econom");
+            s.update(me);
+            s.prefs.edit().putBoolean("overlay", true).apply();
+            a.startForegroundService(new android.content.Intent(a, MonitorService.class));
+          });
+      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      android.os.SystemClock.sleep(1000);
+      Assert.assertTrue(MonitorService.running);
+      capture("overlay-single");
+      scenario.onActivity(
+          a -> {
+            Store s = new Store(a);
+            s.prefs
+                .edit()
+                .putInt("scale", 150)
+                .putInt("opacity", 40)
+                .putInt("textScale", 120)
+                .apply();
+            a.startService(new android.content.Intent(a, MonitorService.class));
+          });
+      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      android.os.SystemClock.sleep(500);
+      capture("overlay-scaled");
+      scenario.onActivity(a -> a.stopService(new android.content.Intent(a, MonitorService.class)));
+      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      onView(withText("Радар")).check(matches(isDisplayed()));
     }
   }
 
