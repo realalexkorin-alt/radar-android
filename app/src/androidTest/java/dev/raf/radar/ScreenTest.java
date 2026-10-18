@@ -54,6 +54,8 @@ public class ScreenTest {
   }
 
   static void capture(String name) {
+    InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+    android.os.SystemClock.sleep(1500);
     try {
       android.graphics.Bitmap bitmap =
           InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();

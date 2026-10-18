@@ -103,6 +103,15 @@ public final class MainActivity extends Activity {
     mapView = new MapView(this);
     mapView.onCreate(b);
     frame.addView(mapView, new FrameLayout.LayoutParams(-1, -1));
+    TextView loading = text("Загрузка карты…", 14, fg);
+    loading.setGravity(Gravity.CENTER);
+    loading.setPadding(dp(12), dp(8), dp(12), dp(8));
+    loading.setBackground(shape(surface, 14));
+    FrameLayout.LayoutParams loadingParams = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+    frame.addView(loading, loadingParams);
+    mapView.addOnDidFinishLoadingMapListener(() -> loading.setVisibility(View.GONE));
+    mapView.addOnDidFailLoadingMapListener(
+        error -> loading.setText("Карта недоступна · проверьте связь"));
     TextView guidance = text("Удерживайте карту, чтобы добавить точку", 11, Color.BLACK);
     guidance.setPadding(dp(10), dp(5), dp(10), dp(5));
     guidance.setBackground(shape(0xE6F7CE46, 12));

@@ -16,6 +16,7 @@ final class Overlay {
   private LinearLayout root;
   private WindowManager.LayoutParams lp;
   private boolean collapsed = false;
+  private String lastAppearance = "";
 
   Overlay(Context c, Store s) {
     this.c = c;
@@ -31,6 +32,18 @@ final class Overlay {
     if (!s.prefs.getBoolean("overlay", false) || !Settings.canDrawOverlays(c)) {
       close();
       return;
+    }
+    String appearance =
+        s.prefs.getBoolean("dark", true)
+            + ":"
+            + s.prefs.getInt("scale", 100)
+            + ":"
+            + s.prefs.getInt("textScale", 100)
+            + ":"
+            + s.prefs.getInt("opacity", 90);
+    if (!appearance.equals(lastAppearance)) {
+      close();
+      lastAppearance = appearance;
     }
     if (root == null) {
       root = new LinearLayout(c);
@@ -71,6 +84,7 @@ final class Overlay {
     title.setText(p.name + "  ·  " + (collapsed ? "＋" : "−"));
     title.setTextSize(12 * scale * textScale);
     title.setTextColor(fg);
+    title.setShadowLayer(dp(1.5f), 0, dp(1), dark ? Color.BLACK : Color.WHITE);
     title.setMaxWidth(c.getResources().getDisplayMetrics().widthPixels - dp(40));
     root.addView(title);
     title.setOnClickListener(
@@ -129,6 +143,7 @@ final class Overlay {
       TextView cell = new TextView(c);
       cell.setPadding(dp(5), dp(5), dp(9), 0);
       cell.setTextColor(fg);
+      cell.setShadowLayer(dp(1.5f), 0, dp(1), dark ? Color.BLACK : Color.WHITE);
       cell.setTextSize((collapsed ? 15 : 20) * scale * textScale);
       cell.setText(
           (collapsed ? "" : Point.label(t) + "\n")
@@ -153,6 +168,7 @@ final class Overlay {
       note.setText(p.tariffs.size() == 1 ? "× — не надбавка ₽" : "× — множитель, не надбавка ₽");
       note.setTextSize(10 * scale);
       note.setTextColor(fg);
+      note.setShadowLayer(dp(1.5f), 0, dp(1), dark ? Color.BLACK : Color.WHITE);
       note.setMaxWidth(maxWidth);
       root.addView(note);
       LinearLayout actions = new LinearLayout(c);
@@ -197,6 +213,8 @@ final class Overlay {
   void button(LinearLayout row, String label, Runnable r) {
     TextView b = new TextView(c);
     b.setText(label);
+    b.setTextSize(12 * s.prefs.getInt("scale", 100) / 100f);
+    b.setShadowLayer(dp(1), 0, dp(1), s.prefs.getBoolean("dark", true) ? Color.BLACK : Color.WHITE);
     b.setContentDescription(
         label.equals("↗") ? "Открыть карту" : label.equals("↻") ? "Обновить" : "Закрыть виджет");
     b.setTextColor(Color.rgb(170, 140, 35));
