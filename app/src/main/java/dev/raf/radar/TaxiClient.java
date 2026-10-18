@@ -40,7 +40,7 @@ public final class TaxiClient {
   }
 
   public List<Store.Reading> fetch(Point p) throws Exception {
-    String cookie = android.webkit.CookieManager.getInstance().getCookie("https://taxi.yandex.ru");
+    String cookie = android.webkit.CookieManager.getInstance().getCookie(ENDPOINT);
     return parse(post(request(p), cookie), p.tariffs, System.currentTimeMillis());
   }
 

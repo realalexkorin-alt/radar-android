@@ -2,6 +2,7 @@ name: Android checks
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', 'README.md']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -55,9 +56,14 @@ jobs:
           api-level: 30
           arch: x86_64
           disable-animations: true
-          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest
+          script: |
+            chmod +x gradlew
+            ./gradlew connectedDebugAndroidTest
+            adb pull /sdcard/Android/data/dev.raf.radar/files/screens ./screens || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: emulator-reports
-          path: app/build/reports/androidTests/
+          path: |
+            app/build/reports/androidTests/
+            screens/

@@ -25,6 +25,7 @@ public final class MainActivity extends Activity {
   MapView mapView;
   MapLibreMap map;
   TextView state;
+  Button monitorButton;
   boolean dark;
   int fg, bg, surface, muted;
   Handler handler = new Handler();
@@ -186,6 +187,7 @@ public final class MainActivity extends Activity {
                   },
                   400);
             });
+    monitorButton = start;
     start.setBackground(shape(Color.rgb(247, 206, 70), 16));
     start.setTextColor(Color.BLACK);
     bottom.addView(start, new LinearLayout.LayoutParams(0, dp(50), 1));
@@ -227,6 +229,8 @@ public final class MainActivity extends Activity {
 
   void refreshCards() {
     if (cards == null) return;
+    if (monitorButton != null)
+      monitorButton.setText(MonitorService.running ? "Остановить" : "Начать мониторинг");
     state.setText(
         MonitorService.running
             ? store.prefs.getString("status", "Мониторинг · ожидание GPS")
@@ -302,7 +306,12 @@ public final class MainActivity extends Activity {
         new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
     paint.setColor(Color.WHITE);
     canvas.drawCircle(dp(15), dp(15), dp(12), paint);
-    paint.setColor(me ? Color.rgb(70, 145, 255) : Color.rgb(247, 206, 70));
+    paint.setColor(
+        me
+            ? (System.currentTimeMillis() - store.prefs.getLong("gpsAt", 0) > 120000
+                ? Color.GRAY
+                : Color.rgb(70, 145, 255))
+            : Color.rgb(247, 206, 70));
     canvas.drawCircle(dp(15), dp(15), dp(9), paint);
     return org.maplibre.android.annotations.IconFactory.getInstance(this).fromBitmap(b);
   }

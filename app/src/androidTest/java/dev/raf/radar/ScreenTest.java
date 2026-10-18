@@ -25,11 +25,15 @@ public class ScreenTest {
   public void homeAndSettings() {
     try (ActivityScenario<MainActivity> a = ActivityScenario.launch(MainActivity.class)) {
       onView(withText("Радар")).check(matches(isDisplayed()));
+      capture("home-dark");
       onView(withText("⚙")).perform(click());
       onView(withText("Настройки")).check(matches(isDisplayed()));
       onView(withText("Тёмная тема")).check(matches(isDisplayed()));
+      capture("settings-dark");
+      onView(withText("Тёмная тема")).perform(click());
       onView(withText("Готово")).perform(click());
       onView(withText("Радар")).check(matches(isDisplayed()));
+      capture("home-light");
     }
   }
 
@@ -46,6 +50,27 @@ public class ScreenTest {
       onView(withText("Сохранить")).perform(click());
       a.recreate();
       a.onActivity(x -> Assert.assertEquals(2, new Store(x).points().size()));
+    }
+  }
+
+  static void capture(String name) {
+    try {
+      android.graphics.Bitmap b =
+          InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+      if (b == null) return;
+      java.io.File dir =
+          new java.io.File(
+              InstrumentationRegistry.getInstrumentation()
+                  .getTargetContext()
+                  .getExternalFilesDir(null),
+              "screens");
+      dir.mkdirs();
+      try (java.io.FileOutputStream out =
+          new java.io.FileOutputStream(new java.io.File(dir, name + ".png"))) {
+        b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+      }
+      b.recycle();
+    } catch (Exception ignored) {
     }
   }
 

@@ -150,7 +150,7 @@ final class Overlay {
     }
     if (!collapsed) {
       TextView note = new TextView(c);
-      note.setText("× — множитель, не надбавка ₽");
+      note.setText(p.tariffs.size() == 1 ? "× — не надбавка ₽" : "× — множитель, не надбавка ₽");
       note.setTextSize(10 * scale);
       note.setTextColor(fg);
       note.setMaxWidth(maxWidth);
@@ -159,13 +159,13 @@ final class Overlay {
       root.addView(actions);
       button(
           actions,
-          "Карта",
+          "↗",
           () ->
               c.startActivity(
                   new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
       button(
           actions,
-          "Обновить",
+          "↻",
           () -> c.sendBroadcast(new Intent("dev.raf.radar.MANUAL").setPackage(c.getPackageName())));
       button(
           actions,
@@ -197,6 +197,8 @@ final class Overlay {
   void button(LinearLayout row, String label, Runnable r) {
     TextView b = new TextView(c);
     b.setText(label);
+    b.setContentDescription(
+        label.equals("↗") ? "Открыть карту" : label.equals("↻") ? "Обновить" : "Закрыть виджет");
     b.setTextColor(Color.rgb(170, 140, 35));
     b.setPadding(dp(7), dp(8), dp(7), 0);
     b.setOnClickListener(v -> r.run());
