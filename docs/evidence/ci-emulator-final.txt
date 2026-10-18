@@ -1,0 +1,6 @@
+2026-10-18T19:39:50.4461863Z Starting 4 tests on emulator-5554 - 11
+2026-10-18T19:40:00.4456906Z emulator-5554 - 11 Tests 2/4 completed. (0 skipped) (0 failed)
+2026-10-18T19:40:06.7388022Z Finished 4 tests on emulator-5554 - 11
+2026-10-18T19:40:07.8447604Z BUILD SUCCESSFUL in 1m 10s
+2026-10-18T19:40:08.3692220Z /sdcard/Pictures/RadarSmoke/: 5 files pulled, 0 skipped. 2.1 MB/s (287646 bytes in 0.132s)
+2026-10-18T19:40:26.8467477Z BUILD SUCCESSFUL in 11s

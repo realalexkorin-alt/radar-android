@@ -1,0 +1,11 @@
+{
+  "package": "dev.raf.radar",
+  "versionName": "0.1.1-alpha",
+  "versionCode": "2",
+  "minSdk": "28",
+  "targetSdk": "35",
+  "debuggable": "false",
+  "allowBackup": "false",
+  "sha256": "a675c94abced4536c644993b9c999215fc14730d57f29f27e7a3cc1d566edbe4",
+  "size": 49981261
+}

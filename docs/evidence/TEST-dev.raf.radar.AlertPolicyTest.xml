@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="dev.raf.radar.AlertPolicyTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-18T19:20:08" hostname="ef831f3d22b3" time="0.004">
+<testsuite name="dev.raf.radar.AlertPolicyTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-18T19:43:33" hostname="ef831f3d22b3" time="0.004">
   <properties/>
   <testcase name="staleUnknownDisabled" classname="dev.raf.radar.AlertPolicyTest" time="0.002"/>
   <testcase name="fiftyRise" classname="dev.raf.radar.AlertPolicyTest" time="0.0"/>
-  <testcase name="clockMovedBack" classname="dev.raf.radar.AlertPolicyTest" time="0.001"/>
+  <testcase name="clockMovedBack" classname="dev.raf.radar.AlertPolicyTest" time="0.0"/>
   <testcase name="noSpam" classname="dev.raf.radar.AlertPolicyTest" time="0.0"/>
   <testcase name="firstThreshold" classname="dev.raf.radar.AlertPolicyTest" time="0.0"/>
   <testcase name="belowThreshold" classname="dev.raf.radar.AlertPolicyTest" time="0.0"/>
