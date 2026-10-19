@@ -37,6 +37,21 @@ public class AccessEntryTest {
     } while (android.os.SystemClock.uptimeMillis() < end);
     throw new AssertionError("Access explanation did not appear");
   }
+  private void shell(String command) {
+    try (android.os.ParcelFileDescriptor p = InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
+         java.io.InputStream in = new android.os.ParcelFileDescriptor.AutoCloseInputStream(p)) {
+      byte[] b = new byte[1024]; while (in.read(b) != -1) {}
+    } catch (Exception e) { throw new AssertionError(e); }
+  }
+  private void waitForSettings() {
+    long end = android.os.SystemClock.uptimeMillis() + 10000;
+    do {
+      AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
+      if (root != null && "com.android.settings".contentEquals(root.getPackageName())) return;
+      android.os.SystemClock.sleep(100);
+    } while (android.os.SystemClock.uptimeMillis() < end);
+    throw new AssertionError("System settings did not open");
+  }
   @Test public void denialIsGatedAndNextEntryRequestsAgain() {
     android.content.Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     android.accessibilityservice.AccessibilityServiceInfo info = InstrumentationRegistry.getInstrumentation().getUiAutomation().getServiceInfo();
@@ -58,6 +73,19 @@ public class AccessEntryTest {
       onView(withText("Разрешения для Радара")).check(matches(isDisplayed()));
       Assert.assertTrue(Access.location(c));
       Assert.assertEquals("Поверх других приложений", Access.missing(c));
+      onView(withText("Разрешить")).perform(click());
+      waitForSettings();
+      shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
+      shell("input keyevent 4");
+      waitForAppDialog();
+      Assert.assertEquals("Установка обновлений", Access.missing(c));
+      onView(withText("Разрешить")).perform(click());
+      waitForSettings();
+      shell("appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow");
+      shell("input keyevent 4");
+      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      scenario.onActivity(a -> Assert.assertNull(Access.missing(a)));
+      onView(withText("Разрешения для Радара")).check(androidx.test.espresso.assertion.ViewAssertions.doesNotExist());
     }
   }
 }
