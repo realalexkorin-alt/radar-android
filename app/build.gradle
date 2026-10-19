@@ -7,7 +7,7 @@ android {
  signingConfigs {
   release { if (System.getenv('RADAR_KEYSTORE')) { storeFile file(System.getenv('RADAR_KEYSTORE')); storePassword System.getenv('RADAR_STORE_PASSWORD'); keyAlias System.getenv('RADAR_KEY_ALIAS'); keyPassword System.getenv('RADAR_KEY_PASSWORD') } }
  }
- buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
+ buildTypes { release { if (System.getenv('RADAR_KEYSTORE')) signingConfig signingConfigs.release; minifyEnabled false } }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 dependencies {
