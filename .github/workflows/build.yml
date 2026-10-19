@@ -65,6 +65,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
+            trap 'adb pull /sdcard/Pictures/RadarSmoke ./screens || true' EXIT
             chmod +x gradlew
             ./gradlew assembleDebug assembleDebugAndroidTest
             git fetch --depth=1 origin tag v0.1.4-alpha

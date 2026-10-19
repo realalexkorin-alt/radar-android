@@ -228,6 +228,7 @@ public class ScreenTest {
     try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
       scenario.onActivity(a -> a.edit(new Point("cancel", "Новая точка", 55.75, 37.61, false)));
       onView(withText(startsWith("Кеф:"))).check(matches(isDisplayed()));
+      capture("point-card-015");
       onView(withText("Отменить")).perform(click());
       scenario.onActivity(a -> Assert.assertEquals(1, a.store.points().size()));
     }

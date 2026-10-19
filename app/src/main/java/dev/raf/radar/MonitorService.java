@@ -144,7 +144,7 @@ public final class MonitorService extends Service implements LocationListener {
       failures = 0;
       Store.Reading best = null;
       for (Store.Reading r : readings)
-        if (r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
+        if (current.tariffs.contains(r.tariff) && r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
       if (best != null) alert(p, best);
       broadcast();
     } catch (TaxiClient.ApiException e) {

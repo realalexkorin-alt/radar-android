@@ -21,7 +21,7 @@ public class AccessTest {
         new Store(a).prefs.edit().putString("repo", "wrong/repository").commit(); });
       onView(withText("Разрешения для Радара")).check(doesNotExist());
       onView(withText("⚙")).perform(click());
-      onView(withText("Канал обновлений Радара подключён")).perform(scrollTo()).check(matches(isDisplayed()));
+      onView(withText("Проверка обновлений при каждом запуске. Канал GitHub подключён.")).perform(scrollTo()).check(matches(isDisplayed()));
       onView(withHint("GitHub: владелец/репозиторий")).check(doesNotExist());
       assertEquals("realalexkorin-alt/radar-android", Updates.DEFAULT_REPO);
     }

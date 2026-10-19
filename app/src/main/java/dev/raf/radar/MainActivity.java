@@ -533,6 +533,7 @@ public final class MainActivity extends Activity {
   }
 
   void edit(Point p) {
+    boolean existing = store.points().stream().anyMatch(saved -> saved.id.equals(p.id));
     LinearLayout form = form();
     EditText name = new EditText(this);
     name.setTextColor(fg);
@@ -610,7 +611,7 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Сохранить", null)
             .setNegativeButton("Отменить", null)
             .setNeutralButton(
-                p.dynamic ? "В виджет" : "Удалить",
+                p.dynamic ? "В виджет" : existing ? "Удалить" : null,
                 (d, w) -> {
                   if (p.dynamic) {
                     store.prefs.edit().putString("overlayPoint", p.id).apply();
@@ -620,6 +621,25 @@ public final class MainActivity extends Activity {
             .create();
     dialog.setOnShowListener(
         d -> {
+          Button saveButton = dialog.getButton(-1);
+          if (saveButton.getParent() instanceof LinearLayout) {
+            LinearLayout buttons = (LinearLayout) saveButton.getParent();
+            buttons.setOrientation(LinearLayout.HORIZONTAL);
+            buttons.setPadding(dp(8), 0, dp(8), dp(8));
+            for (int index = 0; index < buttons.getChildCount(); index++) {
+              View child = buttons.getChildAt(index);
+              if (child instanceof Button) {
+                Button button = (Button) child;
+                button.setAllCaps(false); button.setTextSize(12);
+                button.setMinWidth(0); button.setMinimumWidth(0);
+                button.setPadding(dp(4), 0, dp(4), 0);
+                button.setSingleLine(false); button.setMaxLines(2);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(52), 1);
+                params.setMargins(dp(2), 0, dp(2), 0);
+                button.setLayoutParams(params);
+              } else child.setVisibility(View.GONE);
+            }
+          }
           dialog.getButton(-1).setBackground(shape(0xFFF7CE46, 12));
           dialog.getButton(-1).setTextColor(Color.BLACK);
           dialog.getButton(-2).setTextColor(fg);
