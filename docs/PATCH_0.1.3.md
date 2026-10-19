@@ -18,4 +18,6 @@ GitHub Actions: https://github.com/realalexkorin-alt/radar-android/actions/runs/
 
 Пакет dev.raf.radar, versionCode 4, versionName 0.1.3-alpha. Подпись проверена apksigner, сертификат SHA-256 7baf77afc2f4b5c570c9b08d6092f55ad3ec10a2d798649c846bf2a1429bbd89 совпадает с предыдущими версиями. Zipalign успешно. Проверен состав APK: четыре стандартные ABI библиотеки MapLibre, таблица тарифов включена. SHA-256 APK: 5423d1ed023c55c7e9c1129bc72833365e00734495b4723792386fda7a204e5f.
 
+Релиз опубликован: https://github.com/realalexkorin-alt/radar-android/releases/tag/v0.1.3-alpha . Без авторизации проверены /releases/latest и полное скачивание публичного APK; номер релиза и SHA-256 совпадают. Список разрешений не изменился. Подтверждение публикации: [снимок](evidence/release-0.1.3-published.jpg).
+
 Установка на физическом телефоне пользователя и физические жесты на его устройстве требуют следующей проверки. Механизм расчётной надбавки и таблица базовых тарифов в этом патче не менялись.
