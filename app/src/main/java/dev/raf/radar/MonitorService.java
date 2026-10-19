@@ -29,8 +29,7 @@ public final class MonitorService extends Service implements LocationListener {
           if (queue != null)
             queue.execute(
                 () -> {
-                  if ("dev.raf.radar.VIEWING".equals(i.getAction())) planner.expedite("me");
-                  else planner.refresh();
+                  planner.refresh();
                   tick();
                 });
         }
