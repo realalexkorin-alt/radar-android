@@ -32,6 +32,11 @@ public class ReferenceDesignTest {
       // Wait for actual style rendering, not merely Activity idle. A missing marker must fail QA.
       android.os.SystemClock.sleep(2500);
       scenario.onActivity(a->{
+        assertNotNull("Map must be ready",a.map);
+        a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.7488,37.6353),12.8));
+      });
+      android.os.SystemClock.sleep(500);
+      scenario.onActivity(a->{
         android.graphics.PointF pos=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.7488,37.6353));
         assertEquals("Saved point must be tappable","ref-3",a.pointAt(pos).id);
         android.graphics.Bitmap icon=a.pointBitmaps.get("ref-3");assertNotNull(icon);
@@ -40,10 +45,12 @@ public class ReferenceDesignTest {
       });
       final android.graphics.PointF[] position={null};scenario.onActivity(a->{
         position[0]=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.7488,37.6353));
-        int[] offset=new int[2];a.mapFrame.getLocationOnScreen(offset);position[0].offset(offset[0],offset[1]);
+        int[] offset=new int[2];a.mapFrame.getLocationOnScreen(offset);position[0].offset(offset[0],offset[1]-a.pointBitmaps.get("ref-3").getHeight()*.25f);
       });
       android.graphics.Bitmap screen=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
-      int markerPixel=screen.getPixel(Math.round(position[0].x),Math.round(position[0].y-14*screen.getDensity()/160f));
+      int px=Math.round(position[0].x),py=Math.round(position[0].y);
+      assertTrue("Marker must be inside screenshot",px>=0&&px<screen.getWidth()&&py>=0&&py<screen.getHeight());
+      int markerPixel=screen.getPixel(px,py);
       assertTrue("Actual screen must display orange marker",android.graphics.Color.red(markerPixel)>200&&android.graphics.Color.blue(markerPixel)<100);
       ScreenTest.capture("reference-map-016");
       scenario.onActivity(a->{Point p=a.store.points().stream().filter(x->x.id.equals("ref-3")).findFirst().get();a.edit(p);});
