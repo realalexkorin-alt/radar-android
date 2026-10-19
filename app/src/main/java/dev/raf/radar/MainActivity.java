@@ -50,6 +50,8 @@ public final class MainActivity extends Activity {
 
   @Override
   public void onCreate(Bundle b) {
+    setTheme(getSharedPreferences("radar", MODE_PRIVATE).getBoolean("dark", true)
+        ? R.style.AppThemeDark : R.style.AppTheme);
     super.onCreate(b);
     MapLibre.getInstance(this);
     store = new Store(this);
@@ -240,23 +242,15 @@ public final class MainActivity extends Activity {
     monitorButton = start;
     start.setBackground(shape(Color.rgb(247, 206, 70), 16));
     start.setTextColor(Color.BLACK);
-    bottom.addView(start, new LinearLayout.LayoutParams(0, dp(50), 1));
-    bottom.addView(
-        action(
-            "Виджет",
-            () -> {
-              if (!Settings.canDrawOverlays(this)) {
-                access.request();
-                return;
-              }
-              store
-                  .prefs
-                  .edit()
-                  .putBoolean("overlay", !store.prefs.getBoolean("overlay", false))
-                  .putString("overlayPoint", selected)
-                  .apply();
-              startMonitor();
-            }));
+    bottom.addView(start, new LinearLayout.LayoutParams(0, dp(50), 3));
+    Button widgetButton = action("Виджет", () -> {
+      if (!Settings.canDrawOverlays(this)) { access.request(); return; }
+      store.prefs.edit().putBoolean("overlay", !store.prefs.getBoolean("overlay", false))
+          .putString("overlayPoint", selected).apply();
+      startMonitor();
+    });
+    widgetButton.setPadding(dp(4), 0, dp(4), 0);
+    bottom.addView(widgetButton, new LinearLayout.LayoutParams(0, dp(50), 1));
     mapPanel.addView(bottom);
     settingsPanel = new LinearLayout(this);
     settingsPanel.setOrientation(LinearLayout.VERTICAL);
