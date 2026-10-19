@@ -33,6 +33,7 @@ public class ReferenceDesignTest {
       android.os.SystemClock.sleep(2500);
       scenario.onActivity(a->{
         assertNotNull("Map must be ready",a.map);
+        a.store.prefs.edit().putStringSet("mapTariffs",java.util.Collections.singleton("business")).commit();a.refreshMarkers();
         a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.7488,37.6353),12.8));
       });
       android.os.SystemClock.sleep(500);
@@ -40,12 +41,12 @@ public class ReferenceDesignTest {
         android.graphics.PointF pos=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.7488,37.6353));
         assertEquals("Saved point must be tappable","ref-3",a.pointAt(pos).id);
         android.graphics.Bitmap icon=a.pointBitmaps.get("ref-3");assertNotNull(icon);
-        int pixel=icon.getPixel(icon.getWidth()/2,Math.round(icon.getHeight()*.25f));
+        int pixel=icon.getPixel(aSampleX(icon),aSampleY(icon));
         assertTrue("Marker image must retain orange RGB, not a white silhouette",android.graphics.Color.red(pixel)>200&&android.graphics.Color.blue(pixel)<100);
       });
       final android.graphics.PointF[] position={null};scenario.onActivity(a->{
         position[0]=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.7488,37.6353));
-        int[] offset=new int[2];a.mapFrame.getLocationOnScreen(offset);position[0].offset(offset[0],offset[1]-a.pointBitmaps.get("ref-3").getHeight()*.25f);
+        int[] offset=new int[2];a.mapFrame.getLocationOnScreen(offset);android.graphics.Bitmap icon=a.pointBitmaps.get("ref-3");position[0].offset(offset[0]-icon.getWidth()/2f+aSampleX(icon),offset[1]-icon.getHeight()/2f+aSampleY(icon));
       });
       android.graphics.Bitmap screen=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
       int px=Math.round(position[0].x),py=Math.round(position[0].y);
@@ -81,6 +82,8 @@ public class ReferenceDesignTest {
       onView(withText("Сохранить")).perform(click());scenario.recreate();scenario.onActivity(a->{assertTrue(a.store.points().stream().anyMatch(p->p.id.equals("new")));assertNull(a.pointSheet);});
     }
   }
+  static int aSampleX(android.graphics.Bitmap icon){return icon.getWidth()/2;}
+  static int aSampleY(android.graphics.Bitmap icon){return 5;}
   static View menu(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("menu");f.setAccessible(true);return (View)f.get(o);}catch(Exception e){throw new AssertionError(e);}}
   static View root(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("root");f.setAccessible(true);return (View)f.get(o);}catch(Exception e){throw new AssertionError(e);}}
   static View find(View view,String description){if(description.equals(view.getContentDescription()))return view;if(view instanceof ViewGroup){ViewGroup g=(ViewGroup)view;for(int i=0;i<g.getChildCount();i++){View v=find(g.getChildAt(i),description);if(v!=null)return v;}}return null;}
