@@ -43,11 +43,11 @@ public class ScreenTest {
       onView(withText("Радар Pro")).check(matches(isDisplayed()));
       capture("home-dark");
       onView(withContentDescription("Вкладка Настройки")).perform(click());
-      onView(allOf(withText("Настройки"), not(isAssignableFrom(android.widget.Button.class)))).check(matches(isDisplayed()));
-      onView(withText("Тёмная тема")).check(matches(isDisplayed()));
+      onView(withText("Виджет")).check(matches(isDisplayed()));
       capture("settings-dark");
-      onView(withText("Тёмная тема")).perform(click());
+      onView(withText("Тёмная тема")).perform(scrollTo(), click());
       onView(withText("Применить оформление")).perform(scrollTo(), click());
+      onView(withContentDescription("Вкладка Карта")).perform(click());
       onView(withText("Радар Pro")).check(matches(isDisplayed()));
       capture("home-light");
     }
@@ -56,7 +56,7 @@ public class ScreenTest {
   @Test
   public void savePointAndPreserveAfterRecreation() {
     try (ActivityScenario<MainActivity> a = ActivityScenario.launch(MainActivity.class)) {
-      onView(withText("＋ Точка")).perform(click());
+      onView(withContentDescription("Поиск точки")).perform(click());
       onView(withHint("Адрес или широта, долгота"))
           .perform(
               replaceText("56.8389, 60.5975"),
@@ -182,8 +182,8 @@ public class ScreenTest {
   @Test
   public void dynamicPointSettings() {
     try (ActivityScenario<MainActivity> a = ActivityScenario.launch(MainActivity.class)) {
-      onView(withContentDescription("Вкладка Точки")).perform(click());
-      onView(withText(startsWith("◎ Моя геопозиция"))).perform(click());
+      onView(withContentDescription("Вкладка Настройки")).perform(click());
+      onView(withText("Моя геопозиция")).perform(scrollTo(),click());
       onView(allOf(withText("Моя геопозиция"), isAssignableFrom(android.widget.EditText.class)))
           .check(matches(isDisplayed()));
       onView(withText("Уведомлять")).perform(scrollTo(), click());
@@ -227,9 +227,9 @@ public class ScreenTest {
   @Test public void cancellingMapPointDoesNotSaveIt() {
     try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
       scenario.onActivity(a -> a.edit(new Point("cancel", "Новая точка", 55.75, 37.61, false)));
-      onView(withText(startsWith("Кеф:"))).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).check(matches(isDisplayed()));
+      onView(withText(startsWith("Кеф "))).check(matches(isDisplayed()));
       capture("point-card-015");
-      onView(withText("Отменить")).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
+      onView(withText("Отменить")).perform(click());
       scenario.onActivity(a -> Assert.assertEquals(1, a.store.points().size()));
     }
   }

@@ -81,16 +81,19 @@ public class WidgetTest {
         Assert.assertNotNull(root());
         String text = texts(root());
         Assert.assertFalse(text.contains("Моя геопозиция"));
-        Assert.assertTrue(text.contains("Эконом\n+260 ₽"));
-        Assert.assertTrue(text.contains("Комфорт\n+50 ₽"));
-        Assert.assertTrue(text.contains("Комфорт+\n+50 ₽"));
+        Assert.assertTrue(text.contains("Эконом\n+260"));
+        Assert.assertTrue(text.contains("Комфорт\n+50"));
+        Assert.assertTrue(text.contains("Комфорт+\n+50"));
         Assert.assertFalse(text.contains("расчёт"));
         Assert.assertFalse(text.contains("↻")); Assert.assertFalse(text.contains("↗"));
       });
       ScreenTest.capture("widget-minimal-013");
       scenario.onActivity(a -> {
+        int width=root().getWidth(),height=root().getHeight();
         find(root(), "Раскрыть меню виджета").performClick();
-        View close = find(root(), "Закрыть виджет");
+        Assert.assertEquals(width,root().getWidth());Assert.assertEquals(height,root().getHeight());
+        Assert.assertNotSame(root(),ReferenceDesignTest.menu(overlay));
+        View close = find(ReferenceDesignTest.menu(overlay), "Закрыть виджет");
         Assert.assertEquals("Закрыть виджет", close.getContentDescription());
         close.performClick();
         Assert.assertFalse(store.prefs.getBoolean("overlay", true));
