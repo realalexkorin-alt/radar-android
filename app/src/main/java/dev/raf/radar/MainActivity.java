@@ -55,7 +55,7 @@ public final class MainActivity extends Activity {
     ImageView image=RadarUi.icon(this,icon,fg,24);FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER);frame.addView(image,params);
     frame.setContentDescription(description);frame.setFocusable(true);frame.setOnClickListener(v->action.run());return frame;
   }
-  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",0));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
+  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
 
   void build(Bundle saved){
     dark=store.prefs.getBoolean("dark",true);fg=dark?0xFFF5F5F7:0xFF15171B;bg=dark?RadarUi.BACKGROUND:0xFFF2F3F5;
@@ -165,7 +165,7 @@ public final class MainActivity extends Activity {
   Icon pointIcon(Point p){
     Store.Reading reading=displayReading(p);String value=RadarUi.value(reading);int color=reading==null?RadarUi.YELLOW:RadarUi.tariffColor(reading.tariff);
     if(!p.enabled||(reading!=null&&!reading.fresh()))color=0xFF747983;
-    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextSize(dp(15));
+    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(15));
     int width=p.dynamic?dp(48):Math.max(dp(50),Math.round(paint.measureText(value))+dp(24));Bitmap bitmap=Bitmap.createBitmap(width,dp(52),Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);
     if(p.dynamic){paint.setColor(0x443D4E8A);c.drawCircle(width/2f,dp(26),dp(23),paint);paint.setColor(Color.WHITE);Path path=new Path();path.moveTo(width/2f,dp(8));path.lineTo(width/2f+dp(13),dp(39));path.lineTo(width/2f,dp(33));path.lineTo(width/2f-dp(13),dp(39));path.close();c.drawPath(path,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(0xFF42464E);c.drawPath(path,paint);
     }else{paint.setColor((color&0x00FFFFFF)|0x33000000);c.drawRoundRect(0,dp(2),width,dp(49),dp(16),dp(16),paint);paint.setColor(color);c.drawRoundRect(dp(4),dp(8),width-dp(4),dp(42),dp(11),dp(11),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);c.drawText(value,width/2f,dp(30),paint);}
