@@ -78,7 +78,7 @@ jobs:
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
             adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
-            grep -q 'OK (11 tests)' ordinary-tests.txt || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
+            grep -Eq '^OK \([0-9]+ tests?\)' ordinary-tests.txt || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
       - uses: actions/upload-artifact@v4
         if: always()

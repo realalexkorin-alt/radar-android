@@ -135,6 +135,10 @@ public final class MonitorService extends Service implements LocationListener {
           return;
         }
       }
+      Point current = null;
+      for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
+      if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
+      p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
       failures = 0;

@@ -15,7 +15,7 @@ final class Overlay {
   private LinearLayout root;
   private WindowManager.LayoutParams lp;
   private String lastAppearance = "";
-  private boolean touching;
+  private boolean touching, expanded;
   Overlay(Context c, Store s) {
     this.c = c; this.s = s;
     wm = (WindowManager) c.getSystemService(Context.WINDOW_SERVICE);
@@ -30,7 +30,8 @@ final class Overlay {
     if (!s.prefs.getBoolean("overlay", false) || !Settings.canDrawOverlays(c)) { close(); return; }
     if (touching) return;
     String appearance = s.prefs.getBoolean("dark", true) + ":" + s.prefs.getInt("scale", 100)
-        + ":" + s.prefs.getInt("textScale", 100) + ":" + s.prefs.getInt("opacity", 90);
+        + ":" + s.prefs.getInt("textScale", 100) + ":" + s.prefs.getInt("opacity", 90)
+        + ":" + s.prefs.getBoolean("showTariff", true);
     if (!appearance.equals(lastAppearance)) { close(); lastAppearance = appearance; }
     if (root == null) {
       root = new LinearLayout(c); root.setOrientation(LinearLayout.VERTICAL);
@@ -56,28 +57,32 @@ final class Overlay {
     root.setPadding(dp(12), dp(4), dp(8), dp(10));
     float scale = s.prefs.getInt("scale", 100) / 100f;
     float textScale = s.prefs.getInt("textScale", 100) / 100f;
-    int maxWidth = c.getResources().getDisplayMetrics().widthPixels - dp(48);
+    int maxWidth = Math.max(dp(80), c.getResources().getDisplayMetrics().widthPixels - dp(72));
     String id = s.prefs.getString("overlayPoint", "me");
     Point p = null;
     for (Point q : s.points()) if (q.id.equals(id)) p = q;
     if (p == null) p = s.points().get(0);
-    LinearLayout header = new LinearLayout(c); header.setGravity(Gravity.CENTER_VERTICAL);
-    TextView title = label(p.name, 12 * scale * textScale, fg, dark);
-    title.setMaxWidth(Math.max(dp(40), maxWidth - dp(40))); header.addView(title);
-    header.addView(new Space(c), new LinearLayout.LayoutParams(0, 1, 1));
-    TextView close = label("×", 20 * scale, fg, dark); close.setGravity(Gravity.CENTER);
-    close.setContentDescription("Закрыть виджет");
-    close.setOnClickListener(v -> { s.prefs.edit().putBoolean("overlay", false).apply(); close(); });
-    header.addView(close, new LinearLayout.LayoutParams(dp(36), dp(36)));
-    root.addView(header);
+    LinearLayout content = new LinearLayout(c);
+    content.setGravity(Gravity.CENTER_VERTICAL);
+    root.addView(content);
+    LinearLayout values = new LinearLayout(c);
+    values.setOrientation(LinearLayout.VERTICAL);
+    content.addView(values);
+    TextView expand = label(expanded ? "▴" : "▾", 18, fg, dark);
+    expand.setGravity(Gravity.CENTER);
+    expand.setContentDescription(expanded ? "Свернуть меню виджета" : "Раскрыть меню виджета");
+    expand.setOnClickListener(v -> { expanded = !expanded; refresh(); });
+    content.addView(expand, new LinearLayout.LayoutParams(dp(40), dp(48)));
     List<Store.Reading> readings = s.readings(p.id);
-    LinearLayout row = new LinearLayout(c); root.addView(row);
+    LinearLayout row = new LinearLayout(c); values.addView(row);
     int rowWidth = 0;
     for (String tariff : p.tariffs) {
       Store.Reading reading = null;
       for (Store.Reading r : readings) if (r.tariff.equals(tariff)) reading = r;
-      TextView cell = label(Point.label(tariff) + "\n" + (reading == null ? "—" : reading.value()),
-          20 * scale * textScale, fg, dark);
+      TextView cell = label((s.prefs.getBoolean("showTariff", true) ? Point.label(tariff) + "\n" : "")
+          + (reading == null ? "—" : reading.value()), 16 * scale * textScale, fg, dark);
+      cell.setGravity(Gravity.CENTER);
+      cell.setContentDescription(p.name + ": " + Point.label(tariff) + ", " + (reading == null ? "нет данных" : reading.value()));
       cell.setPadding(dp(5), 0, dp(9), 0);
       if (reading != null && !reading.fresh()) {
         cell.setAlpha(0.55f); cell.setContentDescription(Point.label(tariff) + ": данные устарели");
@@ -87,9 +92,24 @@ final class Overlay {
           View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
       int width = cell.getMeasuredWidth();
       if (rowWidth > 0 && rowWidth + width > maxWidth) {
-        row = new LinearLayout(c); root.addView(row); rowWidth = 0;
+        row = new LinearLayout(c); values.addView(row); rowWidth = 0;
       }
       row.addView(cell); rowWidth += width;
+    }
+    if (expanded) {
+      LinearLayout menu = new LinearLayout(c);
+      menu.setGravity(Gravity.CENTER);
+      TextView settings = label("⚙\nНастройки", 12, fg, dark);
+      settings.setGravity(Gravity.CENTER);
+      settings.setContentDescription("Настройки виджета");
+      settings.setOnClickListener(v -> open(true));
+      TextView closeButton = label("×\nЗакрыть", 12, fg, dark);
+      closeButton.setGravity(Gravity.CENTER);
+      closeButton.setContentDescription("Закрыть виджет");
+      closeButton.setOnClickListener(v -> { s.prefs.edit().putBoolean("overlay", false).apply(); close(); });
+      menu.addView(settings, new LinearLayout.LayoutParams(dp(88), dp(54)));
+      menu.addView(closeButton, new LinearLayout.LayoutParams(dp(88), dp(54)));
+      root.addView(menu);
     }
     root.post(() -> { if (root != null) position(lp.x, lp.y); });
   }

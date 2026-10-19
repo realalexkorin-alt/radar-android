@@ -5,6 +5,8 @@ import org.json.*;
 
 public final class Point {
   public String id, name;
+  public String address = "";
+  public boolean enabled = true;
   public double lat, lon;
   public boolean dynamic, notify = false;
   public int threshold = 200;
@@ -22,6 +24,8 @@ public final class Point {
     return new JSONObject()
         .put("id", id)
         .put("name", name)
+        .put("address", address)
+        .put("enabled", enabled)
         .put("lat", lat)
         .put("lon", lon)
         .put("dynamic", dynamic)
@@ -38,6 +42,8 @@ public final class Point {
             j.getDouble("lat"),
             j.getDouble("lon"),
             j.optBoolean("dynamic"));
+    p.address = j.optString("address", "");
+    p.enabled = j.optBoolean("enabled", true);
     p.notify = j.optBoolean("notify");
     p.threshold = j.optInt("threshold", 200);
     p.tariffs.clear();

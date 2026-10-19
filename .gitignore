@@ -5,3 +5,7 @@ local.properties
 *.keystore
 .env
 captures/
+
+*.p12
+*.pfx
+password.txt

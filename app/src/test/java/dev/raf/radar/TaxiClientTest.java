@@ -43,11 +43,15 @@ public class TaxiClientTest {
   public void pointRoundTrip() throws Exception {
     Point p = new Point("me", "Моя геопозиция", 0, 0, true);
     p.notify = true;
+    p.enabled = false;
+    p.address = "Тестовый адрес";
     p.threshold = 250;
     p.tariffs = Arrays.asList("econom");
     Point q = Point.from(p.json());
     assertTrue(q.dynamic);
     assertTrue(q.notify);
+    assertFalse(q.enabled);
+    assertEquals(p.address, q.address);
     assertEquals(250, q.threshold);
     assertEquals(p.tariffs, q.tariffs);
   }
