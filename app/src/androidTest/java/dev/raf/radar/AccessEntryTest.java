@@ -67,8 +67,16 @@ public class AccessEntryTest {
       Assert.assertFalse(Access.monitorReady(c)); Assert.assertFalse(MonitorService.running);
       onView(withText("Позже")).perform(click());
       scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
-      scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
-      button("permission_allow_foreground_only_button").performAction(AccessibilityNodeInfo.ACTION_CLICK);
+      // Android 15 can pause the activity for the runtime prompt before
+      // ActivityScenario observes RESUMED. Answer that prompt while the
+      // lifecycle transition is pending instead of deadlocking the test.
+      java.util.concurrent.ExecutorService lifecycle = java.util.concurrent.Executors.newSingleThreadExecutor();
+      try {
+        java.util.concurrent.Future<?> returning = lifecycle.submit(
+            () -> scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED));
+        button("permission_allow_foreground_only_button").performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        returning.get(15, java.util.concurrent.TimeUnit.SECONDS);
+      } finally { lifecycle.shutdownNow(); }
       waitForAppDialog();
       onView(withText("Разрешения для Радара")).check(matches(isDisplayed()));
       Assert.assertTrue(Access.location(c));
