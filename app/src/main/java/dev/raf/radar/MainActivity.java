@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
       new Runnable() {
         public void run() {
           if (resumed) {
+            store.prefs.edit().putLong("viewingUntil", System.currentTimeMillis() + 15000).apply();
             refreshCards();
             handler.postDelayed(this, 5000);
           }
@@ -50,6 +51,21 @@ public final class MainActivity extends Activity {
     selected = getIntent().getStringExtra("point");
     if (selected == null) selected = "me";
     build(b);
+    openRequestedSettings(getIntent());
+  }
+
+  @Override
+  protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    openRequestedSettings(intent);
+  }
+
+  private void openRequestedSettings(Intent intent) {
+    if (intent.getBooleanExtra("widgetSettings", false)) {
+      intent.removeExtra("widgetSettings");
+      handler.post(() -> { if (!isFinishing()) settings(); });
+    }
   }
 
   int dp(float v) {
@@ -604,12 +620,6 @@ public final class MainActivity extends Activity {
         10,
         v -> store.prefs.edit().putInt("textScale", v).apply(),
         "%");
-    Switch lock = new Switch(this);
-    lock.setText("Зафиксировать виджет");
-    lock.setTextColor(fg);
-    lock.setChecked(store.prefs.getBoolean("locked", false));
-    lock.setOnCheckedChangeListener((b, v) -> store.prefs.edit().putBoolean("locked", v).apply());
-    f.addView(lock);
     slider(
         f,
         "Интервал каждой точки",
@@ -621,8 +631,8 @@ public final class MainActivity extends Activity {
         " с");
     f.addView(
         text(
-            "Общая очередь: не чаще одного запроса за 15 с. Для 30 точек полный круг займёт не"
-                + " менее 7,5 минут.",
+            "Моя геопозиция — первой. Остальные точки обновляются при открытой карте,"
+                + " в виджете или с включёнными уведомлениями. Не чаще одного запроса за 15 с.",
             12,
             muted));
     f.addView(
@@ -688,12 +698,15 @@ public final class MainActivity extends Activity {
     super.onResume();
     mapView.onResume();
     resumed = true;
+    store.prefs.edit().putLong("viewingUntil", System.currentTimeMillis() + 15000).apply();
+    sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
     handler.post(refreshLoop);
   }
 
   @Override
   protected void onPause() {
     resumed = false;
+    store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);
     mapView.onPause();
     super.onPause();

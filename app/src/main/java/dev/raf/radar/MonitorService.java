@@ -23,7 +23,8 @@ public final class MonitorService extends Service implements LocationListener {
           if (queue != null)
             queue.execute(
                 () -> {
-                  planner.refresh();
+                  if ("dev.raf.radar.VIEWING".equals(i.getAction())) planner.expedite("me");
+                  else planner.refresh();
                   tick();
                 });
         }
@@ -56,10 +57,12 @@ public final class MonitorService extends Service implements LocationListener {
             .build();
     startForeground(1, n);
     running = true;
+    IntentFilter requests = new IntentFilter("dev.raf.radar.MANUAL");
+    requests.addAction("dev.raf.radar.VIEWING");
     androidx.core.content.ContextCompat.registerReceiver(
         this,
         manual,
-        new IntentFilter("dev.raf.radar.MANUAL"),
+        requests,
         androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     locations = (LocationManager) getSystemService(LOCATION_SERVICE);
     if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -93,8 +96,11 @@ public final class MonitorService extends Service implements LocationListener {
       long now = System.currentTimeMillis();
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();
+      boolean browsing = store.prefs.getLong("viewingUntil", 0) > now;
+      String widgetPoint = store.prefs.getBoolean("overlay", false)
+          ? store.prefs.getString("overlayPoint", "me") : "";
       for (Point q : a) {
-        if (q.tariffs.isEmpty()) continue;
+        if (!PollPlanner.needed(q, browsing, widgetPoint)) continue;
         if (q.dynamic) {
           long age = now - store.prefs.getLong("gpsAt", 0);
           if (age < 0 || age > 120000) continue;
@@ -103,7 +109,7 @@ public final class MonitorService extends Service implements LocationListener {
         }
         eligible.add(q.id);
       }
-      String id = planner.next(eligible, now, store.prefs.getInt("interval", 120) * 1000L);
+      String id = planner.next(eligible, now, store.prefs.getInt("interval", 120) * 1000L, "me");
       if (id == null) return;
       Point p = null;
       for (Point q : a)

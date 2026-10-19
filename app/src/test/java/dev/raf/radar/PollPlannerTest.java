@@ -6,6 +6,32 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+  @Test public void dynamicFirstEvenWhenCursorIsOnSavedPoint() {
+    PollPlanner p = new PollPlanner();
+    List<String> ids = Arrays.asList("saved", "me");
+    assertEquals("me", p.next(ids, 100000, 30000, "me"));
+    assertEquals("saved", p.next(ids, 115000, 30000, "me"));
+    assertEquals("me", p.next(ids, 130000, 30000, "me"));
+  }
+  @Test public void priorityDoesNotBypassBudgetOrBackoff() {
+    PollPlanner p = new PollPlanner(); List<String> ids = Arrays.asList("saved", "me");
+    p.next(ids, 100000, 120000, "me"); p.expedite("me");
+    assertNull(p.next(ids, 100001, 120000, "me"));
+    p.backoff(100000, 900000); p.expedite("me");
+    assertNull(p.next(ids, 999999, 120000, "me"));
+  }
+  @Test public void savedPointsOnlyWhenNeeded() {
+    Point saved = new Point("saved", "saved", 55, 61, false);
+    assertFalse(PollPlanner.needed(saved, false, ""));
+    assertTrue(PollPlanner.needed(saved, true, ""));
+    assertTrue(PollPlanner.needed(saved, false, "saved"));
+    assertFalse(PollPlanner.needed(saved, false, "other"));
+    saved.notify = true; assertTrue(PollPlanner.needed(saved, false, ""));
+    saved.tariffs.clear(); assertFalse(PollPlanner.needed(saved, true, "saved"));
+  }
+  @Test public void dynamicAlwaysNeeded() {
+    assertTrue(PollPlanner.needed(new Point("me", "me", 0, 0, true), false, ""));
+  }
   @Test
   public void thirtyPointsFairAndSpaced() {
     PollPlanner p = new PollPlanner();
