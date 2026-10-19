@@ -553,7 +553,7 @@ public final class MainActivity extends Activity {
     opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
     settingsDivider(widget);sizeSlider(widget,"Размер текста","textScale",60,160);
     settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
-    settingAction(widget,"Тарифы виджета",()->{String id=store.prefs.getString("overlayPoint","me");for(Point p:store.points())if(p.id.equals(id)){editDetails(p);return;}});
+    settingAction(widget,"Тарифы виджета",()->{String id=store.prefs.getString("overlayPoint","me");List<Point> points=store.points();editDetails(points.stream().filter(p->p.id.equals(id)).findFirst().orElse(points.get(0)));});
     LinearLayout tariffs=group(body,"Тарифы на карте");TextView caption=text("Все выбранные тарифы отображаются на каждой точке.\nТарифы виджета и уведомлений задаются в настройках точки.",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
     for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),mapTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф на карте: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
       Set<String> selected=new LinkedHashSet<>(mapTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);

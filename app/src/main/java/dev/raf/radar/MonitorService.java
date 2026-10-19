@@ -15,6 +15,7 @@ public final class MonitorService extends Service implements LocationListener {
   private ScheduledExecutorService queue;
   private LocationManager locations;
   private Overlay overlay;
+  private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
     if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay","points","overlayPoint").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
@@ -22,7 +23,6 @@ public final class MonitorService extends Service implements LocationListener {
       queue.execute(()->{planner.refresh();tick();});
   };
   private int failures = 0;
-  private final PollPlanner planner = new PollPlanner();
   private final BroadcastReceiver manual =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
