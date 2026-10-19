@@ -19,6 +19,8 @@ import org.maplibre.android.maps.*;
 
 public final class MainActivity extends Activity {
   Store store; Access access;
+  final StartupSound startupSound = new StartupSound();
+  boolean startupSoundPending;
   boolean startAfterAccess, resumed, dark;
   int fg,bg,surface,muted,currentTab;
   LinearLayout root,cards,mapPanel,pointsPanel,settingsPanel,navigation;
@@ -36,6 +38,7 @@ public final class MainActivity extends Activity {
   @Override public void onCreate(Bundle saved) {
     setTheme(getSharedPreferences("radar",MODE_PRIVATE).getBoolean("dark",true)?R.style.AppThemeDark:R.style.AppTheme);
     super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
+    startupSoundPending = saved == null;
     currentTab=saved==null?0:saved.getInt("tab",0);
     String id=getIntent().getStringExtra("point");if(id!=null)selected=id;
     build(saved);openRequestedSettings(getIntent());
@@ -551,7 +554,7 @@ public final class MainActivity extends Activity {
     switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false),0,enabled->{if(enabled&&!Settings.canDrawOverlays(this)){access.request();return;}store.prefs.edit().putBoolean("overlay",enabled).putString("overlayPoint",selected).apply();if(enabled)startMonitor();});
     settingAction(work,"Интервал обновления",()->numberDialog("Интервал каждой точки","interval",30,600,30," с"));
     settingAction(work,"Разрешения приложения",()->access.request());
-    LinearLayout more=group(body,"Дополнительно");switchRow(more,"Тёмная тема",dark,0,value->store.prefs.edit().putBoolean("dark",value).apply());
+    LinearLayout more=group(body,"Дополнительно");switchRow(more,"Звук при запуске",store.prefs.getBoolean("startupSound",true),0,value->store.prefs.edit().putBoolean("startupSound",value).apply());switchRow(more,"Тёмная тема",dark,0,value->store.prefs.edit().putBoolean("dark",value).apply());
     settingAction(more,"Применить оформление",this::recreate);
     settingAction(more,"Вход через Яндекс",()->startActivity(new Intent(this,LoginActivity.class)));
     settingAction(more,"Удалить сессию Яндекса",()->{android.webkit.CookieManager.getInstance().removeAllCookies(done->toast("Сессия удалена"));android.webkit.WebStorage.getInstance().deleteAllData();});
@@ -607,6 +610,10 @@ public final class MainActivity extends Activity {
     super.onResume();
     mapView.onResume();
     resumed = true;
+    if (startupSoundPending) {
+      startupSoundPending = false;
+      startupSound.play(this, store.prefs.getBoolean("startupSound", true));
+    }
     updateViewing();
     sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
     handler.post(refreshLoop);
@@ -624,6 +631,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onStop() {
+    startupSound.stop();
     access.onStop();
     mapView.onStop();
     super.onStop();
@@ -631,6 +639,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    startupSound.stop();
     Updates.detach(this);
     if (access != null) access.close();
     handler.removeCallbacksAndMessages(null);
