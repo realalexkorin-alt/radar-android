@@ -55,6 +55,8 @@ public final class MainActivity extends Activity {
     if (selected == null) selected = "me";
     build(b);
     openRequestedSettings(getIntent());
+    // Check once per process launch; returning from the package installer must not reopen the prompt.
+    if (b == null) handler.postDelayed(() -> Updates.checkAutomatic(this, store), 1200);
   }
 
   @Override

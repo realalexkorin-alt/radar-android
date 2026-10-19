@@ -16,16 +16,19 @@ final class Updates {
   private static volatile boolean busy;
   private static final Map<Activity, Dialog> progressDialogs = new WeakHashMap<>();
   private static boolean alive(Activity a) { return !a.isFinishing() && !a.isDestroyed(); }
-  static void check(Activity a, Store store) {
-    if (resume(a, true)) return;
-    if (busy) { show(a, "Проверка или загрузка уже выполняется"); return; }
+  static void check(Activity a, Store store) { check(a, false); }
+  static void checkAutomatic(Activity a, Store store) { check(a, true); }
+  private static void check(Activity a, boolean silent) {
+    // Background checks never interrupt a pending install or an active download.
+    if (resume(a, !silent)) return;
+    if (busy) { if (!silent) show(a, "Проверка или загрузка уже выполняется"); return; }
     busy = true;
-    show(a, "Проверяем обновления Радара…");
+    if (!silent) show(a, "Проверяем обновления Радара…");
     new Thread(() -> {
       try {
         JSONObject release = new JSONObject(read(UpdateCatalog.LATEST));
         if (!UpdateCatalog.newer(release.getString("tag_name"), BuildConfig.VERSION_NAME)) {
-          show(a, "Установлена последняя версия Радара"); return;
+          if (!silent) show(a, "Установлена последняя версия Радара"); return;
         }
         JSONObject asset = UpdateCatalog.apk(release);
         a.runOnUiThread(() -> {
@@ -35,7 +38,7 @@ final class Updates {
               .setPositiveButton("Загрузить", (d, w) -> download(a, asset))
               .setNegativeButton("Позже", null).show();
         });
-      } catch (Exception e) { show(a, "Обновление недоступно: " + e.getMessage()); }
+      } catch (Exception e) { if (!silent) show(a, "Обновление недоступно: " + e.getMessage()); }
       finally { busy = false; }
     }, "radar-updates").start();
   }
