@@ -16,7 +16,7 @@ public class UpdateArchiveTest {
     File f = new File(c.getCacheDir(), "updates/radar.apk");
     f.getParentFile().mkdirs();
     HttpURLConnection connection = (HttpURLConnection) new URL(
-        "https://github.com/realalexkorin-alt/radar-android/releases/download/v0.1.4-alpha/radar.apk").openConnection();
+        "https://github.com/realalexkorin-alt/radar-android/releases/download/v0.1.5-alpha/radar.apk").openConnection();
     connection.setConnectTimeout(30000); connection.setReadTimeout(60000);
     try {
       assertEquals(200, connection.getResponseCode());
@@ -31,10 +31,10 @@ public class UpdateArchiveTest {
     }
     StringBuilder hex = new StringBuilder();
     for (byte b : md.digest()) hex.append(String.format(java.util.Locale.US, "%02x", b));
-    assertEquals("6032ecbf68dbafe5663987a962605ae6006b7d589d383fa90c72353bc65a3a4f", hex.toString());
+    assertEquals("832c9e1caeecdb97fd62d76afd5ecba3a86ab53b4d199facf110c62b6704fafa", hex.toString());
     PackageInfo candidate = c.getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
     // Distinguish an incomplete download from a PackageManager/archive parser failure.
-    assertEquals("Downloaded bytes differ from the published asset", 50023927L, f.length());
+    assertEquals("Downloaded bytes differ from the published asset", 50023734L, f.length());
     try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(f)) {
       assertNotNull("Missing AndroidManifest.xml in published APK", zip.getEntry("AndroidManifest.xml"));
       assertNotNull("Missing classes.dex in published APK", zip.getEntry("classes.dex"));
@@ -43,7 +43,7 @@ public class UpdateArchiveTest {
         + " cannot parse the real published APK from " + f.getAbsolutePath()
         + " (SHA-256 verified). Check artifact signature and Android package parser logs.", candidate);
     assertEquals("dev.raf.radar", candidate.packageName);
-    assertEquals(5, candidate.getLongVersionCode());
+    assertEquals(6, candidate.getLongVersionCode());
     assertNotNull(candidate.signingInfo);
     f.delete();
   }

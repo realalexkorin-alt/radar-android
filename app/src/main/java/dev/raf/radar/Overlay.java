@@ -30,7 +30,7 @@ final class Overlay {
     if (!s.prefs.getBoolean("overlay", false) || !Settings.canDrawOverlays(c)) { close(); return; }
     if (touching) return;
     String appearance = s.prefs.getBoolean("dark", true) + ":" + s.prefs.getInt("scale", 100)
-        + ":" + s.prefs.getInt("textScale", 100) + ":" + s.prefs.getInt("opacity", 90)
+        + ":" + s.prefs.getInt("textScale", 100) + ":" + s.prefs.getInt("opacity", 70)
         + ":" + s.prefs.getBoolean("showTariff", true);
     if (!appearance.equals(lastAppearance)) { close(); lastAppearance = appearance; }
     if (root == null) {
@@ -49,73 +49,53 @@ final class Overlay {
     }
     root.removeAllViews();
     boolean dark = s.prefs.getBoolean("dark", true);
-    int fg = dark ? Color.WHITE : Color.rgb(25, 27, 30);
-    int alpha = s.prefs.getInt("opacity", 90) * 255 / 100;
-    GradientDrawable bg = new GradientDrawable();
-    bg.setColor(Color.argb(alpha, dark ? 25 : 255, dark ? 28 : 255, dark ? 33 : 255));
-    bg.setCornerRadius(dp(18)); root.setBackground(bg);
-    root.setPadding(dp(12), dp(4), dp(8), dp(10));
-    float scale = s.prefs.getInt("scale", 100) / 100f;
-    float textScale = s.prefs.getInt("textScale", 100) / 100f;
-    int maxWidth = Math.max(dp(80), c.getResources().getDisplayMetrics().widthPixels - dp(72));
-    String id = s.prefs.getString("overlayPoint", "me");
-    Point p = null;
-    for (Point q : s.points()) if (q.id.equals(id)) p = q;
-    if (p == null) p = s.points().get(0);
-    LinearLayout content = new LinearLayout(c);
-    content.setGravity(Gravity.CENTER_VERTICAL);
-    root.addView(content);
-    LinearLayout values = new LinearLayout(c);
-    values.setOrientation(LinearLayout.VERTICAL);
-    content.addView(values);
-    TextView expand = label(expanded ? "▴" : "▾", 18, fg, dark);
-    expand.setGravity(Gravity.CENTER);
-    expand.setContentDescription(expanded ? "Свернуть меню виджета" : "Раскрыть меню виджета");
-    expand.setOnClickListener(v -> { expanded = !expanded; refresh(); });
-    content.addView(expand, new LinearLayout.LayoutParams(dp(40), dp(48)));
-    List<Store.Reading> readings = s.readings(p.id);
-    LinearLayout row = new LinearLayout(c); values.addView(row);
-    int rowWidth = 0;
-    for (String tariff : p.tariffs) {
-      Store.Reading reading = null;
-      for (Store.Reading r : readings) if (r.tariff.equals(tariff)) reading = r;
-      TextView cell = label((s.prefs.getBoolean("showTariff", true) ? Point.label(tariff) + "\n" : "")
-          + (reading == null ? "—" : reading.value()), 16 * scale * textScale, fg, dark);
-      cell.setGravity(Gravity.CENTER);
-      cell.setContentDescription(p.name + ": " + Point.label(tariff) + ", " + (reading == null ? "нет данных" : reading.value()));
-      cell.setPadding(dp(5), 0, dp(9), 0);
-      if (reading != null && !reading.fresh()) {
-        cell.setAlpha(0.55f); cell.setContentDescription(Point.label(tariff) + ": данные устарели");
-      }
-      cell.setMaxWidth(maxWidth);
-      cell.measure(View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
-          View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-      int width = cell.getMeasuredWidth();
-      if (rowWidth > 0 && rowWidth + width > maxWidth) {
-        row = new LinearLayout(c); values.addView(row); rowWidth = 0;
-      }
-      row.addView(cell); rowWidth += width;
+    int fg = dark ? Color.WHITE : 0xFF191B20;
+    int alpha = s.prefs.getInt("opacity", 70) * 255 / 100;
+    GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+        new int[]{Color.argb(alpha, dark?28:255,dark?28:255,dark?20:250),Color.argb(alpha,dark?12:255,dark?13:255,dark?15:255)});
+    background.setCornerRadius(dp(22)); background.setStroke(dp(2), RadarUi.YELLOW);
+    root.setBackground(background); root.setPadding(dp(14),dp(12),dp(10),dp(12));
+    root.setElevation(dp(12)); root.setOutlineAmbientShadowColor(0x99FFD500); root.setOutlineSpotShadowColor(0x99FFD500);
+    float scale=s.prefs.getInt("scale",100)/100f, textScale=s.prefs.getInt("textScale",100)/100f;
+    int available=Math.max(dp(100),c.getResources().getDisplayMetrics().widthPixels-dp(92));
+    String id=s.prefs.getString("overlayPoint","me"); Point point=null;
+    for(Point candidate:s.points())if(candidate.id.equals(id))point=candidate;
+    if(point==null)point=s.points().get(0);
+    LinearLayout body=new LinearLayout(c);body.setGravity(Gravity.CENTER_VERTICAL);root.addView(body);
+    LinearLayout rows=new LinearLayout(c);rows.setOrientation(LinearLayout.VERTICAL);body.addView(rows);
+    LinearLayout row=new LinearLayout(c);rows.addView(row);int rowWidth=0;
+    java.util.List<Store.Reading> readings=s.readings(point.id);
+    for(String tariff:point.tariffs){
+      Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
+      String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"\n":"";
+      String value=RadarUi.value(reading);
+      android.text.SpannableString content=new android.text.SpannableString(name+value);
+      content.setSpan(new android.text.style.AbsoluteSizeSpan(Math.round(30*scale*textScale),true),name.length(),content.length(),0);
+      content.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),name.length(),content.length(),0);
+      TextView cell=RadarUi.text(c,"",16*scale*textScale,fg,false);cell.setText(content);cell.setLineSpacing(dp(3),1);
+      cell.setPadding(dp(4),0,dp(10),0);cell.setMinWidth(dp(point.tariffs.size()==1?100*scale:66*scale));cell.setMaxWidth(available);
+      cell.setContentDescription(point.name+": "+Point.label(tariff)+", "+value);
+      if(reading!=null&&!reading.fresh()){cell.setAlpha(.5f);cell.setContentDescription(Point.label(tariff)+": данные устарели");}
+      cell.measure(View.MeasureSpec.makeMeasureSpec(available,View.MeasureSpec.AT_MOST),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
+      int width=cell.getMeasuredWidth();if(rowWidth>0&&rowWidth+width>available){row=new LinearLayout(c);rows.addView(row);rowWidth=0;}
+      row.addView(cell);rowWidth+=width;
     }
-    if (expanded) {
-      LinearLayout menu = new LinearLayout(c);
-      menu.setGravity(Gravity.CENTER);
-      TextView settings = label("⚙\nНастройки", 12, fg, dark);
-      settings.setGravity(Gravity.CENTER);
-      settings.setContentDescription("Настройки виджета");
-      settings.setOnClickListener(v -> open(true));
-      TextView closeButton = label("×\nЗакрыть", 12, fg, dark);
-      closeButton.setGravity(Gravity.CENTER);
-      closeButton.setContentDescription("Закрыть виджет");
-      closeButton.setOnClickListener(v -> { s.prefs.edit().putBoolean("overlay", false).apply(); close(); });
-      menu.addView(settings, new LinearLayout.LayoutParams(dp(88), dp(54)));
-      menu.addView(closeButton, new LinearLayout.LayoutParams(dp(88), dp(54)));
-      root.addView(menu);
+    FrameLayout expand=new FrameLayout(c);expand.setContentDescription(expanded?"Свернуть меню виджета":"Раскрыть меню виджета");
+    ImageView arrow=RadarUi.icon(c,expanded?"down":"right",fg,24);expand.addView(arrow,new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER));
+    expand.setOnClickListener(v->{expanded=!expanded;refresh();});body.addView(expand,new LinearLayout.LayoutParams(dp(36),dp(52)));
+    if(expanded){
+      LinearLayout menu=new LinearLayout(c);menu.setGravity(Gravity.CENTER);menu.setBackground(RadarUi.shape(c,dark?0xFF27292D:0xFFE5E6E8,16,0xFF3A3C40));
+      LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(68));mp.topMargin=dp(12);root.addView(menu,mp);
+      LinearLayout settings=menuAction("settings","Настройки","Настройки виджета",fg,()->open(true));
+      LinearLayout close=menuAction("close","Закрыть","Закрыть виджет",fg,()->{s.prefs.edit().putBoolean("overlay",false).apply();close();});
+      menu.addView(settings,new LinearLayout.LayoutParams(0,-1,1));View divider=new View(c);divider.setBackgroundColor(0xFF414349);menu.addView(divider,new LinearLayout.LayoutParams(dp(1),dp(44)));menu.addView(close,new LinearLayout.LayoutParams(0,-1,1));
+      menu.setMinimumWidth(dp(176));
     }
-    root.post(() -> { if (root != null) position(lp.x, lp.y); });
+    root.post(()->{if(root!=null)position(lp.x,lp.y);});
   }
-  private TextView label(String text, float size, int color, boolean dark) {
-    TextView v = new TextView(c); v.setText(text); v.setTextSize(size); v.setTextColor(color);
-    v.setShadowLayer(dp(1.5f), 0, dp(1), dark ? Color.BLACK : Color.WHITE); return v;
+  private LinearLayout menuAction(String icon,String title,String description,int color,Runnable action){
+    LinearLayout cell=new LinearLayout(c);cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(Gravity.CENTER);cell.setContentDescription(description);
+    cell.addView(RadarUi.icon(c,icon,color,23));TextView text=RadarUi.text(c,title,12,color,false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);p.topMargin=dp(6);cell.addView(text,p);cell.setOnClickListener(v->action.run());return cell;
   }
   private void position(int x, int y) {
     if (root == null) return;

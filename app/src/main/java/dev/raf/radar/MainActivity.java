@@ -1,13 +1,11 @@
 package dev.raf.radar;
 
-import android.Manifest;
 import android.app.*;
 import android.content.*;
-import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.content.res.ColorStateList;
+import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Geocoder;
-import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
 import android.view.*;
@@ -20,412 +18,176 @@ import org.maplibre.android.geometry.LatLng;
 import org.maplibre.android.maps.*;
 
 public final class MainActivity extends Activity {
-  Store store;
-  Access access;
-  boolean startAfterAccess;
-  LinearLayout root, cards, mapPanel, pointsPanel, settingsPanel, navigation;
-  FrameLayout pages;
-  int currentTab = 0;
-  static final String[] TARIFF_IDS = {"econom", "business", "comfortplus", "vip", "child_tariff", "minivan"};
-  MapView mapView;
-  MapLibreMap map;
+  Store store; Access access;
+  boolean startAfterAccess, resumed, dark;
+  int fg,bg,surface,muted,currentTab;
+  LinearLayout root,cards,mapPanel,pointsPanel,settingsPanel,navigation;
+  FrameLayout pages,mapFrame;
+  MapView mapView; MapLibreMap map;
   TextView state;
-  Button monitorButton;
-  boolean dark;
-  int fg, bg, surface, muted;
-  Handler handler = new Handler();
-  String selected = "me";
-  boolean resumed = false;
-  final Map<Long, String> markerPoints = new HashMap<>();
-  final Runnable refreshLoop =
-      new Runnable() {
-        public void run() {
-          if (resumed) {
-            updateViewing();
-            refreshCards();
-            handler.postDelayed(this, 5000);
-          }
-        }
-      };
+  View pointSheet;
+  Point preview;
+  String selected="me";
+  Handler handler=new Handler();
+  static final String[] TARIFF_IDS={"econom","business","comfortplus","vip","child_tariff","minivan"};
+  final Map<Long,String> markerPoints=new HashMap<>();
+  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();refreshCards();handler.postDelayed(this,5000);}}};
 
-  @Override
-  public void onCreate(Bundle b) {
-    setTheme(getSharedPreferences("radar", MODE_PRIVATE).getBoolean("dark", true)
-        ? R.style.AppThemeDark : R.style.AppTheme);
-    super.onCreate(b);
-    MapLibre.getInstance(this);
-    store = new Store(this);
-    access = new Access(this, store);
-    selected = getIntent().getStringExtra("point");
-    if (selected == null) selected = "me";
-    currentTab = b == null ? 0 : b.getInt("tab", 0);
-    build(b);
-    openRequestedSettings(getIntent());
-    // Check once per process launch; returning from the package installer must not reopen the prompt.
-    if (b == null) handler.postDelayed(() -> Updates.checkAutomatic(this, store), 1200);
+  @Override public void onCreate(Bundle saved) {
+    setTheme(getSharedPreferences("radar",MODE_PRIVATE).getBoolean("dark",true)?R.style.AppThemeDark:R.style.AppTheme);
+    super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
+    currentTab=saved==null?0:saved.getInt("tab",0);
+    String id=getIntent().getStringExtra("point");if(id!=null)selected=id;
+    build(saved);openRequestedSettings(getIntent());
+    if(saved==null&&store.prefs.getBoolean("autoUpdate",true))handler.postDelayed(()->Updates.checkAutomatic(this,store),1200);
   }
-
-  @Override
-  protected void onNewIntent(Intent intent) {
-    super.onNewIntent(intent);
-    setIntent(intent);
-    openRequestedSettings(intent);
+  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);openRequestedSettings(intent);}
+  private void openRequestedSettings(Intent intent){if(intent.getBooleanExtra("widgetSettings",false)){intent.removeExtra("widgetSettings");handler.post(()->{if(!isFinishing())settings();});}}
+  int dp(float n){return RadarUi.dp(this,n);}
+  TextView text(String value,int size,int color){return RadarUi.text(this,value,size,color,false);}
+  GradientDrawable shape(int color,int radius){return RadarUi.shape(this,color,radius,0);}
+  LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
+  LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
+  void pad(View v,int horizontal,int vertical){v.setPadding(dp(horizontal),dp(vertical),dp(horizontal),dp(vertical));}
+  TextView heading(String value,int size){TextView t=RadarUi.text(this,value,size,fg,true);return t;}
+  View iconButton(String icon,String description,Runnable action){
+    FrameLayout frame=new FrameLayout(this);RadarUi.touch(frame,surface,15,dark?0xFF303238:0xFFE1E3E7);
+    ImageView image=RadarUi.icon(this,icon,fg,24);FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER);frame.addView(image,params);
+    frame.setContentDescription(description);frame.setFocusable(true);frame.setOnClickListener(v->action.run());return frame;
   }
+  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",0));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
 
-  private void openRequestedSettings(Intent intent) {
-    if (intent.getBooleanExtra("widgetSettings", false)) {
-      intent.removeExtra("widgetSettings");
-      handler.post(() -> { if (!isFinishing()) settings(); });
+  void build(Bundle saved){
+    dark=store.prefs.getBoolean("dark",true);fg=dark?0xFFF5F5F7:0xFF15171B;bg=dark?RadarUi.BACKGROUND:0xFFF2F3F5;
+    surface=dark?RadarUi.CARD:Color.WHITE;muted=dark?0xFF92969F:0xFF676D76;
+    getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
+    getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+    root=column();root.setBackgroundColor(bg);root.setFitsSystemWindows(true);setContentView(root);
+    pages=new FrameLayout(this);root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));
+    buildMap(saved);buildPoints();buildSettings();
+    View border=new View(this);border.setBackgroundColor(dark?0xFF25272C:0xFFDDDFE3);root.addView(border,new LinearLayout.LayoutParams(-1,dp(1)));
+    navigation=row();navigation.setBackgroundColor(bg);
+    String[] labels={"Карта","Точки","Настройки"},icons={"map","list","settings"};
+    for(int i=0;i<labels.length;i++){
+      final int tab=i;LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setContentDescription("Вкладка "+labels[i]);item.setFocusable(true);
+      item.addView(RadarUi.icon(this,icons[i],i==currentTab?RadarUi.YELLOW:muted,23));
+      TextView label=text(labels[i],10,i==currentTab?RadarUi.YELLOW:muted);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.topMargin=dp(5);item.addView(label,lp);
+      item.setOnClickListener(v->showTab(tab));navigation.addView(item,new LinearLayout.LayoutParams(0,dp(66),1));
     }
+    root.addView(navigation);showTab(currentTab);refreshCards();
   }
-
-  int dp(float v) {
-    return (int) (v * getResources().getDisplayMetrics().density);
-  }
-
-  TextView text(String t, int size, int color) {
-    TextView v = new TextView(this);
-    v.setText(t);
-    v.setTextSize(size);
-    v.setTextColor(color);
-    return v;
-  }
-
-  GradientDrawable shape(int c, int radius) {
-    GradientDrawable d = new GradientDrawable();
-    d.setColor(c);
-    d.setCornerRadius(dp(radius));
-    return d;
-  }
-
-  void build(Bundle b) {
-    dark = store.prefs.getBoolean("dark", true);
-    fg = Color.parseColor(dark ? "#F5F5F6" : "#1B1D21");
-    bg = Color.parseColor(dark ? "#101216" : "#F2F3F5");
-    surface = Color.parseColor(dark ? "#202329" : "#FFFFFF");
-    muted = Color.parseColor(dark ? "#A1A6AF" : "#646B75");
-    getWindow().setStatusBarColor(bg);
-    getWindow().setNavigationBarColor(bg);
-    getWindow()
-        .getDecorView()
-        .setSystemUiVisibility(dark ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-    root = new LinearLayout(this);
-    root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackgroundColor(bg);
-    root.setPadding(0, dp(8), 0, 0);
-    root.setFitsSystemWindows(true);
-    setContentView(root);
-    LinearLayout top = new LinearLayout(this);
-    top.setGravity(Gravity.CENTER_VERTICAL);
-    top.setPadding(dp(18), 0, dp(12), 0);
-    TextView title = text("Радар Pro", 26, fg);
-    title.setTypeface(null, android.graphics.Typeface.BOLD);
-    top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-    top.addView(action("⚙", this::settings));
-    root.addView(top);
-    state = text("Надбавки и спрос рядом с вами", 12, muted);
-    state.setPadding(dp(18), dp(3), dp(18), dp(8));
-    root.addView(state);
-    pages = new FrameLayout(this);
-    root.addView(pages, new LinearLayout.LayoutParams(-1, 0, 1));
-    mapPanel = new LinearLayout(this);
-    mapPanel.setOrientation(LinearLayout.VERTICAL);
-    pages.addView(mapPanel, new FrameLayout.LayoutParams(-1, -1));
-    FrameLayout frame = new FrameLayout(this);
-    mapPanel.addView(frame, new LinearLayout.LayoutParams(-1, 0, 1));
-    mapView = new MapView(this);
-    mapView.onCreate(b);
-    frame.addView(mapView, new FrameLayout.LayoutParams(-1, -1));
-    TextView loading = text("Загрузка карты…", 14, fg);
-    loading.setGravity(Gravity.CENTER);
-    loading.setPadding(dp(12), dp(8), dp(12), dp(8));
-    loading.setBackground(shape(surface, 14));
-    FrameLayout.LayoutParams loadingParams = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
-    frame.addView(loading, loadingParams);
-    mapView.addOnDidFinishLoadingMapListener(() -> loading.setVisibility(View.GONE));
-    mapView.addOnDidFailLoadingMapListener(
-        error -> loading.setText("Карта недоступна · проверьте связь"));
-    TextView guidance = text("Удерживайте карту, чтобы добавить точку", 11, Color.BLACK);
-    guidance.setPadding(dp(10), dp(5), dp(10), dp(5));
-    guidance.setBackground(shape(0xE6F7CE46, 12));
-    FrameLayout.LayoutParams gl =
-        new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-    gl.topMargin = dp(10);
-    frame.addView(guidance, gl);
-    mapView.getMapAsync(
-        m -> {
-          map = m;
-          String style =
-              "{\"version\":8,\"sources\":{\"osm\":{\"type\":\"raster\",\"tiles\":[\"https://tile.openstreetmap.org/{z}/{x}/{y}.png\"],\"tileSize\":256,\"attribution\":\"©"
-                  + " OpenStreetMap"
-                  + " contributors\"}},\"layers\":[{\"id\":\"map\",\"type\":\"raster\",\"source\":\"osm\",\"paint\":{\"raster-brightness-max\":"
-                  + (dark ? "0.55" : "1")
-                  + ",\"raster-saturation\":"
-                  + (dark ? "-0.8" : "-0.15")
-                  + "}}]}";
-          m.setStyle(
-              new Style.Builder().fromJson(style),
-              s -> {
-                refreshMarkers();
-              });
-          m.getUiSettings().setCompassEnabled(true);
-          m.addOnMapLongClickListener(
-              pos -> {
-                edit(
-                    new Point(
-                        UUID.randomUUID().toString(),
-                        "Новая точка",
-                        pos.getLatitude(),
-                        pos.getLongitude(),
-                        false));
-                return true;
-              });
-          m.setOnMarkerClickListener(
-              marker -> {
-                for (Point p : store.points())
-                  if (p.id.equals(markerPoints.get(marker.getId()))) {
-                    selected = p.id;
-                    edit(p);
-                    break;
-                  }
-                return true;
-              });
-          double
-              lat =
-                  Double.longBitsToDouble(
-                      store.prefs.getLong("lat", Double.doubleToLongBits(56.8389))),
-              lon =
-                  Double.longBitsToDouble(
-                      store.prefs.getLong("lon", Double.doubleToLongBits(60.5975)));
-          m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat, lon), 12));
-        });
-    LinearLayout tools = new LinearLayout(this);
-    tools.addView(action("◎ Я", this::locate));
-    tools.addView(action("＋ Точка", this::addPoint));
-    tools.addView(
-        action(
-            "↻",
-            () -> {
-              if (!MonitorService.running) startMonitor();
-              else sendBroadcast(new Intent("dev.raf.radar.MANUAL").setPackage(getPackageName()));
-            }));
-    mapPanel.addView(tools);
-    ScrollView scroll = new ScrollView(this);
-    cards = new LinearLayout(this);
-    cards.setOrientation(LinearLayout.VERTICAL);
-    scroll.addView(cards);
-    pointsPanel = new LinearLayout(this);
-    pointsPanel.setOrientation(LinearLayout.VERTICAL);
-    pointsPanel.setPadding(dp(16), 0, dp(16), 0);
-    LinearLayout pointHeader = new LinearLayout(this);
-    TextView pointTitle = text("Мои точки", 24, fg);
-    pointTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-    pointHeader.addView(pointTitle, new LinearLayout.LayoutParams(0, dp(56), 1));
-    pointHeader.addView(action("＋ Добавить", this::addPoint));
-    pointsPanel.addView(pointHeader);
-    pointsPanel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-    pages.addView(pointsPanel, new FrameLayout.LayoutParams(-1, -1));
-    LinearLayout bottom = new LinearLayout(this);
-    Button start =
-        action(
-            MonitorService.running ? "Остановить" : "Начать мониторинг",
-            () -> {
-              if (MonitorService.running) {
-                stopService(new Intent(this, MonitorService.class));
-              } else startMonitor();
-              handler.postDelayed(
-                  () -> {
-                    if (!isFinishing()) recreate();
-                  },
-                  400);
-            });
-    monitorButton = start;
-    start.setBackground(shape(Color.rgb(247, 206, 70), 16));
-    start.setTextColor(Color.BLACK);
-    bottom.addView(start, new LinearLayout.LayoutParams(0, dp(50), 3));
-    Button widgetButton = action("Виджет", () -> {
-      if (!Settings.canDrawOverlays(this)) { access.request(); return; }
-      store.prefs.edit().putBoolean("overlay", !store.prefs.getBoolean("overlay", false))
-          .putString("overlayPoint", selected).apply();
-      startMonitor();
+  void buildMap(Bundle saved){
+    mapPanel=column();mapFrame=new FrameLayout(this);mapPanel.addView(mapFrame,new LinearLayout.LayoutParams(-1,-1));pages.addView(mapPanel,new FrameLayout.LayoutParams(-1,-1));
+    mapView=new MapView(this);mapView.onCreate(saved);mapFrame.addView(mapView,new FrameLayout.LayoutParams(-1,-1));
+    LinearLayout title=column();title.addView(heading("Радар Pro",24));
+    state=text("Мониторинг выключен · начать",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Управление мониторингом");state.setOnClickListener(v->toggleMonitor());title.addView(state);
+    FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
+    LinearLayout tools=column();String[] icons={"search","layers","locate"},names={"Поиск точки","Слои карты","Моя геопозиция"};Runnable[] actions={this::addPoint,this::mapLayers,this::locate};
+    for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
+    FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
+    TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);mapFrame.addView(loading,ll);
+    mapView.addOnDidFinishLoadingMapListener(()->loading.setVisibility(View.GONE));
+    mapView.addOnDidFailLoadingMapListener(e->{loading.setVisibility(View.VISIBLE);loading.setText("Карта недоступна · повторить");loading.setOnClickListener(v->applyMapStyle());});
+    mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
+      m.getUiSettings().setAttributionGravity(Gravity.BOTTOM|Gravity.END);m.getUiSettings().setLogoGravity(Gravity.BOTTOM|Gravity.START);
+      m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(mapTariffs());edit(p);return true;});
+      m.addOnMapClickListener(pos->{hidePreview();return false;});
+      m.setOnMarkerClickListener(marker->{for(Point p:store.points())if(p.id.equals(markerPoints.get(marker.getId()))){edit(p);break;}return true;});
+      double lat=Double.longBitsToDouble(store.prefs.getLong("lat",Double.doubleToLongBits(56.8389))),lon=Double.longBitsToDouble(store.prefs.getLong("lon",Double.doubleToLongBits(60.5975)));
+      m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat,lon),12.3));
     });
-    widgetButton.setPadding(dp(4), 0, dp(4), 0);
-    bottom.addView(widgetButton, new LinearLayout.LayoutParams(0, dp(50), 1));
-    mapPanel.addView(bottom);
-    settingsPanel = new LinearLayout(this);
-    settingsPanel.setOrientation(LinearLayout.VERTICAL);
-    ScrollView settingsScroll = new ScrollView(this);
-    settingsScroll.setFillViewport(true);
-    settingsScroll.addView(settingsContents());
-    settingsPanel.addView(settingsScroll, new LinearLayout.LayoutParams(-1, -1));
-    pages.addView(settingsPanel, new FrameLayout.LayoutParams(-1, -1));
-    navigation = new LinearLayout(this);
-    navigation.setPadding(dp(8), dp(6), dp(8), dp(6));
-    navigation.setBackgroundColor(surface);
-    String[] labels = {"Карта", "Точки", "Настройки"};
-    for (int i = 0; i < labels.length; i++) {
-      final int tab = i;
-      Button item = action(labels[i], () -> showTab(tab));
-      item.setContentDescription("Вкладка " + labels[i]);
-      navigation.addView(item, new LinearLayout.LayoutParams(0, dp(52), 1));
-    }
-    root.addView(navigation);
-    showTab(currentTab);
-    refreshCards();
   }
-
-  void showTab(int tab) {
-    currentTab = Math.max(0, Math.min(2, tab));
-    mapPanel.setVisibility(currentTab == 0 ? View.VISIBLE : View.GONE);
-    pointsPanel.setVisibility(currentTab == 1 ? View.VISIBLE : View.GONE);
-    settingsPanel.setVisibility(currentTab == 2 ? View.VISIBLE : View.GONE);
-    if (navigation != null) for (int i = 0; i < navigation.getChildCount(); i++) {
-      Button item = (Button) navigation.getChildAt(i);
-      item.setTextColor(i == currentTab ? Color.BLACK : muted);
-      item.setBackground(shape(i == currentTab ? 0xFFF7CE46 : surface, 18));
-      item.setSelected(i == currentTab);
-    }
-    updateViewing();
-    if (currentTab != 2) {
-      sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
-      refreshCards();
-    }
+  void applyMapStyle(){
+    if(map==null)return;
+    try { java.io.InputStream in=getAssets().open(dark?"map-dark.json":"map-light.json");java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)bytes.write(b,0,n);in.close();
+      String style=bytes.toString("UTF-8").replace("https://vector.openstreetmap.org/shortbread_v1/tilejson.json",store.prefs.getString("vectorTileJson","https://vector.openstreetmap.org/shortbread_v1/tilejson.json"));
+      map.setStyle(new Style.Builder().fromJson(style),s->refreshMarkers());
+    }catch(Exception e){toast("Не удалось открыть оформление карты");}
   }
-
-  void updateViewing() {
-    store.prefs.edit().putLong("viewingUntil",
-        resumed && currentTab != 2 ? System.currentTimeMillis() + 15000 : 0).apply();
+  void buildPoints(){
+    pointsPanel=column();pages.addView(pointsPanel,new FrameLayout.LayoutParams(-1,-1));
+    LinearLayout header=row();header.setPadding(dp(20),dp(20),dp(16),dp(20));header.addView(heading("Мои точки",24),new LinearLayout.LayoutParams(0,-2,1));
+    View plus=iconButton("plus","Добавить точку",this::addPoint);plus.setBackground(shape(RadarUi.YELLOW,12));((ImageView)((FrameLayout)plus).getChildAt(0)).setImageDrawable(new RadarUi.Icon("plus",Color.BLACK));header.addView(plus,new LinearLayout.LayoutParams(dp(44),dp(44)));pointsPanel.addView(header);
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);cards=column();cards.setPadding(dp(20),0,dp(16),dp(16));scroll.addView(cards);pointsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
   }
-
-  String pointAddress(Point p) {
-    if (p.dynamic) return "Следует за вами";
-    return p.address.isEmpty() ? String.format(Locale.US, "%.5f, %.5f", p.lat, p.lon) : p.address;
+  void buildSettings(){settingsPanel=column();pages.addView(settingsPanel,new FrameLayout.LayoutParams(-1,-1));
+    TextView title=heading("Настройки",24);title.setPadding(dp(20),dp(24),dp(20),dp(20));settingsPanel.addView(title);
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=settingsContents();scroll.addView(body);settingsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
+  void showTab(int tab){
+    currentTab=Math.max(0,Math.min(2,tab));mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
+    if(navigation!=null){String[] icons={"map","list","settings"};for(int i=0;i<3;i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);item.setSelected(i==currentTab);int color=i==currentTab?RadarUi.YELLOW:muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[i],color));((TextView)item.getChildAt(1)).setTextColor(color);}}
+    if(currentTab==2&&resumed)rebuildSettings();
+    updateViewing();if(currentTab!=2){sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));refreshCards();}
   }
-
-  Set<String> mapTariffs() {
-    return store.prefs.getStringSet("mapTariffs", new HashSet<>(Arrays.asList(TARIFF_IDS)));
-  }
-
-  Button action(String label, Runnable r) {
-    Button b = new Button(this);
-    b.setText(label);
-    b.setTextColor(fg);
-    b.setTextSize(13);
-    b.setAllCaps(false);
-    b.setMinWidth(dp(44));
-    b.setMinimumWidth(dp(44));
-    b.setBackground(shape(surface, 14));
-    b.setOnClickListener(v -> r.run());
-    return b;
-  }
-
-  void refreshCards() {
-    if (cards == null) return;
-    if (monitorButton != null)
-      monitorButton.setText(MonitorService.running ? "Остановить" : "Начать мониторинг");
-    state.setText(
-        MonitorService.running
-            ? store.prefs.getString("status", "Мониторинг · ожидание GPS")
-            : "Мониторинг выключен · данные не обновляются");
+  void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
+  String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
+  Set<String> mapTariffs(){return store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")));}
+  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&mapTariffs().contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
+  void refreshCards(){
+    if(cards==null)return;
+    if(state!=null){state.setText(MonitorService.running?"Мониторинг включён · остановить":"Мониторинг выключен · начать");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
     cards.removeAllViews();
-    for (Point p : store.points()) {
-      LinearLayout box = new LinearLayout(this);
-      box.setOrientation(LinearLayout.VERTICAL);
-      box.setPadding(dp(12), dp(9), dp(12), dp(9));
-      box.setBackground(shape(surface, 16));
-      LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
-      bl.bottomMargin = dp(7);
-      cards.addView(box, bl);
-      LinearLayout heading = new LinearLayout(this);
-      heading.setGravity(Gravity.CENTER_VERTICAL);
-      TextView name = text((p.dynamic ? "◎ " : "● ") + p.name, 17, fg);
-      name.setTypeface(null, android.graphics.Typeface.BOLD);
-      heading.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-      if (!p.dynamic) {
-        Switch active = new Switch(this);
-        active.setContentDescription("Мониторинг: " + p.name);
-        active.setChecked(p.enabled);
-        active.setOnCheckedChangeListener((button, enabled) -> {
-          p.enabled = enabled; store.update(p);
-          sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
-          refreshMarkers();
-        });
-        heading.addView(active);
-      }
-      box.addView(heading);
-      TextView address = text(pointAddress(p), 12, muted);
-      address.setPadding(0, dp(6), 0, dp(8));
-      box.addView(address);
-      List<Store.Reading> readings = store.readings(p.id);
-      StringBuilder values = new StringBuilder();
-      for (String t : p.tariffs) {
-        Store.Reading r = null;
-        for (Store.Reading x : readings) if (t.equals(x.tariff)) r = x;
-        if (values.length() > 0) values.append("    ");
-        values.append(Point.label(t)).append(" ").append(r == null ? "—" : r.value());
-      }
-      box.addView(text(values.toString(), 15, fg));
-      String detail = "Нет данных · включите мониторинг";
-      if (!readings.isEmpty()) {
-        Store.Reading r = readings.get(0);
-        long sec = Math.max(0, (System.currentTimeMillis() - r.time) / 1000);
-        detail = (r.fresh() ? "Обновлено " : "Устарело · ") + sec + " с назад · × не равно ₽";
-      } else if (p.dynamic) detail = "Следует за вами · требуется геопозиция";
-      if (!p.enabled) detail = "Мониторинг точки выключен";
-      box.addView(text(detail, 10, muted));
-      box.setOnClickListener(
-          v -> {
-            selected = p.id;
-            edit(p);
-          });
+    for(Point p:store.points()){
+      if(p.dynamic)continue;
+      LinearLayout line=row();line.setMinimumHeight(dp(76));
+      View dot=new View(this);dot.setBackground(shape(p.dynamic?0xFF69AEFF:RadarUi.tariffColor(p.tariffs.isEmpty()?"econom":p.tariffs.get(0)),20));LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(12),dp(12));dotParams.rightMargin=dp(12);line.addView(dot,dotParams);
+      LinearLayout labels=column();TextView name=RadarUi.text(this,p.name,15,fg,true);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);labels.addView(name);
+      TextView address=text(pointAddress(p),12,muted);address.setMaxLines(1);address.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.topMargin=dp(5);labels.addView(address,ap);
+      labels.setContentDescription("Настроить точку: "+p.name);labels.setOnClickListener(v->{selected=p.id;editDetails(p);});line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+      if(!p.dynamic){RadarUi.Toggle active=new RadarUi.Toggle(this);active.setContentDescription("Мониторинг: "+p.name);active.setChecked(p.enabled);active.setOnCheckedChangeListener((button,enabled)->{p.enabled=enabled;store.update(p);refreshMarkers();});line.addView(active,new LinearLayout.LayoutParams(dp(56),dp(48)));}
+      else{View gear=iconButton("settings","Настроить геопозицию",()->editDetails(p));gear.setBackgroundColor(Color.TRANSPARENT);line.addView(gear,new LinearLayout.LayoutParams(dp(48),dp(48)));}
+      cards.addView(line);View divider=new View(this);divider.setBackgroundColor(dark?0xFF23252A:0xFFE0E2E6);cards.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
     }
-    refreshMarkers();
+    refreshMarkers();if(preview!=null)updatePreviewValue();
   }
-
-  void refreshMarkers() {
-    if (map == null || map.getStyle() == null) return;
-    map.clear();
-    markerPoints.clear();
-    for (Point p : store.points()) {
-      double lat = p.lat, lon = p.lon;
-      if (p.dynamic) {
-        if (store.prefs.getLong("gpsAt", 0) == 0) continue;
-        lat = Double.longBitsToDouble(store.prefs.getLong("lat", 0));
-        lon = Double.longBitsToDouble(store.prefs.getLong("lon", 0));
+  void refreshMarkers(){
+    if(map==null||map.getStyle()==null)return;map.clear();markerPoints.clear();
+    java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>();
+    for(Point p:store.points()){
+      double lat=p.lat,lon=p.lon;if(p.dynamic){if(store.prefs.getLong("gpsAt",0)==0)continue;lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
+      Store.Reading reading=displayReading(p);
+      if(!p.dynamic&&p.enabled&&reading!=null&&reading.fresh()){
+        org.maplibre.geojson.Feature feature=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
+        feature.addStringProperty("color",String.format(Locale.US,"#%06X",RadarUi.tariffColor(reading.tariff)&0xFFFFFF));glowPoints.add(feature);
       }
-      Marker marker =
-          map.addMarker(
-              new MarkerOptions()
-                  .position(new LatLng(lat, lon))
-                  .title(p.name)
-                  .snippet(
-                      p.dynamic
-                          ? "Точность ±" + Math.round(store.prefs.getFloat("accuracy", 0)) + " м"
-                          : "Нажмите для настройки")
-                  .icon(pointIcon(p)));
-      markerPoints.put(marker.getId(), p.id);
+      Marker marker=map.addMarker(new MarkerOptions().position(new LatLng(lat,lon)).title(p.name).icon(pointIcon(p)));markerPoints.put(marker.getId(),p.id);
     }
+    org.maplibre.android.style.sources.GeoJsonSource source=map.getStyle().getSourceAs("reading-points");
+    org.maplibre.geojson.FeatureCollection data=org.maplibre.geojson.FeatureCollection.fromFeatures(glowPoints);
+    if(source==null){
+      source=new org.maplibre.android.style.sources.GeoJsonSource("reading-points",data);map.getStyle().addSource(source);
+      org.maplibre.android.style.layers.CircleLayer glow=new org.maplibre.android.style.layers.CircleLayer("reading-glow","reading-points").withProperties(
+        org.maplibre.android.style.layers.PropertyFactory.circleColor(org.maplibre.android.style.expressions.Expression.get("color")),
+        org.maplibre.android.style.layers.PropertyFactory.circleRadius(40f),org.maplibre.android.style.layers.PropertyFactory.circleOpacity(.3f),org.maplibre.android.style.layers.PropertyFactory.circleBlur(.8f));
+      map.getStyle().addLayerBelow(glow,"cities");
+    }else source.setGeoJson(data);
   }
-
-  org.maplibre.android.annotations.Icon pointIcon(Point p) {
-    String value = "—";
-    for (Store.Reading r : store.readings(p.id)) {
-      if (mapTariffs().contains(r.tariff) && p.tariffs.contains(r.tariff)) { value = r.value(); break; }
-    }
-    String caption = (p.dynamic ? "Я" : p.name) + "  " + value;
-    if (caption.length() > 34) caption = caption.substring(0, 31) + "…";
-    android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-    paint.setTextSize(dp(13)); paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-    int width = (int) paint.measureText(caption) + dp(24);
-    android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(width, dp(46), android.graphics.Bitmap.Config.ARGB_8888);
-    android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-    paint.setColor(surface); canvas.drawRoundRect(0, 0, width, dp(34), dp(12), dp(12), paint);
-    android.graphics.Path pointer = new android.graphics.Path();
-    pointer.moveTo(width / 2f - dp(6), dp(32)); pointer.lineTo(width / 2f, dp(44));
-    pointer.lineTo(width / 2f + dp(6), dp(32)); pointer.close(); canvas.drawPath(pointer, paint);
-    paint.setColor(!p.enabled ? muted : p.dynamic ? 0xFF4295FF : fg);
-    canvas.drawText(caption, dp(12), dp(22), paint);
-    return org.maplibre.android.annotations.IconFactory.getInstance(this).fromBitmap(bitmap);
+  Icon pointIcon(Point p){
+    Store.Reading reading=displayReading(p);String value=RadarUi.value(reading);int color=reading==null?RadarUi.YELLOW:RadarUi.tariffColor(reading.tariff);
+    if(!p.enabled||(reading!=null&&!reading.fresh()))color=0xFF747983;
+    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextSize(dp(15));
+    int width=p.dynamic?dp(48):Math.max(dp(50),Math.round(paint.measureText(value))+dp(24));Bitmap bitmap=Bitmap.createBitmap(width,dp(52),Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);
+    if(p.dynamic){paint.setColor(0x443D4E8A);c.drawCircle(width/2f,dp(26),dp(23),paint);paint.setColor(Color.WHITE);Path path=new Path();path.moveTo(width/2f,dp(8));path.lineTo(width/2f+dp(13),dp(39));path.lineTo(width/2f,dp(33));path.lineTo(width/2f-dp(13),dp(39));path.close();c.drawPath(path,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(0xFF42464E);c.drawPath(path,paint);
+    }else{paint.setColor((color&0x00FFFFFF)|0x33000000);c.drawRoundRect(0,dp(2),width,dp(49),dp(16),dp(16),paint);paint.setColor(color);c.drawRoundRect(dp(4),dp(8),width-dp(4),dp(42),dp(11),dp(11),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);c.drawText(value,width/2f,dp(30),paint);}
+    return IconFactory.getInstance(this).fromBitmap(bitmap);
+  }
+  void toggleMonitor(){if(MonitorService.running)stopService(new Intent(this,MonitorService.class));else startMonitor();handler.postDelayed(this::refreshCards,350);}
+  void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);pointSheet=null;preview=null;}
+  TextView previewValue;
+  void updatePreviewValue(){if(previewValue!=null&&preview!=null)previewValue.setText("Кеф "+RadarUi.value(displayReading(preview)));}
+  void edit(Point p){
+    if(p.dynamic&&store.prefs.getLong("gpsAt",0)>0){p.lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));p.lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
+    showTab(0);hidePreview();preview=p;selected=p.id;
+    LinearLayout sheet=column();sheet.setPadding(dp(18),dp(10),dp(18),dp(18));GradientDrawable background=shape(dark?0xFF16181B:Color.WHITE,26);background.setStroke(dp(1),dark?0xFF34373D:0xFFDCDDE0);sheet.setBackground(background);sheet.setElevation(dp(10));
+    View handle=new View(this);handle.setBackground(shape(dark?0xFF666B73:0xFFC0C3C8,4));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER_HORIZONTAL;hp.bottomMargin=dp(18);sheet.addView(handle,hp);
+    sheet.addView(text(String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon),12,muted));
+    previewValue=heading("Кеф "+RadarUi.value(displayReading(p)),22);LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=dp(12);vp.bottomMargin=dp(10);sheet.addView(previewValue,vp);
+    TextView address=text(pointAddress(p),16,fg);address.setMaxLines(2);sheet.addView(address);
+    if(!p.dynamic){final double lat=p.lat,lon=p.lon;resolveAddress(lat,lon,result->{if(preview!=p)return;p.address=result;address.setText(result);cacheAddress(p.id,lat,lon,result);});}
+    LinearLayout buttons=row();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(50));bp.topMargin=dp(20);sheet.addView(buttons,bp);
+    TextView save=primary("Сохранить",true,()->{store.update(p);store.prefs.edit().putString("overlayPoint",p.id).apply();hidePreview();refreshCards();});
+    TextView cancel=primary("Отменить",false,this::hidePreview);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,-1,1);sp.rightMargin=dp(8);buttons.addView(save,sp);buttons.addView(cancel,new LinearLayout.LayoutParams(0,-1,1));
+    FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);mapFrame.addView(sheet,params);pointSheet=sheet;
   }
 
   void startMonitor() {
@@ -526,7 +288,8 @@ public final class MainActivity extends Activity {
         .show();
   }
 
-  void edit(Point p) {
+
+  void editDetails(Point p) {
     boolean existing = store.points().stream().anyMatch(saved -> saved.id.equals(p.id));
     LinearLayout form = form();
     EditText name = new EditText(this);
@@ -737,122 +500,67 @@ public final class MainActivity extends Activity {
     }, "radar-address").start();
   }
 
-  void settings() { showTab(2); }
 
-  LinearLayout settingsContents() {
-    LinearLayout f = form();
-    f.addView(text("Настройки", 24, fg));
-    section(f, "Основные");
-    f.addView(text("Радар Pro " + BuildConfig.VERSION_NAME, 14, muted));
-    f.addView(text("Надбавка ₽ — расчётная · сверяйте с Яндекс Про", 12, muted));
-    Switch theme = new Switch(this);
-    theme.setText("Тёмная тема");
-    theme.setTextColor(fg);
-    theme.setChecked(dark);
-    theme.setOnCheckedChangeListener((b, v) -> { store.prefs.edit().putBoolean("dark", v).apply(); });
-    f.addView(theme);
-    section(f, "Внешний вид и виджет");
-    slider(
-        f,
-        "Прозрачность фона виджета",
-        20,
-        100,
-        store.prefs.getInt("opacity", 90),
-        5,
-        v -> store.prefs.edit().putInt("opacity", v).apply(),
-        "%");
-    slider(
-        f,
-        "Масштаб виджета",
-        60,
-        160,
-        store.prefs.getInt("scale", 100),
-        10,
-        v -> store.prefs.edit().putInt("scale", v).apply(),
-        "%");
-    slider(
-        f,
-        "Размер текста",
-        70,
-        150,
-        store.prefs.getInt("textScale", 100),
-        10,
-        v -> store.prefs.edit().putInt("textScale", v).apply(),
-        "%");
-    Switch showTariff = new Switch(this);
-    showTariff.setText("Показывать название тарифа в виджете");
-    showTariff.setTextColor(fg);
-    showTariff.setChecked(store.prefs.getBoolean("showTariff", true));
-    showTariff.setOnCheckedChangeListener((b, value) -> store.prefs.edit().putBoolean("showTariff", value).apply());
-    f.addView(showTariff);
-    section(f, "Тарифы на карте");
-    Set<String> selectedTariffs = new HashSet<>(mapTariffs());
-    for (String tariff : TARIFF_IDS) {
-      CheckBox check = new CheckBox(this);
-      check.setText(Point.label(tariff)); check.setTextColor(fg);
-      check.setChecked(selectedTariffs.contains(tariff));
-      check.setOnCheckedChangeListener((button, enabled) -> {
-        if (enabled) selectedTariffs.add(tariff); else selectedTariffs.remove(tariff);
-        if (selectedTariffs.isEmpty()) { selectedTariffs.add(tariff); button.setChecked(true); toast("Оставьте хотя бы один тариф"); }
-        store.prefs.edit().putStringSet("mapTariffs", new HashSet<>(selectedTariffs)).apply();
-        refreshMarkers();
-      });
-      f.addView(check);
-    }
-    section(f, "Мониторинг");
-    slider(
-        f,
-        "Интервал каждой точки",
-        30,
-        600,
-        store.prefs.getInt("interval", 120),
-        30,
-        v -> store.prefs.edit().putInt("interval", v).apply(),
-        " с");
-    f.addView(
-        text(
-            "Моя геопозиция — первой. Остальные точки обновляются при открытой карте,"
-                + " в виджете или с включёнными уведомлениями. Не чаще одного запроса за 15 с.",
-            12,
-            muted));
-    f.addView(
-        action(
-            "Вход через Яндекс · экспериментально",
-            () -> startActivity(new Intent(this, LoginActivity.class))));
-    f.addView(
-        action(
-            "Удалить сессию Яндекса",
-            () -> {
-              android.webkit.CookieManager.getInstance()
-                  .removeAllCookies(done -> toast("Сессия удалена"));
-              android.webkit.WebStorage.getInstance().deleteAllData();
-            }));
-    section(f, "Обновление");
-    f.addView(text("Проверка обновлений при каждом запуске. Канал GitHub подключён.", 13, muted));
-    f.addView(
-        action(
-            "Проверить обновления",
-            () -> {
-              Updates.check(this, store);
-            }));
-    f.addView(
-        text(
-            "Карта: © OpenStreetMap contributors.\n"
-                + "Надбавка ₽: текущая цена минус база города, округление до 10 ₽. Это оценка,"
-                + " совпадение с Яндекс Про не подтверждено.\n"
-                + "Данные хранятся на устройстве. Нет рекламы и аналитики.",
-            12,
-            muted));
-    f.addView(action("Применить оформление", this::recreate));
-    return f;
+  Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->run.run());return button;}
+  void settings(){showTab(2);}
+  LinearLayout settingsContents(){
+    LinearLayout body=column();body.setPadding(dp(14),0,dp(14),dp(24));
+    LinearLayout widget=group(body,"Виджет");
+    sizeRow(widget,"Размер виджета","scale",new String[]{"Маленький","Средний","Большой"},new int[]{80,100,130});
+    settingsDivider(widget);
+    LinearLayout opacityLabel=row();opacityLabel.addView(text("Прозрачность",13,fg),new LinearLayout.LayoutParams(0,-2,1));TextView opacityValue=text(store.prefs.getInt("opacity",70)+"%",12,muted);opacityLabel.addView(opacityValue);LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,dp(42));widget.addView(opacityLabel,op);
+    SeekBar opacity=new SeekBar(this);opacity.setMax(80);opacity.setProgress(store.prefs.getInt("opacity",70)-20);opacity.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));opacity.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));opacity.setThumbTintList(ColorStateList.valueOf(Color.WHITE));opacity.setContentDescription("Прозрачность виджета");widget.addView(opacity,new LinearLayout.LayoutParams(-1,dp(30)));
+    opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
+    settingsDivider(widget);sizeRow(widget,"Размер текста","textScale",new String[]{"Маленький","Средний","Большой"},new int[]{80,100,130});
+    settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
+    LinearLayout tariffs=group(body,"Тарифы");TextView caption=text("Какие тарифы показывать на карте",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
+    for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),mapTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф на карте: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
+      Set<String> selected=new LinkedHashSet<>(mapTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);
+      if(selected.isEmpty()){button.setChecked(true);toast("Оставьте хотя бы один тариф");return;}
+      store.prefs.edit().putStringSet("mapTariffs",selected).apply();refreshMarkers();
+    });}
+    LinearLayout updates=group(body,"Обновление");switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,value->store.prefs.edit().putBoolean("autoUpdate",value).apply());
+    TextView explain=text("Приложение проверяет обновления\nпри каждом запуске",11,muted);explain.setPadding(0,0,0,dp(12));updates.addView(explain);
+    settingsDivider(updates);settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
+    LinearLayout work=group(body,"Работа приложения");
+    settingAction(work,"Моя геопозиция",()->{for(Point p:store.points())if(p.dynamic){editDetails(p);break;}});
+    switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopService(new Intent(this,MonitorService.class));handler.postDelayed(this::refreshCards,300);});
+    switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false),0,enabled->{if(enabled&&!Settings.canDrawOverlays(this)){access.request();return;}store.prefs.edit().putBoolean("overlay",enabled).putString("overlayPoint",selected).apply();if(enabled)startMonitor();});
+    settingAction(work,"Интервал обновления",()->numberDialog("Интервал каждой точки","interval",30,600,30," с"));
+    settingAction(work,"Разрешения приложения",()->access.request());
+    LinearLayout more=group(body,"Дополнительно");switchRow(more,"Тёмная тема",dark,0,value->store.prefs.edit().putBoolean("dark",value).apply());
+    settingAction(more,"Применить оформление",this::recreate);
+    settingAction(more,"Вход через Яндекс",()->startActivity(new Intent(this,LoginActivity.class)));
+    settingAction(more,"Удалить сессию Яндекса",()->{android.webkit.CookieManager.getInstance().removeAllCookies(done->toast("Сессия удалена"));android.webkit.WebStorage.getInstance().deleteAllData();});
+    TextView version=text("Радар Pro · "+BuildConfig.VERSION_NAME,11,muted);version.setGravity(Gravity.CENTER);version.setPadding(0,dp(8),0,dp(12));body.addView(version);
+    TextView info=text("Надбавки в ₽ — расчётные. Сверяйте с Яндекс Про.\n© OpenStreetMap contributors · Нет рекламы и аналитики.",10,muted);info.setGravity(Gravity.CENTER);body.addView(info);
+    return body;
   }
-
-  void section(LinearLayout container, String title) {
-    TextView heading = text(title, 18, fg);
-    heading.setTypeface(null, android.graphics.Typeface.BOLD);
-    heading.setPadding(0, dp(24), 0, dp(10));
-    container.addView(heading);
+  LinearLayout group(LinearLayout body,String title){
+    LinearLayout card=column();card.setPadding(dp(14),dp(14),dp(14),dp(4));
+    GradientDrawable background=new GradientDrawable(GradientDrawable.Orientation.TL_BR,dark?new int[]{0xFF202225,0xFF181A1D}:new int[]{Color.WHITE,Color.WHITE});background.setCornerRadius(dp(18));card.setBackground(background);
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(14);body.addView(card,params);
+    TextView heading=heading(title,16);heading.setPadding(0,0,0,dp(8));card.addView(heading);return card;
   }
+  void settingsDivider(LinearLayout group){View line=new View(this);line.setBackgroundColor(dark?0xFF303238:0xFFE8E9EC);group.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));}
+  interface BoolChange{void set(boolean enabled);}
+  RadarUi.Toggle switchRow(LinearLayout group,String title,boolean checked,int dotColor,BoolChange change){
+    LinearLayout r=row();r.setMinimumHeight(dp(48));
+    if(dotColor!=0){View dot=new View(this);dot.setBackground(shape(dotColor,12));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(12),dp(12));params.rightMargin=dp(10);r.addView(dot,params);}
+    TextView label=text(title,13,fg);r.addView(label,new LinearLayout.LayoutParams(0,-2,1));RadarUi.Toggle toggle=new RadarUi.Toggle(this);toggle.setContentDescription(title);toggle.setChecked(checked);
+    if(change!=null)toggle.setOnCheckedChangeListener((button,value)->change.set(value));r.addView(toggle,new LinearLayout.LayoutParams(dp(52),dp(48)));r.setOnClickListener(v->toggle.performClick());group.addView(r);return toggle;
+  }
+  void sizeRow(LinearLayout group,String title,String key,String[] names,int[] values){
+    LinearLayout line=row();line.setMinimumHeight(dp(52));line.setContentDescription(title);line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));
+    int current=store.prefs.getInt(key,100);String name=current==values[0]?names[0]:current==values[1]?names[1]:current==values[2]?names[2]:current+"%";
+    TextView value=text(name,12,muted);line.addView(value);ImageView chevron=RadarUi.icon(this,"right",muted,14);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(14),dp(14));cp.leftMargin=dp(8);line.addView(chevron,cp);
+    line.setOnClickListener(v->new AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(names,current==values[0]?0:current==values[2]?2:1,(d,which)->{store.prefs.edit().putInt(key,values[which]).apply();value.setText(names[which]);d.dismiss();}).setNegativeButton("Отменить",null).show());group.addView(line);
+  }
+  void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));line.addView(RadarUi.icon(this,"right",muted,14));line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
+  void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}
+  void mapLayers(){String[] labels=new String[TARIFF_IDS.length];boolean[] checked=new boolean[TARIFF_IDS.length];Set<String> selected=new LinkedHashSet<>(mapTariffs());for(int i=0;i<labels.length;i++){labels[i]=Point.label(TARIFF_IDS[i]);checked[i]=selected.contains(TARIFF_IDS[i]);}
+    new AlertDialog.Builder(this).setTitle("Тарифы на карте").setMultiChoiceItems(labels,checked,(dialog,index,on)->{if(on)selected.add(TARIFF_IDS[index]);else selected.remove(TARIFF_IDS[index]);}).setPositiveButton("Применить",(d,w)->{if(selected.isEmpty()){toast("Оставьте хотя бы один тариф");return;}store.prefs.edit().putStringSet("mapTariffs",selected).apply();refreshMarkers();rebuildSettings();}).setNegativeButton("Отменить",null).show();}
+  void rebuildSettings(){if(settingsPanel==null)return;settingsPanel.removeAllViews();TextView title=heading("Настройки",24);title.setPadding(dp(20),dp(24),dp(20),dp(20));settingsPanel.addView(title);ScrollView sc=new ScrollView(this);sc.addView(settingsContents());settingsPanel.addView(sc,new LinearLayout.LayoutParams(-1,0,1));}
 
   void toast(String s) {
     Toast.makeText(this, s, Toast.LENGTH_LONG).show();

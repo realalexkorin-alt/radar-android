@@ -20,8 +20,8 @@ public class AccessTest {
       scenario.onActivity(a -> { assertTrue(Access.monitorReady(a)); assertNull(Access.missing(a));
         new Store(a).prefs.edit().putString("repo", "wrong/repository").commit(); });
       onView(withText("Разрешения для Радара")).check(doesNotExist());
-      onView(withText("⚙")).perform(click());
-      onView(withText("Проверка обновлений при каждом запуске. Канал GitHub подключён.")).perform(scrollTo()).check(matches(isDisplayed()));
+      onView(withContentDescription("Вкладка Настройки")).perform(click());
+      onView(withText("Проверить обновления")).perform(scrollTo()).check(matches(isDisplayed()));
       onView(withHint("GitHub: владелец/репозиторий")).check(doesNotExist());
       assertEquals("realalexkorin-alt/radar-android", Updates.DEFAULT_REPO);
     }
