@@ -24,7 +24,7 @@
       "source-layer": "land",
       "minzoom": 0,
       "paint": {
-        "fill-color": "#DCE6D5"
+        "fill-color": "#E5EADF"
       }
     },
     {
@@ -215,7 +215,7 @@
       "type": "symbol",
       "source": "osm",
       "source-layer": "street_labels",
-      "minzoom": 13,
+      "minzoom": 11,
       "layout": {
         "text-field": [
           "coalesce",

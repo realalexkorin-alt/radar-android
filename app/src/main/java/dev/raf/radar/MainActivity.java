@@ -30,7 +30,6 @@ public final class MainActivity extends Activity {
   String selected="me";
   Handler handler=new Handler();
   static final String[] TARIFF_IDS={"econom","business","comfortplus","vip","child_tariff","minivan"};
-  final Map<Long,String> markerPoints=new HashMap<>();
   final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();refreshCards();handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
@@ -91,8 +90,11 @@ public final class MainActivity extends Activity {
     mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
       m.getUiSettings().setAttributionGravity(Gravity.BOTTOM|Gravity.END);m.getUiSettings().setLogoGravity(Gravity.BOTTOM|Gravity.START);
       m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(mapTariffs());edit(p);return true;});
-      m.addOnMapClickListener(pos->{hidePreview();return false;});
-      m.setOnMarkerClickListener(marker->{for(Point p:store.points())if(p.id.equals(markerPoints.get(marker.getId()))){edit(p);break;}return true;});
+      m.addOnMapClickListener(pos->{
+        java.util.List<org.maplibre.geojson.Feature> hit=m.queryRenderedFeatures(m.getProjection().toScreenLocation(pos),"point-symbols");
+        if(!hit.isEmpty()){String id=hit.get(0).getStringProperty("pointId");for(Point p:store.points())if(p.id.equals(id)){edit(p);return true;}}
+        hidePreview();return false;
+      });
       double lat=Double.longBitsToDouble(store.prefs.getLong("lat",Double.doubleToLongBits(56.8389))),lon=Double.longBitsToDouble(store.prefs.getLong("lon",Double.doubleToLongBits(60.5975)));
       m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat,lon),12.3));
     });
@@ -141,8 +143,8 @@ public final class MainActivity extends Activity {
     refreshMarkers();if(preview!=null)updatePreviewValue();
   }
   void refreshMarkers(){
-    if(map==null||map.getStyle()==null)return;map.clear();markerPoints.clear();
-    java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>();
+    if(map==null||map.getStyle()==null||!map.getStyle().isFullyLoaded())return;
+    java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>(), symbols=new ArrayList<>();
     for(Point p:store.points()){
       double lat=p.lat,lon=p.lon;if(p.dynamic){if(store.prefs.getLong("gpsAt",0)==0)continue;lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
       Store.Reading reading=displayReading(p);
@@ -150,7 +152,9 @@ public final class MainActivity extends Activity {
         org.maplibre.geojson.Feature feature=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
         feature.addStringProperty("color",String.format(Locale.US,"#%06X",RadarUi.tariffColor(reading.tariff)&0xFFFFFF));glowPoints.add(feature);
       }
-      Marker marker=map.addMarker(new MarkerOptions().position(new LatLng(lat,lon)).title(p.name).icon(pointIcon(p)));markerPoints.put(marker.getId(),p.id);
+      String imageId="point-"+p.id;map.getStyle().addImage(imageId,pointIcon(p),false);
+      org.maplibre.geojson.Feature symbol=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
+      symbol.addStringProperty("icon",imageId);symbol.addStringProperty("pointId",p.id);symbols.add(symbol);
     }
     org.maplibre.android.style.sources.GeoJsonSource source=map.getStyle().getSourceAs("reading-points");
     org.maplibre.geojson.FeatureCollection data=org.maplibre.geojson.FeatureCollection.fromFeatures(glowPoints);
@@ -161,15 +165,22 @@ public final class MainActivity extends Activity {
         org.maplibre.android.style.layers.PropertyFactory.circleRadius(40f),org.maplibre.android.style.layers.PropertyFactory.circleOpacity(.3f),org.maplibre.android.style.layers.PropertyFactory.circleBlur(.8f));
       map.getStyle().addLayerBelow(glow,"cities");
     }else source.setGeoJson(data);
+    org.maplibre.android.style.sources.GeoJsonSource pins=map.getStyle().getSourceAs("point-symbol-data");
+    org.maplibre.geojson.FeatureCollection pinData=org.maplibre.geojson.FeatureCollection.fromFeatures(symbols);
+    if(pins==null){map.getStyle().addSource(new org.maplibre.android.style.sources.GeoJsonSource("point-symbol-data",pinData));
+      map.getStyle().addLayer(new org.maplibre.android.style.layers.SymbolLayer("point-symbols","point-symbol-data").withProperties(
+        org.maplibre.android.style.layers.PropertyFactory.iconImage(org.maplibre.android.style.expressions.Expression.get("icon")),
+        org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement(true)));
+    }else pins.setGeoJson(pinData);
   }
-  Icon pointIcon(Point p){
+  Bitmap pointIcon(Point p){
     Store.Reading reading=displayReading(p);String value=RadarUi.value(reading);int color=reading==null?RadarUi.YELLOW:RadarUi.tariffColor(reading.tariff);
     if(!p.enabled||(reading!=null&&!reading.fresh()))color=0xFF747983;
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(15));
     int width=p.dynamic?dp(48):Math.max(dp(50),Math.round(paint.measureText(value))+dp(24));Bitmap bitmap=Bitmap.createBitmap(width,dp(52),Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);
     if(p.dynamic){paint.setColor(0x443D4E8A);c.drawCircle(width/2f,dp(26),dp(23),paint);paint.setColor(Color.WHITE);Path path=new Path();path.moveTo(width/2f,dp(8));path.lineTo(width/2f+dp(13),dp(39));path.lineTo(width/2f,dp(33));path.lineTo(width/2f-dp(13),dp(39));path.close();c.drawPath(path,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(0xFF42464E);c.drawPath(path,paint);
     }else{paint.setColor((color&0x00FFFFFF)|0x33000000);c.drawRoundRect(0,dp(2),width,dp(49),dp(16),dp(16),paint);paint.setColor(color);c.drawRoundRect(dp(4),dp(8),width-dp(4),dp(42),dp(11),dp(11),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);c.drawText(value,width/2f,dp(30),paint);}
-    return IconFactory.getInstance(this).fromBitmap(bitmap);
+    return bitmap;
   }
   void toggleMonitor(){if(MonitorService.running)stopService(new Intent(this,MonitorService.class));else startMonitor();handler.postDelayed(this::refreshCards,350);}
   void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);pointSheet=null;preview=null;}

@@ -29,6 +29,17 @@ public class ReferenceDesignTest {
   @Test public void referenceScreensAndCompactWidget() throws Exception {
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       scenario.onActivity(a->{seed(a);if(a.map!=null)a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.7558,37.6173),12.8));});
+      // Wait for actual style rendering, not merely Activity idle. A missing marker must fail QA.
+      android.os.SystemClock.sleep(2500);
+      scenario.onActivity(a->{
+        assertNotNull(a.map.getStyle().getLayer("point-symbols"));
+        android.graphics.PointF pos=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.7488,37.6353));
+        java.util.List<org.maplibre.geojson.Feature> hit=a.map.queryRenderedFeatures(pos,"point-symbols");
+        assertFalse("Saved point symbol must be rendered and tappable",hit.isEmpty());
+        android.graphics.Bitmap icon=a.map.getStyle().getImage("point-ref-3");assertNotNull(icon);
+        int pixel=icon.getPixel(icon.getWidth()/2,Math.round(icon.getHeight()*.25f));
+        assertTrue("Marker image must retain orange RGB, not a white silhouette",android.graphics.Color.red(pixel)>200&&android.graphics.Color.blue(pixel)<100);
+      });
       ScreenTest.capture("reference-map-016");
       scenario.onActivity(a->{Point p=a.store.points().stream().filter(x->x.id.equals("ref-3")).findFirst().get();a.edit(p);});
       onView(withText("Сохранить")).check(matches(isDisplayed()));ScreenTest.capture("reference-card-016");onView(withText("Отменить")).perform(click());
