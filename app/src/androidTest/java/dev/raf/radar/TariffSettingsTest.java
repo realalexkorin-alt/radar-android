@@ -41,6 +41,25 @@ public class TariffSettingsTest {
         assertEquals(2,rows.size());assertEquals("business",rows.get(0).tariff);assertEquals("vip",rows.get(1).tariff);
         assertEquals(Integer.valueOf(70),rows.get(0).rub);assertEquals(Integer.valueOf(95),rows.get(1).rub);
         assertEquals("Эконом +120 ₽",a.pointValues(p));
+      });
+      android.os.SystemClock.sleep(2500);
+      scenario.onActivity(a->{
+        assertNotNull(a.map);a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.75,37.61),14));a.refreshMarkers();
+      });
+      android.os.SystemClock.sleep(500);
+      final int[] sample=new int[3];
+      scenario.onActivity(a->{
+        android.graphics.Bitmap icon=a.pointBitmaps.get("tariff-test");assertNotNull(icon);
+        assertEquals(a.dp(68),icon.getHeight());
+        android.graphics.PointF xy=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.75,37.61));int[] offset=new int[2];a.mapFrame.getLocationOnScreen(offset);
+        sample[0]=Math.round(xy.x+offset[0]);sample[1]=Math.round(xy.y+offset[1]-icon.getHeight()/2f+a.dp(5));sample[2]=sample[1]+a.dp(30);
+      });
+      android.graphics.Bitmap shot=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+      assertEquals("Comfort row must actually render orange",RadarUi.tariffColor("business"),shot.getPixel(sample[0],sample[1]));
+      assertEquals("Business row must also actually render",RadarUi.tariffColor("vip"),shot.getPixel(sample[0],sample[2]));
+      ScreenTest.capture("map-multiple-tariffs-019");
+      scenario.onActivity(a->{
+        Point p=a.store.points().stream().filter(x->x.id.equals("tariff-test")).findFirst().get();
         a.store.prefs.edit().putStringSet("mapTariffs",Collections.singleton("minivan")).commit();
         assertEquals("minivan",a.mapReadings(p).get(0).tariff);assertNull(a.mapReadings(p).get(0).rub);
         assertEquals("Эконом +120 ₽",a.pointValues(p));
