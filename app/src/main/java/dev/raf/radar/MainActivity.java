@@ -136,8 +136,8 @@ public final class MainActivity extends Activity {
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
-  Set<String> mapTariffs(){return store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")));}
-  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&mapTariffs().contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
+  Set<String> mapTariffs(){return new LinkedHashSet<>(TariffSelection.ordered(store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")))));}
+  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(mapTariffs().contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){
     if(cards==null)return;
     if(state!=null){state.setText(MonitorService.running?"Мониторинг включён · остановить":"Мониторинг выключен · начать");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
@@ -188,13 +188,27 @@ public final class MainActivity extends Activity {
       PointF xy=map.getProjection().toScreenLocation(loc);Bitmap icon=pointBitmaps.get(p.id);if(icon!=null&&Math.abs(hit.x-xy.x)<=icon.getWidth()/2f+dp(4)&&Math.abs(hit.y-xy.y)<=icon.getHeight()/2f+dp(4))return p;
     }return null;
   }
-  Bitmap pointIcon(Point p){
-    Store.Reading reading=displayReading(p);String value=RadarUi.value(reading);int color=reading==null?RadarUi.YELLOW:RadarUi.tariffColor(reading.tariff);
-    if(!p.enabled||(reading!=null&&!reading.fresh()))color=0xFF747983;
-    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(15));
-    int width=p.dynamic?dp(48):Math.max(dp(50),Math.round(paint.measureText(value))+dp(24));Bitmap bitmap=Bitmap.createBitmap(width,dp(52),Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);
-    if(p.dynamic){paint.setColor(0x443D4E8A);c.drawCircle(width/2f,dp(26),dp(23),paint);paint.setColor(Color.WHITE);Path path=new Path();path.moveTo(width/2f,dp(8));path.lineTo(width/2f+dp(13),dp(39));path.lineTo(width/2f,dp(33));path.lineTo(width/2f-dp(13),dp(39));path.close();c.drawPath(path,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(0xFF42464E);c.drawPath(path,paint);
-    }else{paint.setColor((color&0x00FFFFFF)|0x33000000);c.drawRoundRect(0,dp(2),width,dp(49),dp(16),dp(16),paint);paint.setColor(color);c.drawRoundRect(dp(4),dp(8),width-dp(4),dp(42),dp(11),dp(11),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);c.drawText(value,width/2f,dp(30),paint);}
+  List<Store.Reading> mapReadings(Point point){
+    List<Store.Reading> rows=new ArrayList<>();
+    List<Store.Reading> cached=store.readings(point.id);
+    for(String tariff:mapTariffs()){
+      Store.Reading match=null;for(Store.Reading reading:cached)if(tariff.equals(reading.tariff)){match=reading;break;}
+      rows.add(match!=null?match:new Store.Reading(tariff,null,null,0,"Ожидаем данные"));
+    }
+    return rows;
+  }
+  Bitmap pointIcon(Point point){
+    List<Store.Reading> rows=mapReadings(point);
+    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
+    int width=dp(90),rowHeight=dp(30),header=point.dynamic?dp(22):0;
+    for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(Point.label(reading.tariff)+"  "+RadarUi.value(reading)))+dp(24));
+    Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),header+rows.size()*rowHeight+dp(8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
+    if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
+    for(int i=0;i<rows.size();i++){
+      Store.Reading reading=rows.get(i);int color=point.enabled&&reading.fresh()?RadarUi.tariffColor(reading.tariff):0xFF747983;
+      int top=header+i*rowHeight;paint.setColor(color);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
+      paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(Point.label(reading.tariff)+"  "+RadarUi.value(reading),width/2f,top+dp(20),paint);
+    }
     return bitmap;
   }
   void toggleMonitor(){if(MonitorService.running)stopService(new Intent(this,MonitorService.class));else startMonitor();handler.postDelayed(this::refreshCards,350);}
@@ -500,7 +514,7 @@ public final class MainActivity extends Activity {
   String pointValues(Point p) {
     StringBuilder value = new StringBuilder();
     for (Store.Reading r : store.readings(p.id)) {
-      if (!p.tariffs.contains(r.tariff) || !mapTariffs().contains(r.tariff)) continue;
+      if (!p.tariffs.contains(r.tariff)) continue;
       if (value.length() > 0) value.append(" · ");
       value.append(Point.label(r.tariff)).append(" ").append(r.value());
     }
@@ -539,7 +553,8 @@ public final class MainActivity extends Activity {
     opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
     settingsDivider(widget);sizeSlider(widget,"Размер текста","textScale",60,160);
     settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
-    LinearLayout tariffs=group(body,"Тарифы");TextView caption=text("Какие тарифы показывать на карте",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
+    settingAction(widget,"Тарифы виджета",()->{String id=store.prefs.getString("overlayPoint","me");List<Point> points=store.points();editDetails(points.stream().filter(p->p.id.equals(id)).findFirst().orElse(points.get(0)));});
+    LinearLayout tariffs=group(body,"Тарифы на карте");TextView caption=text("Все выбранные тарифы отображаются на каждой точке.\nТарифы виджета и уведомлений задаются в настройках точки.",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
     for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),mapTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф на карте: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
       Set<String> selected=new LinkedHashSet<>(mapTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);
       if(selected.isEmpty()){button.setChecked(true);toast("Оставьте хотя бы один тариф");return;}

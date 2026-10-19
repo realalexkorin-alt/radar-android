@@ -15,20 +15,21 @@ public final class MonitorService extends Service implements LocationListener {
   private ScheduledExecutorService queue;
   private LocationManager locations;
   private Overlay overlay;
+  private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
-    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay").contains(key))
+    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay","points","overlayPoint").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
+    if(key!=null&&java.util.Arrays.asList("points","mapTariffs","overlayPoint").contains(key)&&queue!=null)
+      queue.execute(()->{planner.refresh();tick();});
   };
   private int failures = 0;
-  private final PollPlanner planner = new PollPlanner();
   private final BroadcastReceiver manual =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
           if (queue != null)
             queue.execute(
                 () -> {
-                  if ("dev.raf.radar.VIEWING".equals(i.getAction())) planner.expedite("me");
-                  else planner.refresh();
+                  planner.refresh();
                   tick();
                 });
         }
@@ -126,7 +127,10 @@ public final class MonitorService extends Service implements LocationListener {
           break;
         }
       if (p == null) return;
-      List<Store.Reading> readings = new TaxiClient(this).fetch(p);
+      Point request=Point.from(p.json());
+      Set<String> mapTariffs=store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")));
+      request.tariffs=TariffSelection.requested(p,mapTariffs,browsing);
+      List<Store.Reading> readings = new TaxiClient(this).fetch(request);
       if (p.dynamic) {
         float[] distance = new float[1];
         Location.distanceBetween(
@@ -143,6 +147,8 @@ public final class MonitorService extends Service implements LocationListener {
       Point current = null;
       for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
       if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
+      List<String> stillNeeded=TariffSelection.requested(current,store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business"))),store.prefs.getLong("viewingUntil",0)>System.currentTimeMillis());
+      if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
