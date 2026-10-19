@@ -89,8 +89,11 @@ public class WidgetTest {
       });
       ScreenTest.capture("widget-minimal-013");
       scenario.onActivity(a -> {
+        int width=root().getWidth(),height=root().getHeight();
         find(root(), "Раскрыть меню виджета").performClick();
-        View close = find(root(), "Закрыть виджет");
+        Assert.assertEquals(width,root().getWidth());Assert.assertEquals(height,root().getHeight());
+        Assert.assertNotSame(root(),ReferenceDesignTest.menu(overlay));
+        View close = find(ReferenceDesignTest.menu(overlay), "Закрыть виджет");
         Assert.assertEquals("Закрыть виджет", close.getContentDescription());
         close.performClick();
         Assert.assertFalse(store.prefs.getBoolean("overlay", true));

@@ -15,6 +15,10 @@ public final class MonitorService extends Service implements LocationListener {
   private ScheduledExecutorService queue;
   private LocationManager locations;
   private Overlay overlay;
+  private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
+    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay").contains(key))
+      new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
+  };
   private int failures = 0;
   private final PollPlanner planner = new PollPlanner();
   private final BroadcastReceiver manual =
@@ -78,6 +82,7 @@ public final class MonitorService extends Service implements LocationListener {
       }
     }
     overlay = new Overlay(this, store);
+    store.prefs.registerOnSharedPreferenceChangeListener(appearanceListener);
     queue = Executors.newSingleThreadScheduledExecutor();
     queue.scheduleWithFixedDelay(this::tick, 1, 5, TimeUnit.SECONDS);
   }
@@ -242,6 +247,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onDestroy() {
     running = false;
+    if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);
     try {
       unregisterReceiver(manual);
     } catch (Exception ignored) {

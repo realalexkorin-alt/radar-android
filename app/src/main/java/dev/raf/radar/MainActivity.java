@@ -529,12 +529,12 @@ public final class MainActivity extends Activity {
   LinearLayout settingsContents(){
     LinearLayout body=column();body.setPadding(dp(14),0,dp(14),dp(24));
     LinearLayout widget=group(body,"Виджет");
-    sizeRow(widget,"Размер виджета","scale",new String[]{"Маленький","Средний","Большой"},new int[]{80,100,130});
+    sizeSlider(widget,"Размер виджета","scale",60,160);
     settingsDivider(widget);
     LinearLayout opacityLabel=row();opacityLabel.addView(text("Прозрачность",13,fg),new LinearLayout.LayoutParams(0,-2,1));TextView opacityValue=text(store.prefs.getInt("opacity",70)+"%",12,muted);opacityLabel.addView(opacityValue);LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,dp(42));widget.addView(opacityLabel,op);
     SeekBar opacity=new SeekBar(this);opacity.setMax(80);opacity.setProgress(store.prefs.getInt("opacity",70)-20);opacity.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));opacity.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));opacity.setThumbTintList(ColorStateList.valueOf(Color.WHITE));opacity.setContentDescription("Прозрачность виджета");widget.addView(opacity,new LinearLayout.LayoutParams(-1,dp(30)));
     opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
-    settingsDivider(widget);sizeRow(widget,"Размер текста","textScale",new String[]{"Маленький","Средний","Большой"},new int[]{80,100,130});
+    settingsDivider(widget);sizeSlider(widget,"Размер текста","textScale",60,160);
     settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
     LinearLayout tariffs=group(body,"Тарифы");TextView caption=text("Какие тарифы показывать на карте",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
     for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),mapTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф на карте: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
@@ -573,11 +573,18 @@ public final class MainActivity extends Activity {
     TextView label=text(title,13,fg);r.addView(label,new LinearLayout.LayoutParams(0,-2,1));RadarUi.Toggle toggle=new RadarUi.Toggle(this);toggle.setContentDescription(title);toggle.setChecked(checked);
     if(change!=null)toggle.setOnCheckedChangeListener((button,value)->change.set(value));r.addView(toggle,new LinearLayout.LayoutParams(dp(52),dp(48)));r.setOnClickListener(v->toggle.performClick());group.addView(r);return toggle;
   }
-  void sizeRow(LinearLayout group,String title,String key,String[] names,int[] values){
-    LinearLayout line=row();line.setMinimumHeight(dp(52));line.setContentDescription(title);line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));
-    int current=store.prefs.getInt(key,100);String name=current==values[0]?names[0]:current==values[1]?names[1]:current==values[2]?names[2]:current+"%";
-    TextView value=text(name,12,muted);line.addView(value);ImageView chevron=RadarUi.icon(this,"right",muted,14);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(14),dp(14));cp.leftMargin=dp(8);line.addView(chevron,cp);
-    line.setOnClickListener(v->new AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(names,current==values[0]?0:current==values[2]?2:1,(d,which)->{store.prefs.edit().putInt(key,values[which]).apply();value.setText(names[which]);d.dismiss();}).setNegativeButton("Отменить",null).show());group.addView(line);
+  void sizeSlider(LinearLayout group,String title,String key,int min,int max){
+    LinearLayout line=row();line.setMinimumHeight(dp(42));
+    line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));
+    int current=Math.max(min,Math.min(max,store.prefs.getInt(key,100)));
+    TextView value=text(current+"%",12,muted);line.addView(value);group.addView(line);
+    SeekBar bar=new SeekBar(this);bar.setMax(max-min);bar.setProgress(current-min);bar.setContentDescription(title);
+    bar.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));bar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));bar.setThumbTintList(ColorStateList.valueOf(Color.WHITE));
+    group.addView(bar,new LinearLayout.LayoutParams(-1,dp(40)));
+    bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      public void onProgressChanged(SeekBar b,int progress,boolean user){int n=min+progress;value.setText(n+"%");if(user)store.prefs.edit().putInt(key,n).apply();}
+      public void onStartTrackingTouch(SeekBar b){} public void onStopTrackingTouch(SeekBar b){}
+    });
   }
   void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));line.addView(RadarUi.icon(this,"right",muted,14));line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
   void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}

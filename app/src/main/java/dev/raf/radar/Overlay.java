@@ -12,7 +12,8 @@ final class Overlay {
   private final Context c;
   private final Store s;
   private final WindowManager wm;
-  private LinearLayout root;
+  private LinearLayout root, menu;
+  private WindowManager.LayoutParams menuLp;
   private WindowManager.LayoutParams lp;
   private String lastAppearance = "";
   private boolean touching, expanded;
@@ -22,6 +23,7 @@ final class Overlay {
   }
   int dp(float n) { return (int) (n * c.getResources().getDisplayMetrics().density); }
   private void open(boolean settings) {
+    hideMenu();
     c.startActivity(new Intent(c, MainActivity.class).putExtra("widgetSettings", settings)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
             | Intent.FLAG_ACTIVITY_SINGLE_TOP));
@@ -49,13 +51,13 @@ final class Overlay {
     }
     root.removeAllViews();
     boolean dark = s.prefs.getBoolean("dark", true);
-    int fg = dark ? Color.WHITE : 0xFF191B20;
+    int fg = Color.WHITE;
     int alpha = s.prefs.getInt("opacity", 70) * 255 / 100;
     GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
         new int[]{Color.argb(alpha, dark?28:255,dark?28:255,dark?20:250),Color.argb(alpha,dark?12:255,dark?13:255,dark?15:255)});
-    background.setCornerRadius(dp(22)); background.setStroke(dp(2), RadarUi.YELLOW);
+    background.setCornerRadius(dp(22));
     root.setBackground(background); root.setPadding(dp(14),dp(12),dp(10),dp(12));
-    root.setElevation(dp(12)); root.setOutlineAmbientShadowColor(0x99FFD500); root.setOutlineSpotShadowColor(0x99FFD500);
+    root.setElevation(dp(8));
     float scale=s.prefs.getInt("scale",100)/100f, textScale=s.prefs.getInt("textScale",100)/100f;
     int available=Math.max(dp(100),c.getResources().getDisplayMetrics().widthPixels-dp(92));
     String id=s.prefs.getString("overlayPoint","me"); Point point=null;
@@ -82,16 +84,37 @@ final class Overlay {
     }
     FrameLayout expand=new FrameLayout(c);expand.setContentDescription(expanded?"Свернуть меню виджета":"Раскрыть меню виджета");
     ImageView arrow=RadarUi.icon(c,expanded?"down":"right",fg,24);expand.addView(arrow,new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER));
-    expand.setOnClickListener(v->{expanded=!expanded;refresh();});body.addView(expand,new LinearLayout.LayoutParams(dp(36),dp(52)));
-    if(expanded){
-      LinearLayout menu=new LinearLayout(c);menu.setGravity(Gravity.CENTER);menu.setBackground(RadarUi.shape(c,dark?0xFF27292D:0xFFE5E6E8,16,0xFF3A3C40));
-      LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(68));mp.topMargin=dp(12);root.addView(menu,mp);
-      LinearLayout settings=menuAction("settings","Настройки","Настройки виджета",fg,()->open(true));
-      LinearLayout close=menuAction("close","Закрыть","Закрыть виджет",fg,()->{s.prefs.edit().putBoolean("overlay",false).apply();close();});
-      menu.addView(settings,new LinearLayout.LayoutParams(0,-1,1));View divider=new View(c);divider.setBackgroundColor(0xFF414349);menu.addView(divider,new LinearLayout.LayoutParams(dp(1),dp(44)));menu.addView(close,new LinearLayout.LayoutParams(0,-1,1));
-      menu.setMinimumWidth(dp(176));
-    }
+    expand.setOnClickListener(v->{if(expanded)hideMenu();else showMenu();});body.addView(expand,new LinearLayout.LayoutParams(dp(36),dp(52)));
     root.post(()->{if(root!=null)position(lp.x,lp.y);});
+  }
+  private void showMenu() {
+    if(root==null)return;
+    hideMenu();
+    menu=new LinearLayout(c);menu.setOrientation(LinearLayout.VERTICAL);
+    menu.setContentDescription("Боковое меню виджета");
+    menu.setPadding(dp(4),dp(4),dp(4),dp(4));
+    menu.setBackground(RadarUi.shape(c,0xFF202226,16,0));
+    menu.addView(menuAction("settings","Настройки","Настройки виджета",Color.WHITE,()->open(true)),new LinearLayout.LayoutParams(dp(96),dp(64)));
+    menu.addView(menuAction("close","Закрыть","Закрыть виджет",Color.WHITE,()->{s.prefs.edit().putBoolean("overlay",false).apply();close();}),new LinearLayout.LayoutParams(dp(96),dp(64)));
+    menuLp=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,android.graphics.PixelFormat.TRANSLUCENT);
+    menuLp.gravity=Gravity.TOP|Gravity.START;
+    menu.setOnTouchListener((v,event)->{if(event.getActionMasked()==MotionEvent.ACTION_OUTSIDE){hideMenu();return true;}return false;});
+    menu.measure(View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
+    placeMenu();
+    try{wm.addView(menu,menuLp);expanded=true;}catch(Exception e){menu=null;expanded=false;}
+  }
+  private void placeMenu(){
+    if(menu==null||root==null)return;
+    int width=c.getResources().getDisplayMetrics().widthPixels,height=c.getResources().getDisplayMetrics().heightPixels;
+    int menuWidth=menu.getMeasuredWidth(),menuHeight=menu.getMeasuredHeight();
+    int right=lp.x+root.getWidth()+dp(8);
+    menuLp.x=Math.max(0,Math.min(right+menuWidth<=width?right:lp.x-menuWidth-dp(8),width-menuWidth));
+    menuLp.y=Math.max(0,Math.min(lp.y,height-menuHeight));
+  }
+  private void hideMenu(){
+    if(menu!=null){try{wm.removeView(menu);}catch(Exception ignored){}menu=null;}
+    expanded=false;
   }
   private LinearLayout menuAction(String icon,String title,String description,int color,Runnable action){
     LinearLayout cell=new LinearLayout(c);cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(Gravity.CENTER);cell.setContentDescription(description);
@@ -102,6 +125,7 @@ final class Overlay {
     lp.x = Math.max(0, Math.min(x, c.getResources().getDisplayMetrics().widthPixels - root.getWidth()));
     lp.y = Math.max(0, Math.min(y, c.getResources().getDisplayMetrics().heightPixels - root.getHeight()));
     wm.updateViewLayout(root, lp);
+    if(menu!=null){placeMenu();wm.updateViewLayout(menu,menuLp);}
   }
   private void installGestures() {
     root.setOnTouchListener(new View.OnTouchListener() {
@@ -111,6 +135,7 @@ final class Overlay {
       public boolean onTouch(View v, MotionEvent e) {
         switch (e.getActionMasked()) {
           case MotionEvent.ACTION_DOWN:
+            hideMenu();
             touching = true; x = e.getRawX(); y = e.getRawY(); ox = lp.x; oy = lp.y;
             gesture.down(x, y, e.getEventTime()); return true;
           case MotionEvent.ACTION_MOVE:
@@ -134,6 +159,7 @@ final class Overlay {
     });
   }
   void close() {
+    hideMenu();
     touching = false;
     if (root != null) { try { wm.removeView(root); } catch (Exception ignored) {} root = null; }
   }

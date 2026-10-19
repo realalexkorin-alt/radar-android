@@ -55,13 +55,17 @@ public class ReferenceDesignTest {
       ScreenTest.capture("reference-widget-016");
       scenario.onActivity(a->{View root=root(overlay[0]);assertTrue(root.getWidth()<=a.getResources().getDisplayMetrics().widthPixels);find(root,"Раскрыть меню виджета").performClick();});
       ScreenTest.capture("reference-widget-expanded-016");
-      scenario.onActivity(a->{find(root(overlay[0]),"Закрыть виджет").performClick();assertFalse(a.store.prefs.getBoolean("overlay",true));});
+      scenario.onActivity(a->{find(menu(overlay[0]),"Закрыть виджет").performClick();assertFalse(a.store.prefs.getBoolean("overlay",true));});
     }
   }
   @Test public void settingsAndBottomSheetPreserveState(){
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       onView(withContentDescription("Вкладка Настройки")).perform(click());
-      onView(withContentDescription("Размер виджета")).perform(click());onView(withText("Большой")).perform(click());
+      onView(withContentDescription("Размер виджета")).perform(new androidx.test.espresso.ViewAction(){
+        public org.hamcrest.Matcher<View> getConstraints(){return isAssignableFrom(SeekBar.class);}
+        public String getDescription(){return "Move widget size slider to 130%";}
+        public void perform(androidx.test.espresso.UiController ui,View view){SeekBar bar=(SeekBar)view;int x=bar.getPaddingLeft()+Math.round((bar.getWidth()-bar.getPaddingLeft()-bar.getPaddingRight())*.7f);long t=android.os.SystemClock.uptimeMillis();bar.dispatchTouchEvent(MotionEvent.obtain(t,t,MotionEvent.ACTION_DOWN,x,bar.getHeight()/2f,0));bar.dispatchTouchEvent(MotionEvent.obtain(t,t+20,MotionEvent.ACTION_UP,x,bar.getHeight()/2f,0));ui.loopMainThreadUntilIdle();}
+      });
       scenario.onActivity(a->assertEquals(130,a.store.prefs.getInt("scale",0)));
       onView(withText("Автоматическая проверка")).perform(scrollTo(),click());scenario.onActivity(a->assertFalse(a.store.prefs.getBoolean("autoUpdate",true)));
       scenario.recreate();scenario.onActivity(a->{assertEquals(2,a.currentTab);assertEquals(130,a.store.prefs.getInt("scale",0));assertFalse(a.store.prefs.getBoolean("autoUpdate",true));});
@@ -70,6 +74,7 @@ public class ReferenceDesignTest {
       onView(withText("Сохранить")).perform(click());scenario.recreate();scenario.onActivity(a->{assertTrue(a.store.points().stream().anyMatch(p->p.id.equals("new")));assertNull(a.pointSheet);});
     }
   }
+  static View menu(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("menu");f.setAccessible(true);return (View)f.get(o);}catch(Exception e){throw new AssertionError(e);}}
   static View root(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("root");f.setAccessible(true);return (View)f.get(o);}catch(Exception e){throw new AssertionError(e);}}
   static View find(View view,String description){if(description.equals(view.getContentDescription()))return view;if(view instanceof ViewGroup){ViewGroup g=(ViewGroup)view;for(int i=0;i<g.getChildCount();i++){View v=find(g.getChildAt(i),description);if(v!=null)return v;}}return null;}
 }
