@@ -19,6 +19,18 @@ public class ScreenTest {
     android.content.Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     c.stopService(new android.content.Intent(c, MonitorService.class));
     c.getSharedPreferences("radar", 0).edit().clear().commit();
+    grantAccess();
+  }
+
+  static void grantAccess() {
+    try {
+      shell("pm grant dev.raf.radar android.permission.ACCESS_COARSE_LOCATION");
+      shell("pm grant dev.raf.radar android.permission.ACCESS_FINE_LOCATION");
+      if (android.os.Build.VERSION.SDK_INT >= 33)
+        shell("pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS");
+      shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
+      shell("appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow");
+    } catch (Exception e) { throw new AssertionError(e); }
   }
 
   @Test

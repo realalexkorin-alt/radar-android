@@ -33,6 +33,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onCreate() {
     super.onCreate();
+    if (!Access.monitorReady(this)) { stopSelf(); return; }
     store = new Store(this);
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
@@ -83,6 +84,7 @@ public final class MonitorService extends Service implements LocationListener {
 
   @Override
   public int onStartCommand(Intent i, int flags, int id) {
+    if (store == null || !Access.monitorReady(this)) { stopSelf(); return START_NOT_STICKY; }
     if (i != null && "stop".equals(i.getAction())) {
       stopSelf();
       return START_NOT_STICKY;
@@ -93,6 +95,7 @@ public final class MonitorService extends Service implements LocationListener {
 
   private void tick() {
     try {
+      if (!Access.monitorReady(this)) { stopSelf(); return; }
       long now = System.currentTimeMillis();
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();

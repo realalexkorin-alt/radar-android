@@ -21,6 +21,8 @@ import org.maplibre.android.maps.*;
 
 public final class MainActivity extends Activity {
   Store store;
+  Access access;
+  boolean startAfterAccess;
   LinearLayout root, cards;
   MapView mapView;
   MapLibreMap map;
@@ -48,6 +50,7 @@ public final class MainActivity extends Activity {
     super.onCreate(b);
     MapLibre.getInstance(this);
     store = new Store(this);
+    access = new Access(this, store);
     selected = getIntent().getStringExtra("point");
     if (selected == null) selected = "me";
     build(b);
@@ -221,10 +224,7 @@ public final class MainActivity extends Activity {
             "Виджет",
             () -> {
               if (!Settings.canDrawOverlays(this)) {
-                startActivity(
-                    new Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName())));
+                access.request();
                 return;
               }
               store
@@ -342,21 +342,12 @@ public final class MainActivity extends Activity {
   }
 
   void startMonitor() {
-    if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-        != PackageManager.PERMISSION_GRANTED) {
-      ArrayList<String> a =
-          new ArrayList<>(
-              Arrays.asList(
-                  Manifest.permission.ACCESS_FINE_LOCATION,
-                  Manifest.permission.ACCESS_COARSE_LOCATION));
-      if (Build.VERSION.SDK_INT >= 33) a.add(Manifest.permission.POST_NOTIFICATIONS);
-      requestPermissions(a.toArray(new String[0]), 10);
+    if (!Access.monitorReady(this)) {
+      startAfterAccess = true;
+      access.request();
       return;
     }
-    if (Build.VERSION.SDK_INT >= 33
-        && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED)
-      requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 11);
+    startAfterAccess = false;
     try {
       startForegroundService(new Intent(this, MonitorService.class));
     } catch (Exception e) {
@@ -367,14 +358,15 @@ public final class MainActivity extends Activity {
   @Override
   public void onRequestPermissionsResult(int r, String[] p, int[] g) {
     super.onRequestPermissionsResult(r, p, g);
-    if (r == 10
-        && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED) startMonitor();
+    access.result(r);
+  }
+
+  void onAccessChanged() {
+    if (startAfterAccess && Access.monitorReady(this)) startMonitor();
   }
 
   void locate() {
-    if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-        != PackageManager.PERMISSION_GRANTED) {
+    if (!Access.location(this)) {
       startMonitor();
       return;
     }
@@ -647,18 +639,11 @@ public final class MainActivity extends Activity {
                   .removeAllCookies(done -> toast("Сессия удалена"));
               android.webkit.WebStorage.getInstance().deleteAllData();
             }));
-    EditText repo = new EditText(this);
-    repo.setTextColor(fg);
-    repo.setHintTextColor(muted);
-    repo.setSingleLine();
-    repo.setHint("GitHub: владелец/репозиторий");
-    repo.setText(store.prefs.getString("repo", Updates.DEFAULT_REPO));
-    f.addView(repo);
+    f.addView(text("Канал обновлений Радара подключён", 12, muted));
     f.addView(
         action(
             "Проверить обновления",
             () -> {
-              store.prefs.edit().putString("repo", repo.getText().toString().trim()).apply();
               Updates.check(this, store);
             }));
     f.addView(
@@ -677,7 +662,6 @@ public final class MainActivity extends Activity {
         .setPositiveButton(
             "Готово",
             (d, w) -> {
-              store.prefs.edit().putString("repo", repo.getText().toString().trim()).apply();
               recreate();
             })
         .show();
@@ -701,6 +685,7 @@ public final class MainActivity extends Activity {
     store.prefs.edit().putLong("viewingUntil", System.currentTimeMillis() + 15000).apply();
     sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
     handler.post(refreshLoop);
+    handler.post(() -> { if (!Updates.resume(this)) access.onResume(); });
   }
 
   @Override
@@ -714,12 +699,15 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onStop() {
+    access.onStop();
     mapView.onStop();
     super.onStop();
   }
 
   @Override
   protected void onDestroy() {
+    Updates.detach(this);
+    if (access != null) access.close();
     handler.removeCallbacksAndMessages(null);
     if (mapView != null) mapView.onDestroy();
     super.onDestroy();

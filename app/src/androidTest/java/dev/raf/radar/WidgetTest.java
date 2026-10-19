@@ -26,6 +26,7 @@ public class WidgetTest {
     Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     c.stopService(new Intent(c, MonitorService.class));
     store = new Store(c); store.prefs.edit().clear().commit();
+    ScreenTest.grantAccess();
     ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
   }
   @After public void cleanup() {
