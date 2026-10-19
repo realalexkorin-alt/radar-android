@@ -54,7 +54,7 @@ final class Overlay {
     int fg = Color.WHITE;
     int alpha = s.prefs.getInt("opacity", 70) * 255 / 100;
     GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-        new int[]{Color.argb(alpha, dark?28:255,dark?28:255,dark?20:250),Color.argb(alpha,dark?12:255,dark?13:255,dark?15:255)});
+        new int[]{Color.argb(alpha,28,28,20),Color.argb(alpha,12,13,15)});
     background.setCornerRadius(dp(22));
     root.setBackground(background); root.setPadding(dp(14),dp(12),dp(10),dp(12));
     root.setElevation(dp(8));
