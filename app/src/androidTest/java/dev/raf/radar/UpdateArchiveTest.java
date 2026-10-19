@@ -33,7 +33,15 @@ public class UpdateArchiveTest {
     for (byte b : md.digest()) hex.append(String.format(java.util.Locale.US, "%02x", b));
     assertEquals("6032ecbf68dbafe5663987a962605ae6006b7d589d383fa90c72353bc65a3a4f", hex.toString());
     PackageInfo candidate = c.getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
-    assertNotNull("Android could not parse the genuine signed release at " + f, candidate);
+    // Distinguish an incomplete download from a PackageManager/archive parser failure.
+    assertEquals("Downloaded bytes differ from the published asset", 50023927L, f.length());
+    try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(f)) {
+      assertNotNull("Missing AndroidManifest.xml in published APK", zip.getEntry("AndroidManifest.xml"));
+      assertNotNull("Missing classes.dex in published APK", zip.getEntry("classes.dex"));
+    }
+    assertNotNull("Android API " + android.os.Build.VERSION.SDK_INT
+        + " cannot parse the real published APK from " + f.getAbsolutePath()
+        + " (SHA-256 verified). Check artifact signature and Android package parser logs.", candidate);
     assertEquals("dev.raf.radar", candidate.packageName);
     assertEquals(5, candidate.getLongVersionCode());
     assertNotNull(candidate.signingInfo);
