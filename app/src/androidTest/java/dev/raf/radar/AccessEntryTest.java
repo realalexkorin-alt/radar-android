@@ -52,7 +52,7 @@ public class AccessEntryTest {
     } while (android.os.SystemClock.uptimeMillis() < end);
     throw new AssertionError("System settings did not open");
   }
-  @Test public void denialIsGatedAndNextEntryRequestsAgain() {
+  @Test public void denialIsGatedAndNextEntryRequestsAgain() throws Exception {
     android.content.Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     android.accessibilityservice.AccessibilityServiceInfo info = InstrumentationRegistry.getInstrumentation().getUiAutomation().getServiceInfo();
     info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
