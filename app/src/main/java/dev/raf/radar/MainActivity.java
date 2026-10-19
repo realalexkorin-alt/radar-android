@@ -94,7 +94,7 @@ public final class MainActivity extends Activity {
     LinearLayout title=column();title.addView(heading("Радар Pro",24));
     state=text("Мониторинг выключен · начать",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Управление мониторингом");state.setOnClickListener(v->toggleMonitor());title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
-    LinearLayout tools=column();String[] icons={"search","layers","locate"},names={"Поиск точки","Слои карты","Моя геопозиция"};Runnable[] actions={this::addPoint,this::mapLayers,this::locate};
+    LinearLayout tools=column();String[] icons={"search","layers","locate"},names={"Поиск точки","Тарифы точек","Моя геопозиция"};Runnable[] actions={this::addPoint,this::mapLayers,this::locate};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
     TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);mapFrame.addView(loading,ll);
@@ -102,7 +102,7 @@ public final class MainActivity extends Activity {
     mapView.addOnDidFailLoadingMapListener(e->{loading.setVisibility(View.VISIBLE);loading.setText("Карта недоступна · повторить");loading.setOnClickListener(v->applyMapStyle());});
     mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
       m.getUiSettings().setAttributionGravity(Gravity.BOTTOM|Gravity.END);m.getUiSettings().setLogoGravity(Gravity.BOTTOM|Gravity.START);
-      m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(mapTariffs());edit(p);return true;});
+      m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(Arrays.asList("econom","business","comfortplus"));edit(p);return true;});
       m.addOnMapClickListener(pos->{
         Point hit=pointAt(m.getProjection().toScreenLocation(pos));if(hit!=null){edit(hit);return true;}
         hidePreview();return false;
@@ -136,8 +136,7 @@ public final class MainActivity extends Activity {
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
-  Set<String> mapTariffs(){return new LinkedHashSet<>(TariffSelection.ordered(store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")))));}
-  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(mapTariffs().contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
+  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){
     if(cards==null)return;
     if(state!=null){state.setText(MonitorService.running?"Мониторинг включён · остановить":"Мониторинг выключен · начать");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
@@ -191,7 +190,7 @@ public final class MainActivity extends Activity {
   List<Store.Reading> mapReadings(Point point){
     List<Store.Reading> rows=new ArrayList<>();
     List<Store.Reading> cached=store.readings(point.id);
-    for(String tariff:mapTariffs()){
+    for(String tariff:TariffSelection.ordered(point.tariffs)){
       Store.Reading match=null;for(Store.Reading reading:cached)if(tariff.equals(reading.tariff)){match=reading;break;}
       rows.add(match!=null?match:new Store.Reading(tariff,null,null,0,"Ожидаем данные"));
     }
@@ -225,7 +224,7 @@ public final class MainActivity extends Activity {
     TextView address=text(pointAddress(p),16,fg);address.setMaxLines(2);sheet.addView(address);
     if(!p.dynamic){final double lat=p.lat,lon=p.lon;resolveAddress(lat,lon,result->{if(preview!=p)return;p.address=result;address.setText(result);cacheAddress(p.id,lat,lon,result);});}
     LinearLayout buttons=row();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(50));bp.topMargin=dp(20);sheet.addView(buttons,bp);
-    TextView save=primary("Сохранить",true,()->{store.update(p);store.prefs.edit().putString("overlayPoint",p.id).apply();hidePreview();refreshCards();});
+    TextView save=primary("Сохранить",true,()->{store.update(p);hidePreview();refreshCards();});
     TextView cancel=primary("Отменить",false,this::hidePreview);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,-1,1);sp.rightMargin=dp(8);buttons.addView(save,sp);buttons.addView(cancel,new LinearLayout.LayoutParams(0,-1,1));
     FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);mapFrame.addView(sheet,params);pointSheet=sheet;
   }
@@ -462,7 +461,6 @@ public final class MainActivity extends Activity {
                       p.threshold = threshold[0];
                       store.update(p);
                       selected = p.id;
-                      store.prefs.edit().putString("overlayPoint", p.id).apply();
                       refreshCards();
                       dialog.dismiss();
                     });
@@ -553,20 +551,21 @@ public final class MainActivity extends Activity {
     opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
     settingsDivider(widget);sizeSlider(widget,"Размер текста","textScale",60,160);
     settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
-    settingAction(widget,"Тарифы виджета",()->{String id=store.prefs.getString("overlayPoint","me");List<Point> points=store.points();editDetails(points.stream().filter(p->p.id.equals(id)).findFirst().orElse(points.get(0)));});
-    LinearLayout tariffs=group(body,"Тарифы на карте");TextView caption=text("Все выбранные тарифы отображаются на каждой точке.\nТарифы виджета и уведомлений задаются в настройках точки.",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
-    for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),mapTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф на карте: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
-      Set<String> selected=new LinkedHashSet<>(mapTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);
-      if(selected.isEmpty()){button.setChecked(true);toast("Оставьте хотя бы один тариф");return;}
-      store.prefs.edit().putStringSet("mapTariffs",selected).apply();refreshMarkers();
+    settingAction(widget,"Местоположение: "+store.widgetPoint().name,this::chooseWidgetPoint);
+    LinearLayout tariffs=group(body,"Тарифы виджета");TextView caption=text("Показывать в виджете сверху вниз",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
+    for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),store.widgetTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф виджета: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
+      Set<String> selected=new LinkedHashSet<>(store.widgetTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);
+      if(selected.isEmpty()){button.setChecked(true);toast("Оставьте хотя бы один тариф виджета");return;}
+      store.widgetTariffs(selected);
     });}
+    LinearLayout pointSettings=group(body,"Тарифы точек");TextView pointHelp=text("Каждая точка на карте показывает свои тарифы.\nВыбор не меняет тарифы виджета.",11,muted);pointSettings.addView(pointHelp);settingAction(pointSettings,"Настроить точку",this::mapLayers);
     LinearLayout updates=group(body,"Обновление");switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,value->store.prefs.edit().putBoolean("autoUpdate",value).apply());
     TextView explain=text("Приложение проверяет обновления\nпри каждом запуске",11,muted);explain.setPadding(0,0,0,dp(12));updates.addView(explain);
     settingsDivider(updates);settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
     LinearLayout work=group(body,"Работа приложения");
     settingAction(work,"Моя геопозиция",()->{for(Point p:store.points())if(p.dynamic){editDetails(p);break;}});
     switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopService(new Intent(this,MonitorService.class));handler.postDelayed(this::refreshCards,300);});
-    switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false),0,enabled->{if(enabled&&!Settings.canDrawOverlays(this)){access.request();return;}store.prefs.edit().putBoolean("overlay",enabled).putString("overlayPoint",selected).apply();if(enabled)startMonitor();});
+    switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false),0,enabled->{if(enabled&&!Settings.canDrawOverlays(this)){access.request();return;}store.prefs.edit().putBoolean("overlay",enabled).apply();if(enabled)startMonitor();});
     settingAction(work,"Интервал обновления",()->numberDialog("Интервал каждой точки","interval",30,600,30," с"));
     settingAction(work,"Разрешения приложения",()->access.request());
     LinearLayout more=group(body,"Дополнительно");switchRow(more,"Звук при запуске",store.prefs.getBoolean("startupSound",true),0,value->store.prefs.edit().putBoolean("startupSound",value).apply());switchRow(more,"Тёмная тема",dark,0,value->store.prefs.edit().putBoolean("dark",value).apply());
@@ -606,8 +605,14 @@ public final class MainActivity extends Activity {
   }
   void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));line.addView(RadarUi.icon(this,"right",muted,14));line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
   void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}
-  void mapLayers(){String[] labels=new String[TARIFF_IDS.length];boolean[] checked=new boolean[TARIFF_IDS.length];Set<String> selected=new LinkedHashSet<>(mapTariffs());for(int i=0;i<labels.length;i++){labels[i]=Point.label(TARIFF_IDS[i]);checked[i]=selected.contains(TARIFF_IDS[i]);}
-    new AlertDialog.Builder(this).setTitle("Тарифы на карте").setMultiChoiceItems(labels,checked,(dialog,index,on)->{if(on)selected.add(TARIFF_IDS[index]);else selected.remove(TARIFF_IDS[index]);}).setPositiveButton("Применить",(d,w)->{if(selected.isEmpty()){toast("Оставьте хотя бы один тариф");return;}store.prefs.edit().putStringSet("mapTariffs",selected).apply();refreshMarkers();rebuildSettings();}).setNegativeButton("Отменить",null).show();}
+  void chooseWidgetPoint(){
+    List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;
+    new AlertDialog.Builder(this).setTitle("Местоположение виджета").setItems(names,(dialog,index)->{store.prefs.edit().putString("overlayPoint",points.get(index).id).apply();rebuildSettings();}).setNegativeButton("Отменить",null).show();
+  }
+  void mapLayers(){
+    List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;
+    new AlertDialog.Builder(this).setTitle("Тарифы точек").setItems(names,(dialog,index)->editDetails(points.get(index))).setNegativeButton("Отменить",null).show();
+  }
   void rebuildSettings(){if(settingsPanel==null)return;settingsPanel.removeAllViews();TextView title=heading("Настройки",24);title.setPadding(dp(20),dp(24),dp(20),dp(20));settingsPanel.addView(title);ScrollView sc=new ScrollView(this);sc.addView(settingsContents());settingsPanel.addView(sc,new LinearLayout.LayoutParams(-1,0,1));}
 
   void toast(String s) {

@@ -16,7 +16,7 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 public class ReferenceDesignTest {
   @Before public void setup(){Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();c.stopService(new Intent(c,MonitorService.class));new Store(c).prefs.edit().clear().commit();ScreenTest.grantAccess();}
   void seed(MainActivity a){
-    long now=System.currentTimeMillis();a.store.prefs.edit().putLong("lat",Double.doubleToLongBits(55.7558)).putLong("lon",Double.doubleToLongBits(37.6173)).putLong("gpsAt",now).putInt("opacity",85).putString("overlayPoint","me").apply();
+    long now=System.currentTimeMillis();a.store.prefs.edit().putStringSet("widgetTariffs",java.util.Collections.singleton("econom")).putLong("lat",Double.doubleToLongBits(55.7558)).putLong("lon",Double.doubleToLongBits(37.6173)).putLong("gpsAt",now).putInt("opacity",85).putString("overlayPoint","me").apply();
     Point me=a.store.points().get(0);me.tariffs=java.util.Collections.singletonList("econom");a.store.update(me);a.store.readings("me",java.util.Collections.singletonList(new Store.Reading("econom",120,null,now,"fixture")));
     String[] names={"Дом","ТЦ Европейский","Шереметьево","Центр","Москва-Сити","Внуково","ТЦ Авиапарк","Красная площадь"};
     String[] addresses={"ул. Ленина, 25","пл. Киевского Вокзала, 2","Международное ш., вл. 1","ул. Тверская, 12","Пресненская наб., 10","2-я Рейсовая ул., 2","Ходынский б-р, 4","ул. Ильинка, 5"};
@@ -24,7 +24,7 @@ public class ReferenceDesignTest {
       Point p=new Point("ref-"+i,names[i],55.7558+(i%3-1)*.007,37.6173+(i%4-1.5)*.012,false);p.address=addresses[i];p.enabled=i!=2&&i!=5&&i!=7;p.tariffs=java.util.Collections.singletonList(i%2==0?"comfortplus":"business");a.store.update(p);
       a.store.readings(p.id,java.util.Collections.singletonList(new Store.Reading(p.tariffs.get(0),new int[]{120,70,95,120}[i%4],null,now,"fixture")));
     }
-    a.store.prefs.edit().putStringSet("mapTariffs",new java.util.LinkedHashSet<>(java.util.Arrays.asList("econom","business","comfortplus"))).apply();a.rebuildSettings();a.refreshCards();
+    a.rebuildSettings();a.refreshCards();
   }
   @Test public void referenceScreensAndCompactWidget() throws Exception {
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
@@ -33,7 +33,7 @@ public class ReferenceDesignTest {
       android.os.SystemClock.sleep(2500);
       scenario.onActivity(a->{
         assertNotNull("Map must be ready",a.map);
-        a.store.prefs.edit().putStringSet("mapTariffs",java.util.Collections.singleton("business")).commit();a.refreshMarkers();
+        a.refreshMarkers();
         a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.7488,37.6353),12.8));
       });
       android.os.SystemClock.sleep(500);

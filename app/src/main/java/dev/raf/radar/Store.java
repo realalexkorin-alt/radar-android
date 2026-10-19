@@ -9,6 +9,35 @@ public final class Store {
 
   public Store(Context c) {
     prefs = c.getSharedPreferences("radar", Context.MODE_PRIVATE);
+    migrateWidgetTariffs();
+  }
+
+  private void migrateWidgetTariffs() {
+    if (!prefs.contains("widgetTariffs")) {
+      List<String> selected = TariffSelection.ordered(widgetPoint().tariffs);
+      if (selected.isEmpty()) selected = Collections.singletonList("econom");
+      prefs.edit().putStringSet("widgetTariffs", new LinkedHashSet<>(selected)).apply();
+    }
+  }
+
+  public Point widgetPoint() {
+    List<Point> saved = points();
+    String id = prefs.getString("overlayPoint", "me");
+    for (Point point : saved) if (point.id.equals(id)) return point;
+    for (Point point : saved) if (point.dynamic) return point;
+    return saved.get(0);
+  }
+
+  public List<String> widgetTariffs() {
+    migrateWidgetTariffs();
+    List<String> selected = TariffSelection.ordered(prefs.getStringSet("widgetTariffs", Collections.singleton("econom")));
+    return selected.isEmpty() ? Collections.singletonList("econom") : selected;
+  }
+
+  public void widgetTariffs(Collection<String> values) {
+    List<String> selected = TariffSelection.ordered(values);
+    if (selected.isEmpty()) throw new IllegalArgumentException("Выберите хотя бы один тариф виджета");
+    prefs.edit().putStringSet("widgetTariffs", new LinkedHashSet<>(selected)).apply();
   }
 
   public synchronized List<Point> points() {

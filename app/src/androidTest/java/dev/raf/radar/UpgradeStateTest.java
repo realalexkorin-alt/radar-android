@@ -21,7 +21,7 @@ public class UpgradeStateTest {
   }
   @Test public void verifyCandidatePreservedData() throws Exception {
     Context c = context();
-    assertEquals(10L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
+    assertEquals(11L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
     Store store = new Store(c);
     Point home = store.points().stream().filter(p -> p.id.equals("upgrade-home")).findFirst().get();
     assertEquals("Дом", home.name); assertEquals(350, home.threshold);
@@ -32,5 +32,6 @@ public class UpgradeStateTest {
     assertEquals(37, store.prefs.getInt("ox", 0)); assertEquals(210, store.prefs.getInt("oy", 0));
     assertFalse(store.prefs.getBoolean("dark", true));
     assertEquals("upgrade-home", store.prefs.getString("overlayPoint", ""));
+    assertEquals(java.util.Arrays.asList("econom", "business"), store.widgetTariffs());
   }
 }

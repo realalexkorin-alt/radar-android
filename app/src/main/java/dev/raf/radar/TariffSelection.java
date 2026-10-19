@@ -1,7 +1,7 @@
 package dev.raf.radar;
 import java.util.*;
 
-/** Map filters and point/widget/alert tariffs have separate, explicit scopes. */
+/** Point map/alert tariffs and independent widget tariffs share only a data source. */
 final class TariffSelection {
   static final List<String> ALL = Collections.unmodifiableList(Arrays.asList(
       "econom", "business", "comfortplus", "vip", "child_tariff", "minivan"));
@@ -10,9 +10,9 @@ final class TariffSelection {
     for (String tariff : ALL) if (values.contains(tariff)) result.add(tariff);
     return result;
   }
-  static List<String> requested(Point point, Collection<String> map, boolean browsing) {
+  static List<String> requested(Point point, Collection<String> widget, boolean widgetSource) {
     Set<String> result = new LinkedHashSet<>(point.tariffs);
-    if (browsing) result.addAll(map);
+    if (widgetSource) result.addAll(widget);
     return ordered(result);
   }
 }
