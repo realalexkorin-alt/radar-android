@@ -81,9 +81,9 @@ public class WidgetTest {
         Assert.assertNotNull(root());
         String text = texts(root());
         Assert.assertFalse(text.contains("Моя геопозиция"));
-        Assert.assertTrue(text.contains("Эконом\n+260"));
-        Assert.assertTrue(text.contains("Комфорт\n+50"));
-        Assert.assertTrue(text.contains("Комфорт+\n+50"));
+        Assert.assertTrue(text.contains("Эконом  +260"));
+        Assert.assertTrue(text.contains("Комфорт  +50"));
+        Assert.assertTrue(text.contains("Комфорт+  +50"));
         Assert.assertFalse(text.contains("расчёт"));
         Assert.assertFalse(text.contains("↻")); Assert.assertFalse(text.contains("↗"));
       });

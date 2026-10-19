@@ -17,9 +17,9 @@ public final class MonitorService extends Service implements LocationListener {
   private Overlay overlay;
   private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
-    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay","points","overlayPoint").contains(key))
+    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","showTariff","dark","overlay","points","overlayPoint","widgetTariffs").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
-    if(key!=null&&java.util.Arrays.asList("points","mapTariffs","overlayPoint").contains(key)&&queue!=null)
+    if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
       queue.execute(()->{planner.refresh();tick();});
   };
   private int failures = 0;
@@ -107,7 +107,7 @@ public final class MonitorService extends Service implements LocationListener {
       List<String> eligible = new ArrayList<>();
       boolean browsing = store.prefs.getLong("viewingUntil", 0) > now;
       String widgetPoint = store.prefs.getBoolean("overlay", false)
-          ? store.prefs.getString("overlayPoint", "me") : "";
+          ? store.widgetPoint().id : "";
       for (Point q : a) {
         if (!PollPlanner.needed(q, browsing, widgetPoint)) continue;
         if (q.dynamic) {
@@ -128,8 +128,7 @@ public final class MonitorService extends Service implements LocationListener {
         }
       if (p == null) return;
       Point request=Point.from(p.json());
-      Set<String> mapTariffs=store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business")));
-      request.tariffs=TariffSelection.requested(p,mapTariffs,browsing);
+      request.tariffs=TariffSelection.requested(p,store.widgetTariffs(),p.id.equals(widgetPoint));
       List<Store.Reading> readings = new TaxiClient(this).fetch(request);
       if (p.dynamic) {
         float[] distance = new float[1];
@@ -147,7 +146,7 @@ public final class MonitorService extends Service implements LocationListener {
       Point current = null;
       for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
       if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
-      List<String> stillNeeded=TariffSelection.requested(current,store.prefs.getStringSet("mapTariffs",new LinkedHashSet<>(Arrays.asList("econom","business"))),store.prefs.getLong("viewingUntil",0)>System.currentTimeMillis());
+      List<String> stillNeeded=TariffSelection.requested(current,store.widgetTariffs(),store.prefs.getBoolean("overlay",false)&&current.id.equals(store.widgetPoint().id));
       if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);

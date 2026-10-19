@@ -60,27 +60,21 @@ final class Overlay {
     root.setElevation(dp(8));
     float scale=s.prefs.getInt("scale",100)/100f, textScale=s.prefs.getInt("textScale",100)/100f;
     int available=Math.max(dp(100),c.getResources().getDisplayMetrics().widthPixels-dp(92));
-    String id=s.prefs.getString("overlayPoint","me"); Point point=null;
-    for(Point candidate:s.points())if(candidate.id.equals(id))point=candidate;
-    if(point==null)point=s.points().get(0);
+    Point point=s.widgetPoint();
     LinearLayout body=new LinearLayout(c);body.setGravity(Gravity.CENTER_VERTICAL);root.addView(body);
     LinearLayout rows=new LinearLayout(c);rows.setOrientation(LinearLayout.VERTICAL);body.addView(rows);
-    LinearLayout row=new LinearLayout(c);rows.addView(row);int rowWidth=0;
     java.util.List<Store.Reading> readings=s.readings(point.id);
-    for(String tariff:point.tariffs){
+    for(String tariff:s.widgetTariffs()){
       Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
-      String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"\n":"";
+      String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"  ":"";
       String value=RadarUi.value(reading);
       android.text.SpannableString content=new android.text.SpannableString(name+value);
-      content.setSpan(new android.text.style.AbsoluteSizeSpan(Math.round(30*scale*textScale),true),name.length(),content.length(),0);
       content.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),name.length(),content.length(),0);
-      TextView cell=RadarUi.text(c,"",16*scale*textScale,fg,false);cell.setText(content);cell.setLineSpacing(dp(3),1);
-      cell.setPadding(dp(4),0,dp(10),0);cell.setMinWidth(dp(point.tariffs.size()==1?100*scale:66*scale));cell.setMaxWidth(available);
+      TextView cell=RadarUi.text(c,"",20*scale*textScale,fg,false);cell.setText(content);
+      cell.setPadding(dp(4),dp(3),dp(10),dp(3));cell.setMinWidth(dp(100*scale));cell.setMaxWidth(available);
       cell.setContentDescription(point.name+": "+Point.label(tariff)+", "+value);
       if(reading!=null&&!reading.fresh()){cell.setAlpha(.5f);cell.setContentDescription(Point.label(tariff)+": данные устарели");}
-      cell.measure(View.MeasureSpec.makeMeasureSpec(available,View.MeasureSpec.AT_MOST),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
-      int width=cell.getMeasuredWidth();if(rowWidth>0&&rowWidth+width>available){row=new LinearLayout(c);rows.addView(row);rowWidth=0;}
-      row.addView(cell);rowWidth+=width;
+      rows.addView(cell);
     }
     FrameLayout expand=new FrameLayout(c);expand.setContentDescription(expanded?"Свернуть меню виджета":"Раскрыть меню виджета");
     ImageView arrow=RadarUi.icon(c,expanded?"down":"right",fg,24);expand.addView(arrow,new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER));

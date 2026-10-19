@@ -118,6 +118,7 @@ public class ScreenTest {
             Store s = new Store(a);
             Point me = s.points().get(0);
             me.tariffs = java.util.Collections.singletonList("econom");
+            a.store.widgetTariffs(java.util.Collections.singleton("econom"));
             s.update(me);
             s.prefs.edit().putBoolean("overlay", true).apply();
             a.startForegroundService(new android.content.Intent(a, MonitorService.class));
