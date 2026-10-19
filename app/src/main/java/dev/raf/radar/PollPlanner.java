@@ -32,7 +32,7 @@ public final class PollPlanner {
   }
 
   public static boolean needed(Point p, boolean browsing, String overlayPoint) {
-    return !p.tariffs.isEmpty()
+    return p.enabled && !p.tariffs.isEmpty()
         && (p.dynamic || p.notify || browsing || p.id.equals(overlayPoint));
   }
 

@@ -29,6 +29,11 @@ public class PollPlannerTest {
     saved.notify = true; assertTrue(PollPlanner.needed(saved, false, ""));
     saved.tariffs.clear(); assertFalse(PollPlanner.needed(saved, true, "saved"));
   }
+  @Test public void disabledPointCannotPollEvenWithNotificationOrWidget() {
+    Point point = new Point("saved", "saved", 55, 61, false);
+    point.notify = true; point.enabled = false;
+    assertFalse(PollPlanner.needed(point, true, "saved"));
+  }
   @Test public void dynamicAlwaysNeeded() {
     assertTrue(PollPlanner.needed(new Point("me", "me", 0, 0, true), false, ""));
   }

@@ -40,15 +40,15 @@ public class ScreenTest {
   @Test
   public void homeAndSettings() {
     try (ActivityScenario<MainActivity> a = ActivityScenario.launch(MainActivity.class)) {
-      onView(withText("Радар")).check(matches(isDisplayed()));
+      onView(withText("Радар Pro")).check(matches(isDisplayed()));
       capture("home-dark");
-      onView(withText("⚙")).perform(click());
-      onView(withText("Настройки")).check(matches(isDisplayed()));
+      onView(withContentDescription("Вкладка Настройки")).perform(click());
+      onView(allOf(withText("Настройки"), not(isAssignableFrom(android.widget.Button.class)))).check(matches(isDisplayed()));
       onView(withText("Тёмная тема")).check(matches(isDisplayed()));
       capture("settings-dark");
       onView(withText("Тёмная тема")).perform(click());
-      onView(withText("Готово")).perform(click());
-      onView(withText("Радар")).check(matches(isDisplayed()));
+      onView(withText("Применить оформление")).perform(scrollTo(), click());
+      onView(withText("Радар Pro")).check(matches(isDisplayed()));
       capture("home-light");
     }
   }
@@ -142,7 +142,7 @@ public class ScreenTest {
       capture("overlay-scaled");
       scenario.onActivity(a -> a.stopService(new android.content.Intent(a, MonitorService.class)));
       InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-      onView(withText("Радар")).check(matches(isDisplayed()));
+      onView(withText("Радар Pro")).check(matches(isDisplayed()));
     }
   }
 
@@ -182,6 +182,7 @@ public class ScreenTest {
   @Test
   public void dynamicPointSettings() {
     try (ActivityScenario<MainActivity> a = ActivityScenario.launch(MainActivity.class)) {
+      onView(withContentDescription("Вкладка Точки")).perform(click());
       onView(withText(startsWith("◎ Моя геопозиция"))).perform(click());
       onView(allOf(withText("Моя геопозиция"), isAssignableFrom(android.widget.EditText.class)))
           .check(matches(isDisplayed()));
@@ -195,4 +196,57 @@ public class ScreenTest {
           });
     }
   }
+  @Test public void tabsRetainMapAndPointMonitoringAfterRecreation() {
+    try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+      scenario.onActivity(a -> {
+        Point p = new Point("saved", "Дом", 55.75, 37.61, false);
+        p.address = "Тестовый адрес"; a.store.update(p); a.refreshCards();
+      });
+      onView(withContentDescription("Вкладка Точки")).perform(click());
+      onView(withText("Тестовый адрес")).check(matches(isDisplayed()));
+      onView(withContentDescription("Мониторинг: Дом")).perform(click());
+      scenario.recreate();
+      onView(withContentDescription("Мониторинг: Дом")).check(matches(isNotChecked()));
+      scenario.onActivity(a -> {
+        Assert.assertEquals(1, a.currentTab);
+        Assert.assertFalse(a.store.points().get(1).enabled);
+        Assert.assertFalse(PollPlanner.needed(a.store.points().get(1), true, "saved"));
+      });
+      onView(withContentDescription("Вкладка Настройки")).perform(click());
+      scenario.onActivity(a -> Assert.assertEquals(0L, a.store.prefs.getLong("viewingUntil", -1)));
+      onView(withContentDescription("Вкладка Карта")).perform(click());
+      scenario.onActivity(a -> {
+        Assert.assertNotNull(a.mapView);
+        Assert.assertEquals(android.view.View.VISIBLE, a.mapPanel.getVisibility());
+        Assert.assertTrue(a.store.prefs.getLong("viewingUntil", 0) > System.currentTimeMillis());
+      });
+      capture("map-tabs-015");
+    }
+  }
+
+  @Test public void cancellingMapPointDoesNotSaveIt() {
+    try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+      scenario.onActivity(a -> a.edit(new Point("cancel", "Новая точка", 55.75, 37.61, false)));
+      onView(withText(startsWith("Кеф:"))).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).check(matches(isDisplayed()));
+      capture("point-card-015");
+      onView(withText("Отменить")).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
+      scenario.onActivity(a -> Assert.assertEquals(1, a.store.points().size()));
+    }
+  }
+
+  @Test public void pointSettingsSurviveUpgradeModelMigration() throws Exception {
+    android.content.Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    Store store = new Store(c);
+    // A pre-0.1.5 payload has neither address nor enabled fields.
+    org.json.JSONObject old = new org.json.JSONObject("{\"id\":\"legacy\",\"name\":\"Старая точка\",\"lat\":55,\"lon\":37,\"notify\":true,\"threshold\":350,\"tariffs\":[\"econom\"]}");
+    store.save(java.util.Arrays.asList(Point.from(old)));
+    try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+      scenario.onActivity(a -> {
+        Point p = a.store.points().stream().filter(x -> x.id.equals("legacy")).findFirst().get();
+        Assert.assertTrue(p.enabled); Assert.assertTrue(p.notify); Assert.assertEquals(350, p.threshold);
+        Assert.assertEquals("", p.address);
+      });
+    }
+  }
+
 }

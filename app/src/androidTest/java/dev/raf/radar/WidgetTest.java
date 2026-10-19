@@ -58,6 +58,17 @@ public class WidgetTest {
     }
     return value;
   }
+  private View find(View view, String description) {
+    if (description.equals(view.getContentDescription())) return view;
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        View found = find(group.getChildAt(i), description);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
   private void event(int action, long start, long elapsed, float x, float y) {
     MotionEvent e = MotionEvent.obtain(start, start + elapsed, action, x, y, 0);
     root().dispatchTouchEvent(e); e.recycle();
@@ -69,7 +80,7 @@ public class WidgetTest {
       scenario.onActivity(a -> {
         Assert.assertNotNull(root());
         String text = texts(root());
-        Assert.assertTrue(text.contains("Моя геопозиция"));
+        Assert.assertFalse(text.contains("Моя геопозиция"));
         Assert.assertTrue(text.contains("Эконом\n+260 ₽"));
         Assert.assertTrue(text.contains("Комфорт\n+50 ₽"));
         Assert.assertTrue(text.contains("Комфорт+\n+50 ₽"));
@@ -78,8 +89,8 @@ public class WidgetTest {
       });
       ScreenTest.capture("widget-minimal-013");
       scenario.onActivity(a -> {
-        LinearLayout header = (LinearLayout) ((LinearLayout) root()).getChildAt(0);
-        View close = header.getChildAt(header.getChildCount() - 1);
+        find(root(), "Раскрыть меню виджета").performClick();
+        View close = find(root(), "Закрыть виджет");
         Assert.assertEquals("Закрыть виджет", close.getContentDescription());
         close.performClick();
         Assert.assertFalse(store.prefs.getBoolean("overlay", true));
@@ -124,7 +135,7 @@ public class WidgetTest {
     Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(
         new Intent(c, MainActivity.class).putExtra("widgetSettings", true))) {
-      onView(withText("Настройки")).check(matches(isDisplayed()));
+      onView(withContentDescription("Вкладка Настройки")).check(matches(isSelected()));
       scenario.onActivity(a -> Assert.assertFalse(a.getIntent().hasExtra("widgetSettings")));
     }
   }
