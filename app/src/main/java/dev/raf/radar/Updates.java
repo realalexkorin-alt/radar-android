@@ -12,8 +12,11 @@ import java.util.*;
 import org.json.*;
 
 final class Updates {
+  static final String DEFAULT_REPO = "realalexkorin-alt/radar-android";
   static void check(Activity a, Store s) {
-    String repo = s.prefs.getString("repo", "").trim();
+    String repo = s.prefs.getString("repo", DEFAULT_REPO).trim();
+    if (repo.isEmpty()) repo = DEFAULT_REPO;
+    final String repository = repo;
     if (!repo.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")) {
       show(a, "Укажи репозиторий GitHub в формате владелец/название.");
       return;
@@ -24,7 +27,7 @@ final class Updates {
               try {
                 JSONObject j =
                     new JSONObject(
-                        read("https://api.github.com/repos/" + repo + "/releases/latest"));
+                        read("https://api.github.com/repos/" + repository + "/releases/latest"));
                 JSONArray assets = j.getJSONArray("assets");
                 JSONObject apk = null;
                 for (int i = 0; i < assets.length(); i++) {

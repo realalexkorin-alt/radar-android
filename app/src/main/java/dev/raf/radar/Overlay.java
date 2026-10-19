@@ -165,7 +165,7 @@ final class Overlay {
     }
     if (!collapsed) {
       TextView note = new TextView(c);
-      note.setText(p.tariffs.size() == 1 ? "× — не надбавка ₽" : "× — множитель, не надбавка ₽");
+      note.setText(p.tariffs.size() == 1 ? "₽ — расчётная надбавка" : "₽ — расчёт · × — множитель");
       note.setTextSize(10 * scale);
       note.setTextColor(fg);
       note.setShadowLayer(dp(1.5f), 0, dp(1), dark ? Color.BLACK : Color.WHITE);

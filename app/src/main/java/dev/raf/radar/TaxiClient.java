@@ -39,13 +39,44 @@ public final class TaxiClient {
         .put("skip_estimated_waiting", true);
   }
 
+  private final android.content.Context context;
+  public TaxiClient(android.content.Context c) { context = c.getApplicationContext(); }
+
   public List<Store.Reading> fetch(Point p) throws Exception {
     String cookie = android.webkit.CookieManager.getInstance().getCookie(ENDPOINT);
-    return parse(post(request(p), cookie), p.tariffs, System.currentTimeMillis());
+    JSONObject response = post(ENDPOINT, request(p), cookie);
+    String zone = "";
+    try {
+      String key = "zone:" + p.id;
+      android.content.SharedPreferences prefs = context.getSharedPreferences("radar", 0);
+      long now = System.currentTimeMillis();
+      double oldLat = Double.longBitsToDouble(prefs.getLong(key + ":lat", 0));
+      double oldLon = Double.longBitsToDouble(prefs.getLong(key + ":lon", 0));
+      if (now - prefs.getLong(key + ":time", 0) < 3600000
+          && Math.abs(oldLat - p.lat) < 0.002 && Math.abs(oldLon - p.lon) < 0.002) {
+        zone = prefs.getString(key, "");
+      } else {
+        zone = post("https://tc.mobile.yandex.net/3.0/nearestzone",
+            new JSONObject().put("id", "").put("point", new JSONArray().put(p.lon).put(p.lat)), null)
+            .optString("nearest_zone", "");
+        prefs.edit().putString(key, zone).putLong(key + ":time", now)
+            .putLong(key + ":lat", Double.doubleToLongBits(p.lat))
+            .putLong(key + ":lon", Double.doubleToLongBits(p.lon)).apply();
+      }
+    } catch (ApiException e) { throw e; }
+      catch (Exception ignored) { /* Multipliers still work if zone lookup fails. */ }
+    JSONObject table;
+    try (InputStream in = context.getAssets().open("tariffs.json")) {
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      byte[] buffer = new byte[8192]; int n;
+      while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+      table = new JSONObject(out.toString("UTF-8"));
+    }
+    return parse(response, p.tariffs, System.currentTimeMillis(), table.optJSONObject(zone), zone);
   }
 
-  private JSONObject post(JSONObject body, String cookie) throws Exception {
-    HttpURLConnection c = (HttpURLConnection) new URL(ENDPOINT).openConnection();
+  private JSONObject post(String endpoint, JSONObject body, String cookie) throws Exception {
+    HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
     c.setConnectTimeout(15000);
     c.setReadTimeout(15000);
     c.setInstanceFollowRedirects(false);
@@ -79,6 +110,11 @@ public final class TaxiClient {
 
   public static List<Store.Reading> parse(JSONObject j, List<String> selected, long now)
       throws JSONException {
+    return parse(j, selected, now, null, "");
+  }
+
+  public static List<Store.Reading> parse(JSONObject j, List<String> selected, long now,
+      JSONObject base, String zone) throws JSONException {
     JSONArray levels = j.optJSONArray("service_levels");
     if (levels == null) throw new JSONException("Сервис изменил формат ответа");
     List<Store.Reading> out = new ArrayList<>();
@@ -101,8 +137,13 @@ public final class TaxiClient {
         }
         status = ratio == null ? "Нет данных о надбавке" : "Множитель спроса · не ₽";
       }
-      // Passenger fare and paid_options.value are NOT a verified driver RUB surcharge.
-      out.add(new Store.Reading(tariff, null, ratio, now, status));
+      Integer rub = null;
+      if (match != null && "RUB".equals(j.optJSONObject("currency_rules") == null ? "" : j.optJSONObject("currency_rules").optString("code"))) {
+        rub = RubCalculator.calculate(match, base, tariff);
+        if (rub != null) status = "Расчётная надбавка · " + zone + " · база 19.10.2026";
+        else status = "Нет базовой цены · " + (zone.isEmpty() ? "зона неизвестна" : zone);
+      }
+      out.add(new Store.Reading(tariff, rub, ratio, now, status));
     }
     return out;
   }

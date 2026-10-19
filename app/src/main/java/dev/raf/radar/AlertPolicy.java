@@ -1,6 +1,6 @@
 package dev.raf.radar;
 
-/** One cooldown per point AND tariff. Only fresh, verified RUB amounts enter here. */
+/** One cooldown per point. Only fresh RUB estimates enter here. */
 public final class AlertPolicy {
   public static final long COOLDOWN = 30 * 60_000L;
 

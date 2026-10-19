@@ -112,7 +112,7 @@ public final class MonitorService extends Service implements LocationListener {
           break;
         }
       if (p == null) return;
-      List<Store.Reading> readings = new TaxiClient().fetch(p);
+      List<Store.Reading> readings = new TaxiClient(this).fetch(p);
       if (p.dynamic) {
         float[] distance = new float[1];
         Location.distanceBetween(

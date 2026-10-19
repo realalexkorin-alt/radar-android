@@ -475,7 +475,7 @@ public final class MainActivity extends Activity {
     form.addView(
         text(
             "Пауза 30 минут. Рост ещё на 50 ₽ — сразу.\n"
-                + "В этой сборке источник надбавок в ₽ ещё не подтверждён; уведомления по × не"
+                + "Уведомления используют расчётную надбавку в ₽; по множителю × не"
                 + " отправляются.",
             12,
             muted));
@@ -570,7 +570,7 @@ public final class MainActivity extends Activity {
   void settings() {
     LinearLayout f = form();
     f.addView(text("Радар " + BuildConfig.VERSION_NAME, 20, fg));
-    f.addView(text("Альфа · источник надбавок в рублях исследуется", 12, muted));
+    f.addView(text("Надбавка ₽ — расчётная · сверяйте с Яндекс Про", 12, muted));
     Switch theme = new Switch(this);
     theme.setText("Тёмная тема");
     theme.setTextColor(fg);
@@ -642,7 +642,7 @@ public final class MainActivity extends Activity {
     repo.setHintTextColor(muted);
     repo.setSingleLine();
     repo.setHint("GitHub: владелец/репозиторий");
-    repo.setText(store.prefs.getString("repo", ""));
+    repo.setText(store.prefs.getString("repo", Updates.DEFAULT_REPO));
     f.addView(repo);
     f.addView(
         action(
@@ -654,8 +654,8 @@ public final class MainActivity extends Activity {
     f.addView(
         text(
             "Карта: © OpenStreetMap contributors.\n"
-                + "Карточки показывают × только при наличии данных. Цена поездки не используется"
-                + " как надбавка водителя.\n"
+                + "Надбавка ₽: текущая цена минус база города, округление до 10 ₽. Это оценка,"
+                + " совпадение с Яндекс Про не подтверждено.\n"
                 + "Данные хранятся на устройстве. Нет рекламы и аналитики.",
             12,
             muted));
