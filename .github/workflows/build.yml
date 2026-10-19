@@ -77,7 +77,8 @@ jobs:
             if [ ${{ matrix.api }} -ge 33 ]; then adb shell pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS; fi
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=dev.raf.radar.AccessEntryTest || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager; exit 1; }
+            adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
+            grep -q 'OK (10 tests)' ordinary-tests.txt || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
       - uses: actions/upload-artifact@v4
         if: always()
@@ -87,3 +88,4 @@ jobs:
             app/build/reports/androidTests/
             screens/
             permission-entry.txt
+            ordinary-tests.txt

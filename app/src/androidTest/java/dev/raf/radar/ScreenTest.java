@@ -29,7 +29,11 @@ public class ScreenTest {
       if (android.os.Build.VERSION.SDK_INT >= 33)
         shell("pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS");
       shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
-      shell("appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow");
+      // Android 11 kills the UID whenever this app-op is set, even to its current
+      // value. CI grants installation access before starting instrumentation.
+      if (!InstrumentationRegistry.getInstrumentation().getTargetContext()
+          .getPackageManager().canRequestPackageInstalls())
+        throw new AssertionError("Grant REQUEST_INSTALL_PACKAGES before instrumentation");
     } catch (Exception e) { throw new AssertionError(e); }
   }
 
