@@ -25,7 +25,8 @@ public final class MainActivity extends Activity {
   FrameLayout pages,mapFrame;
   MapView mapView; MapLibreMap map;
   TextView state;
-  View pointSheet;
+  View pointSheet, pointOverlay;
+  final Map<String,Bitmap> pointBitmaps=new HashMap<>();
   Point preview;
   String selected="me";
   Handler handler=new Handler();
@@ -78,6 +79,15 @@ public final class MainActivity extends Activity {
   void buildMap(Bundle saved){
     mapPanel=column();mapFrame=new FrameLayout(this);mapPanel.addView(mapFrame,new LinearLayout.LayoutParams(-1,-1));pages.addView(mapPanel,new FrameLayout.LayoutParams(-1,-1));
     mapView=new MapView(this);mapView.onCreate(saved);mapFrame.addView(mapView,new FrameLayout.LayoutParams(-1,-1));
+    pointOverlay=new View(this){@Override protected void onDraw(Canvas c){
+      if(map==null)return;
+      for(Point p:store.points()){
+        LatLng location=pointLocation(p);if(location==null)continue;
+        PointF xy=map.getProjection().toScreenLocation(location);Bitmap icon=pointBitmaps.get(p.id);
+        if(icon!=null)c.drawBitmap(icon,xy.x-icon.getWidth()/2f,xy.y-icon.getHeight()/2f,null);
+      }
+    }};pointOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout title=column();title.addView(heading("Радар Pro",24));
     state=text("Мониторинг выключен · начать",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Управление мониторингом");state.setOnClickListener(v->toggleMonitor());title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
@@ -91,10 +101,10 @@ public final class MainActivity extends Activity {
       m.getUiSettings().setAttributionGravity(Gravity.BOTTOM|Gravity.END);m.getUiSettings().setLogoGravity(Gravity.BOTTOM|Gravity.START);
       m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(mapTariffs());edit(p);return true;});
       m.addOnMapClickListener(pos->{
-        java.util.List<org.maplibre.geojson.Feature> hit=m.queryRenderedFeatures(m.getProjection().toScreenLocation(pos),"point-symbols");
-        if(!hit.isEmpty()){String id=hit.get(0).getStringProperty("pointId");for(Point p:store.points())if(p.id.equals(id)){edit(p);return true;}}
+        Point hit=pointAt(m.getProjection().toScreenLocation(pos));if(hit!=null){edit(hit);return true;}
         hidePreview();return false;
       });
+      m.addOnCameraMoveListener(()->pointOverlay.invalidate());
       double lat=Double.longBitsToDouble(store.prefs.getLong("lat",Double.doubleToLongBits(56.8389))),lon=Double.longBitsToDouble(store.prefs.getLong("lon",Double.doubleToLongBits(60.5975)));
       m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat,lon),12.3));
     });
@@ -144,7 +154,7 @@ public final class MainActivity extends Activity {
   }
   void refreshMarkers(){
     if(map==null||map.getStyle()==null||!map.getStyle().isFullyLoaded())return;
-    java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>(), symbols=new ArrayList<>();
+    java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>();pointBitmaps.clear();
     for(Point p:store.points()){
       double lat=p.lat,lon=p.lon;if(p.dynamic){if(store.prefs.getLong("gpsAt",0)==0)continue;lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
       Store.Reading reading=displayReading(p);
@@ -152,9 +162,7 @@ public final class MainActivity extends Activity {
         org.maplibre.geojson.Feature feature=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
         feature.addStringProperty("color",String.format(Locale.US,"#%06X",RadarUi.tariffColor(reading.tariff)&0xFFFFFF));glowPoints.add(feature);
       }
-      String imageId="point-"+p.id;map.getStyle().addImage(imageId,pointIcon(p),false);
-      org.maplibre.geojson.Feature symbol=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
-      symbol.addStringProperty("icon",imageId);symbol.addStringProperty("pointId",p.id);symbols.add(symbol);
+      pointBitmaps.put(p.id,pointIcon(p));
     }
     org.maplibre.android.style.sources.GeoJsonSource source=map.getStyle().getSourceAs("reading-points");
     org.maplibre.geojson.FeatureCollection data=org.maplibre.geojson.FeatureCollection.fromFeatures(glowPoints);
@@ -165,13 +173,17 @@ public final class MainActivity extends Activity {
         org.maplibre.android.style.layers.PropertyFactory.circleRadius(40f),org.maplibre.android.style.layers.PropertyFactory.circleOpacity(.3f),org.maplibre.android.style.layers.PropertyFactory.circleBlur(.8f));
       map.getStyle().addLayerBelow(glow,"cities");
     }else source.setGeoJson(data);
-    org.maplibre.android.style.sources.GeoJsonSource pins=map.getStyle().getSourceAs("point-symbol-data");
-    org.maplibre.geojson.FeatureCollection pinData=org.maplibre.geojson.FeatureCollection.fromFeatures(symbols);
-    if(pins==null){map.getStyle().addSource(new org.maplibre.android.style.sources.GeoJsonSource("point-symbol-data",pinData));
-      map.getStyle().addLayer(new org.maplibre.android.style.layers.SymbolLayer("point-symbols","point-symbol-data").withProperties(
-        org.maplibre.android.style.layers.PropertyFactory.iconImage(org.maplibre.android.style.expressions.Expression.get("icon")),
-        org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement(true)));
-    }else pins.setGeoJson(pinData);
+    pointOverlay.invalidate();
+  }
+  LatLng pointLocation(Point p){
+    if(!p.dynamic)return new LatLng(p.lat,p.lon);
+    if(store.prefs.getLong("gpsAt",0)==0)return null;
+    return new LatLng(Double.longBitsToDouble(store.prefs.getLong("lat",0)),Double.longBitsToDouble(store.prefs.getLong("lon",0)));
+  }
+  Point pointAt(PointF hit){
+    java.util.List<Point> points=store.points();for(int i=points.size()-1;i>=0;i--){Point p=points.get(i);LatLng loc=pointLocation(p);if(loc==null)continue;
+      PointF xy=map.getProjection().toScreenLocation(loc);Bitmap icon=pointBitmaps.get(p.id);if(icon!=null&&Math.abs(hit.x-xy.x)<=icon.getWidth()/2f+dp(4)&&Math.abs(hit.y-xy.y)<=icon.getHeight()/2f+dp(4))return p;
+    }return null;
   }
   Bitmap pointIcon(Point p){
     Store.Reading reading=displayReading(p);String value=RadarUi.value(reading);int color=reading==null?RadarUi.YELLOW:RadarUi.tariffColor(reading.tariff);

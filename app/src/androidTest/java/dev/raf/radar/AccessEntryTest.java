@@ -5,6 +5,7 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.*;
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.*;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
@@ -63,9 +64,9 @@ public class AccessEntryTest {
       if (android.os.Build.VERSION.SDK_INT >= 33)
         button("permission_allow_button").performAction(AccessibilityNodeInfo.ACTION_CLICK);
       waitForAppDialog();
-      onView(withText("Разрешения для Радара")).check(matches(isDisplayed()));
+      onView(withText("Разрешения для Радара")).inRoot(isDialog()).check(matches(isDisplayed()));
       Assert.assertFalse(Access.monitorReady(c)); Assert.assertFalse(MonitorService.running);
-      onView(withText("Позже")).perform(click());
+      onView(withText("Позже")).inRoot(isDialog()).perform(click());
       scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
       // Android 15 can pause the activity for the runtime prompt before
       // ActivityScenario observes RESUMED. Answer that prompt while the
@@ -78,10 +79,10 @@ public class AccessEntryTest {
         returning.get(15, java.util.concurrent.TimeUnit.SECONDS);
       } finally { lifecycle.shutdownNow(); }
       waitForAppDialog();
-      onView(withText("Разрешения для Радара")).check(matches(isDisplayed()));
+      onView(withText("Разрешения для Радара")).inRoot(isDialog()).check(matches(isDisplayed()));
       Assert.assertTrue(Access.location(c));
       Assert.assertEquals("Поверх других приложений", Access.missing(c));
-      onView(withText("Разрешить")).perform(click());
+      onView(withText("Разрешить")).inRoot(isDialog()).perform(click());
       waitForSettings();
       shell("input keyevent 4");
       waitForAppDialog();

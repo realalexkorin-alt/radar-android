@@ -95,6 +95,7 @@ jobs:
             adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
             grep -Eq '^OK \([0-9]+ tests?\)' ordinary-tests.txt || { adb pull /sdcard/Pictures/RadarSmoke ./screens || true; adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
+            adb logcat -d -v brief > emulator-logcat.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,5 +105,6 @@ jobs:
             screens/
             permission-entry.txt
             ordinary-tests.txt
+            emulator-logcat.txt
             upgrade-seed.txt
             upgrade-verify.txt
