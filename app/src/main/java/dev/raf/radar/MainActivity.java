@@ -30,7 +30,7 @@ public final class MainActivity extends Activity {
   FrameLayout pages,mapFrame;
   MapView mapView; MapLibreMap map;
   TextView state;
-  View pointSheet, pointOverlay;
+  View pointSheet, pointDismiss, pointOverlay;
   final Map<String,Bitmap> pointBitmaps=new HashMap<>();
   Point preview;
   String selected="me";
@@ -100,7 +100,7 @@ public final class MainActivity extends Activity {
     brand.addView(new RadarLogo(this,false),new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/3.4f)));
     pro=new RadarLogo(this,true);pro.setFocusable(true);pro.setClickable(true);pro.setOnClickListener(v->toggleMonitor());
     brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));title.addView(brand);
-    state=text("Мониторинг выключен · начать",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Управление мониторингом");state.setOnClickListener(v->toggleMonitor());title.addView(state);
+    state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
     LinearLayout tools=column();String[] icons={"search","locate"},names={"Поиск точки","Моя геопозиция"};Runnable[] actions={this::addPoint,this::locate};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
@@ -149,7 +149,7 @@ public final class MainActivity extends Activity {
     if(cards==null)return;
     if(pro!=null)pro.active(MonitorService.running);
     syncWorkToggles();
-    if(state!=null){state.setText(MonitorService.running?"Мониторинг включён · остановить":"Мониторинг выключен · начать");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
+    if(state!=null){state.setText(MonitorService.running?"Мониторинг включён":"Мониторинг выключен");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
     cards.removeAllViews();
     for(Point p:store.points()){
       if(p.dynamic)continue;
@@ -209,7 +209,7 @@ public final class MainActivity extends Activity {
   Bitmap pointIcon(Point point){
     List<Store.Reading> rows=mapReadings(point);
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
-    int width=dp(56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
+    int width=dp(point.dynamic?114:56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
     for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(RadarUi.value(reading)))+dp(24));
     Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),header+rows.size()*rowHeight+dp(8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
     if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
@@ -231,7 +231,7 @@ public final class MainActivity extends Activity {
     if(overlayToggle!=null)overlayToggle.setChecked(store.prefs.getBoolean("overlay",false)&&Settings.canDrawOverlays(this));
     syncingToggles=false;
   }
-  void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);pointSheet=null;preview=null;previewValue=null;}
+  void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);if(pointDismiss!=null)mapFrame.removeView(pointDismiss);pointDismiss=null;pointSheet=null;preview=null;previewValue=null;}
   TextView previewValue;
   void updatePreviewValue(){if(previewValue!=null&&preview!=null){Store.Reading reading=displayReading(preview);previewValue.setText("Кеф "+RadarUi.value(reading));previewValue.setTextColor(PriceLevel.color(reading==null?null:reading.rub));};}
   void edit(Point p){
@@ -253,6 +253,8 @@ public final class MainActivity extends Activity {
     });
     if(!p.dynamic)buttons.addView(action,new LinearLayout.LayoutParams(-1,-1));else buttons.setVisibility(View.GONE);
     sheet.setClickable(true);sheet.setContentDescription("Карточка локации");
+    pointDismiss=new View(this);pointDismiss.setContentDescription("Закрыть карточку локации");pointDismiss.setOnClickListener(v->hidePreview());
+    mapFrame.addView(pointDismiss,new FrameLayout.LayoutParams(-1,-1));
     FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);mapFrame.addView(sheet,params);pointSheet=sheet;updatePreviewValue();
   }
 
