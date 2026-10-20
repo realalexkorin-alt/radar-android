@@ -12,11 +12,13 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 
 /** Runs alone on a clean emulator installation, before the ordinary granted-access suite. */
 public class AccessEntryTest {
+  private boolean launcherRecovered;
   private AccessibilityNodeInfo button(String suffix) {
     long end = android.os.SystemClock.uptimeMillis() + 10000;
     String observed="";
     do {
       StringBuilder nodes=new StringBuilder();
+      AccessibilityNodeInfo launcherClose=null;
       android.app.UiAutomation automation=InstrumentationRegistry.getInstrumentation().getUiAutomation();
       java.util.ArrayDeque<AccessibilityNodeInfo> queue=new java.util.ArrayDeque<>();
       AccessibilityNodeInfo root=automation.getRootInActiveWindow();if(root!=null)queue.add(root);
@@ -28,11 +30,19 @@ public class AccessEntryTest {
           AccessibilityNodeInfo n = queue.remove();
           String id = n.getViewIdResourceName();
           nodes.append("[").append(n.getPackageName()).append(" ").append(id).append(" ").append(n.getText()).append(" visible=").append(n.isVisibleToUser()).append("]\n");
+          if ("android:id/aerr_close".equals(id) && n.isVisibleToUser()) launcherClose=n;
           if (id != null && id.endsWith(":id/" + suffix) && n.isVisibleToUser()) return n;
           for (int i = 0; i < n.getChildCount(); i++) { AccessibilityNodeInfo child = n.getChild(i); if (child != null) queue.add(child); }
         }
       }
       observed=nodes.toString();
+      // A system launcher ANR can cover the permission prompt on fresh API 35.
+      // Recover only the observed Quickstep dialog, never a Radar error dialog.
+      if(!launcherRecovered && launcherClose!=null && observed.contains("Quickstep isn't responding")){
+        launcherRecovered=true;launcherClose.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        System.out.println("Recovered system Quickstep ANR before permission assertion");
+        end=android.os.SystemClock.uptimeMillis()+10000;
+      }
       android.os.SystemClock.sleep(100);
     } while (android.os.SystemClock.uptimeMillis() < end);
     ScreenTest.capture("permission-button-missing");

@@ -19,7 +19,7 @@ public class LogoSmokeTest {
     }
     ScreenTest.grantAccess();
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
-      scenario.onActivity(a->{assertEquals("0.1.14-alpha",BuildConfig.VERSION_NAME);assertTrue(a.pro.isClickable());assertFalse(a.pro.isSelected());assertProColor(a.pro,false);});
+      scenario.onActivity(a->{assertEquals("0.1.15-alpha",BuildConfig.VERSION_NAME);assertTrue(a.pro.isClickable());assertFalse(a.pro.isSelected());assertProColor(a.pro,false);});
       ScreenTest.capture("logo-off-transparent");
       scenario.onActivity(a->a.pro.performClick());
       EconomyPatchTest.waitFor(()->MonitorService.running);

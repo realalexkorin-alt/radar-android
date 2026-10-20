@@ -9,3 +9,5 @@ captures/
 *.p12
 *.pfx
 password.txt
+
+backend/node_modules/

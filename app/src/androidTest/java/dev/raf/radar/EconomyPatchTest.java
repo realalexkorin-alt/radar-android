@@ -20,7 +20,7 @@ public class EconomyPatchTest {
     c=InstrumentationRegistry.getInstrumentation().getTargetContext();c.stopService(new Intent(c,MonitorService.class));
     waitFor(()->!MonitorService.running);
     c.getSharedPreferences("radar",0).edit().clear().putBoolean("sounds",false).putBoolean("startupSound",false).putBoolean("autoUpdate",false).commit();
-    store=new Store(c);ScreenTest.grantAccess();ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
+    store=new Store(c);store.prefs.edit().putLong("gpsAt",System.currentTimeMillis()).commit();ScreenTest.grantAccess();ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
     Point me=store.points().get(0);me.enabled=false;store.update(me);
   }
   @After public void cleanup(){InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{if(overlay!=null)overlay.close();AppSounds.stop();});c.stopService(new Intent(c,MonitorService.class));}
@@ -29,7 +29,7 @@ public class EconomyPatchTest {
   @Test public void migrationPreservesSavedDataAndUsesOnlyEconomy() throws Exception {
     String old="[{\"id\":\"home\",\"name\":\"Дом\",\"address\":\"Адрес\",\"lat\":55.7,\"lon\":37.6,\"dynamic\":false,\"enabled\":false,\"notify\":true,\"threshold\":350,\"tariffs\":[\"vip\",\"comfortplus\"]}]";
     store.prefs.edit().remove("economyOnlyV1").putString("points",old).putInt("scale",130).putInt("textScale",220).putInt("ox",27).putBoolean("dark",false).putString("overlayPoint","home").commit();
-    Store migrated=new Store(c);Point home=migrated.widgetPoint();assertEquals("home",home.id);assertEquals("Дом",home.name);assertEquals("Адрес",home.address);assertEquals(350,home.threshold);assertFalse(home.enabled);assertTrue(home.notify);
+    Store migrated=new Store(c);Point home=migrated.points().stream().filter(p->p.id.equals("home")).findFirst().get();assertEquals("home",home.id);assertEquals("Дом",home.name);assertEquals("Адрес",home.address);assertEquals(350,home.threshold);assertFalse(home.enabled);assertTrue(home.notify);
     assertEquals(java.util.Collections.singletonList("econom"),home.tariffs);assertEquals(java.util.Collections.singletonList("econom"),migrated.widgetTariffs());
     assertEquals(130,migrated.prefs.getInt("scale",0));assertEquals(220,migrated.prefs.getInt("textScale",0));assertEquals(27,migrated.prefs.getInt("ox",0));assertTrue(migrated.prefs.getBoolean("dark",false));
     assertEquals(2,migrated.points().size());
@@ -83,7 +83,7 @@ public class EconomyPatchTest {
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       scenario.onActivity(a->{store.prefs.edit().putBoolean("overlay",true).commit();overlay=new Overlay(a,store);});
       for(int rub:new int[]{0,99,100,199,200,299,300,399,400,9999}){
-        scenario.onActivity(a->{store.readings("me",java.util.Collections.singletonList(new Store.Reading("econom",rub,null,System.currentTimeMillis(),"test")));overlay.refresh();});
+        scenario.onActivity(a->{store.readings("me",java.util.Collections.singletonList(new Store.Reading("econom",rub,null,System.currentTimeMillis(),"test")));store.readings("price-color",store.readings("me"));overlay.refresh();});
         awaitOverlayLayout(scenario);
         if(rub==0)ScreenTest.capture("economy-widget-zero");
         scenario.onActivity(a->{ViewGroup root=(ViewGroup)overlayRoot();assertEquals(1,root.getChildCount());PriceText price=(PriceText)root.getChildAt(0);
