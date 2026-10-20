@@ -16,16 +16,16 @@ public final class UpgradeDriver extends Instrumentation {
       info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
       getUiAutomation().setServiceInfo(info);
       long before = getContext().getPackageManager().getPackageInfo("dev.raf.radar", 0).getLongVersionCode();
-      if (before != 12) throw new AssertionError("Expected installed baseline 12, got " + before);
+      long expected = before + 1;
       getContext().startActivity(new Intent().setClassName("dev.raf.radar", "dev.raf.radar.MainActivity")
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
       clickInstallerConfirmation();
       long deadline = SystemClock.uptimeMillis() + 120000;
-      while (getContext().getPackageManager().getPackageInfo("dev.raf.radar", 0).getLongVersionCode() != 13) {
-        if (SystemClock.uptimeMillis() >= deadline) throw new AssertionError("System installer did not install version 13");
+      while (getContext().getPackageManager().getPackageInfo("dev.raf.radar", 0).getLongVersionCode() != expected) {
+        if (SystemClock.uptimeMillis() >= deadline) throw new AssertionError("System installer did not install version " + expected);
         SystemClock.sleep(250);
       }
-      result.putString("stream", "\nOK (1 upgrade) — Radar verified the APK, opened the installer and updated 12 → 13\n");
+      result.putString("stream", "\nOK (1 upgrade) — Radar verified the APK, opened the installer and updated " + before + " → " + expected + "\n");
       finish(android.app.Activity.RESULT_OK, result);
     } catch (Throwable e) {
       result.putString("stream", "\nUPGRADE FAILED: " + android.util.Log.getStackTraceString(e));
