@@ -68,23 +68,7 @@ final class Overlay {
     LinearLayout body=new LinearLayout(c);body.setGravity(Gravity.CENTER_VERTICAL);root.addView(body);
     LinearLayout rows=new LinearLayout(c);rows.setOrientation(LinearLayout.VERTICAL);body.addView(rows);
     java.util.List<Store.Reading> readings=s.readings(point.id);
-    // Keep every selected tariff on one line, even at the largest slider setting.
     float textSp=28*scale*textScale;
-    android.text.TextPaint measure=new android.text.TextPaint();
-    measure.setTypeface(android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.BOLD));
-    float density=c.getResources().getDisplayMetrics().scaledDensity;
-    measure.setTextSize(textSp*density);
-    float widest=1;
-    for(String tariff:s.widgetTariffs()){
-      Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
-      String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"  ":"";
-      widest=Math.max(widest,measure.measureText(name+RadarUi.value(reading)));
-    }
-    android.graphics.Paint.FontMetrics metrics=measure.getFontMetrics();
-    float height=(metrics.bottom-metrics.top)*s.widgetTariffs().size();
-    float availableHeight=Math.max(dp(40),c.getResources().getDisplayMetrics().heightPixels
-        -dp(96)-2*vertical-2*rowPadding*s.widgetTariffs().size());
-    textSp*=Math.min(1f,Math.min(available/widest,availableHeight/height));
     for(String tariff:s.widgetTariffs()){
       Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
       String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"  ":"";
@@ -96,6 +80,21 @@ final class Overlay {
       cell.setContentDescription(point.name+": "+Point.label(tariff)+", "+value);
       if(reading!=null&&!reading.fresh()){cell.setContentDescription(Point.label(tariff)+": данные устарели");}
       rows.addView(cell);
+    }
+    // Measure the actual styled TextViews, including platform font scaling and bold spans.
+    float widest=1, textHeight=1;
+    for(int i=0;i<rows.getChildCount();i++){
+      TextView cell=(TextView)rows.getChildAt(i);
+      widest=Math.max(widest,android.text.Layout.getDesiredWidth(cell.getText(),cell.getPaint()));
+      android.graphics.Paint.FontMetrics metrics=cell.getPaint().getFontMetrics();
+      textHeight=Math.max(textHeight,(metrics.bottom-metrics.top)*rows.getChildCount());
+    }
+    float availableHeight=Math.max(dp(40),c.getResources().getDisplayMetrics().heightPixels
+        -dp(96)-2*vertical-2*rowPadding*rows.getChildCount());
+    float fit=Math.min(1f,Math.min((available-dp(2))/widest,availableHeight/textHeight));
+    for(int i=0;i<rows.getChildCount();i++){
+      TextView cell=(TextView)rows.getChildAt(i);
+      cell.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,cell.getTextSize()*fit);
     }
     FrameLayout expand=new FrameLayout(c);expand.setContentDescription(expanded?"Свернуть меню виджета":"Раскрыть меню виджета");
     ImageView arrow=RadarUi.icon(c,expanded?"down":"right",fg,24);expand.addView(arrow,new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER));

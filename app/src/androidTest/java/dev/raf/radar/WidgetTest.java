@@ -124,7 +124,8 @@ public class WidgetTest {
             Assert.assertEquals(1f,cell.getAlpha(),0f);
             Assert.assertEquals(1,cell.getLineCount());
             Assert.assertEquals(0,cell.getLayout().getEllipsisCount(0));
-            Assert.assertTrue(cell.getLayout().getLineWidth(0)<=cell.getWidth()+1);
+            Assert.assertTrue("Text fits at "+percent+"%: "+cell.getLayout().getLineWidth(0)+" / "+cell.getWidth(),
+                cell.getLayout().getLineWidth(0)<=cell.getWidth()+1);
           }
         });
         ScreenTest.capture("widget-text-011-"+percent);
