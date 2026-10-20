@@ -21,7 +21,10 @@ public final class MainActivity extends Activity {
   Store store; Access access;
   final StartupSound startupSound = new StartupSound();
   boolean startupSoundPending;
-  boolean startAfterAccess, resumed, dark;
+  boolean startAfterAccess, pendingOverlay, resumed, dark;
+  RadarLogo pro;
+  RadarUi.Toggle monitorToggle,overlayToggle;
+  final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
   int fg,bg,surface,muted,currentTab;
   LinearLayout root,cards,mapPanel,pointsPanel,settingsPanel,navigation;
   FrameLayout pages,mapFrame;
@@ -32,13 +35,14 @@ public final class MainActivity extends Activity {
   Point preview;
   String selected="me";
   Handler handler=new Handler();
-  static final String[] TARIFF_IDS={"econom","business","comfortplus","vip","child_tariff","minivan"};
+  static final String[] TARIFF_IDS={"econom"};
   final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();refreshCards();handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
-    setTheme(getSharedPreferences("radar",MODE_PRIVATE).getBoolean("dark",true)?R.style.AppThemeDark:R.style.AppTheme);
+    setTheme(R.style.AppThemeDark);
     super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
     startupSoundPending = saved == null;
+    if(saved!=null){startAfterAccess=saved.getBoolean("startAfterAccess");pendingOverlay=saved.getBoolean("pendingOverlay");}
     currentTab=saved==null?0:saved.getInt("tab",0);
     String id=getIntent().getStringExtra("point");if(id!=null)selected=id;
     build(saved);openRequestedSettings(getIntent());
@@ -61,7 +65,7 @@ public final class MainActivity extends Activity {
   TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
 
   void build(Bundle saved){
-    dark=store.prefs.getBoolean("dark",true);fg=dark?0xFFF5F5F7:0xFF15171B;bg=dark?RadarUi.BACKGROUND:0xFFF2F3F5;
+    dark=true;fg=dark?0xFFF5F5F7:0xFF15171B;bg=dark?RadarUi.BACKGROUND:0xFFF2F3F5;
     surface=dark?RadarUi.CARD:Color.WHITE;muted=dark?0xFF92969F:0xFF676D76;
     getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
     getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
@@ -91,10 +95,14 @@ public final class MainActivity extends Activity {
       }
     }};pointOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
-    LinearLayout title=column();title.addView(heading("Радар Pro",24));
+    LinearLayout title=column();LinearLayout brand=row();
+    int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
+    brand.addView(new RadarLogo(this,false),new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/3.4f)));
+    pro=new RadarLogo(this,true);pro.setFocusable(true);pro.setClickable(true);pro.setOnClickListener(v->toggleMonitor());
+    brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));title.addView(brand);
     state=text("Мониторинг выключен · начать",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Управление мониторингом");state.setOnClickListener(v->toggleMonitor());title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
-    LinearLayout tools=column();String[] icons={"search","layers","locate"},names={"Поиск точки","Тарифы точек","Моя геопозиция"};Runnable[] actions={this::addPoint,this::mapLayers,this::locate};
+    LinearLayout tools=column();String[] icons={"search","locate"},names={"Поиск точки","Моя геопозиция"};Runnable[] actions={this::addPoint,this::locate};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
     TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);mapFrame.addView(loading,ll);
@@ -102,7 +110,7 @@ public final class MainActivity extends Activity {
     mapView.addOnDidFailLoadingMapListener(e->{loading.setVisibility(View.VISIBLE);loading.setText("Карта недоступна · повторить");loading.setOnClickListener(v->applyMapStyle());});
     mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
       m.getUiSettings().setAttributionGravity(Gravity.BOTTOM|Gravity.END);m.getUiSettings().setLogoGravity(Gravity.BOTTOM|Gravity.START);
-      m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(Arrays.asList("econom","business","comfortplus"));edit(p);return true;});
+      m.addOnMapLongClickListener(pos->{Point p=new Point(UUID.randomUUID().toString(),"Новая точка",pos.getLatitude(),pos.getLongitude(),false);p.tariffs=new ArrayList<>(Collections.singletonList("econom"));edit(p);return true;});
       m.addOnMapClickListener(pos->{
         Point hit=pointAt(m.getProjection().toScreenLocation(pos));if(hit!=null){edit(hit);return true;}
         hidePreview();return false;
@@ -139,6 +147,8 @@ public final class MainActivity extends Activity {
   Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){
     if(cards==null)return;
+    if(pro!=null)pro.active(MonitorService.running);
+    syncWorkToggles();
     if(state!=null){state.setText(MonitorService.running?"Мониторинг включён · остановить":"Мониторинг выключен · начать");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
     cards.removeAllViews();
     for(Point p:store.points()){
@@ -162,7 +172,7 @@ public final class MainActivity extends Activity {
       Store.Reading reading=displayReading(p);
       if(!p.dynamic&&p.enabled&&reading!=null&&reading.fresh()){
         org.maplibre.geojson.Feature feature=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
-        feature.addStringProperty("color",String.format(Locale.US,"#%06X",RadarUi.tariffColor(reading.tariff)&0xFFFFFF));glowPoints.add(feature);
+        feature.addStringProperty("color",String.format(Locale.US,"#%06X",PriceLevel.color(reading.rub)&0xFFFFFF));glowPoints.add(feature);
       }
       pointBitmaps.put(p.id,pointIcon(p));
     }
@@ -199,24 +209,36 @@ public final class MainActivity extends Activity {
   Bitmap pointIcon(Point point){
     List<Store.Reading> rows=mapReadings(point);
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
-    int width=dp(90),rowHeight=dp(30),header=point.dynamic?dp(22):0;
-    for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(Point.label(reading.tariff)+"  "+RadarUi.value(reading)))+dp(24));
+    int width=dp(56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
+    for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(RadarUi.value(reading)))+dp(24));
     Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),header+rows.size()*rowHeight+dp(8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
     if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
     for(int i=0;i<rows.size();i++){
-      Store.Reading reading=rows.get(i);int color=point.enabled&&reading.fresh()?RadarUi.tariffColor(reading.tariff):0xFF747983;
-      int top=header+i*rowHeight;paint.setColor(color);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
-      paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(Point.label(reading.tariff)+"  "+RadarUi.value(reading),width/2f,top+dp(20),paint);
+      Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
+      int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
+      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(RadarUi.value(reading),width/2f,top+dp(20),paint);
     }
     return bitmap;
   }
-  void toggleMonitor(){if(MonitorService.running)stopService(new Intent(this,MonitorService.class));else startMonitor();handler.postDelayed(this::refreshCards,350);}
-  void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);pointSheet=null;preview=null;}
+  void toggleMonitor(){
+    if(MonitorService.running||startAfterAccess)stopMonitor();else{pendingOverlay=true;startMonitor();}
+  }
+  void stopMonitor(){startAfterAccess=false;pendingOverlay=false;store.prefs.edit().putBoolean("overlay",false).apply();stopService(new Intent(this,MonitorService.class));handler.postDelayed(this::refreshCards,200);}
+  boolean syncingToggles;
+  void syncWorkToggles(){
+    syncingToggles=true;
+    if(monitorToggle!=null)monitorToggle.setChecked(MonitorService.running);
+    if(overlayToggle!=null)overlayToggle.setChecked(store.prefs.getBoolean("overlay",false)&&Settings.canDrawOverlays(this));
+    syncingToggles=false;
+  }
+  void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);pointSheet=null;preview=null;previewValue=null;}
   TextView previewValue;
-  void updatePreviewValue(){if(previewValue!=null&&preview!=null)previewValue.setText("Кеф "+RadarUi.value(displayReading(preview)));}
+  void updatePreviewValue(){if(previewValue!=null&&preview!=null){Store.Reading reading=displayReading(preview);previewValue.setText("Кеф "+RadarUi.value(reading));previewValue.setTextColor(PriceLevel.color(reading==null?null:reading.rub));};}
   void edit(Point p){
     if(p.dynamic&&store.prefs.getLong("gpsAt",0)>0){p.lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));p.lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
     showTab(0);hidePreview();preview=p;selected=p.id;
+    boolean existing=store.points().stream().anyMatch(saved->saved.id.equals(p.id));
+    if(!existing)AppSounds.play(this,AppSounds.Event.POINT_CREATE);
     LinearLayout sheet=column();sheet.setPadding(dp(18),dp(10),dp(18),dp(18));GradientDrawable background=shape(dark?0xFF16181B:Color.WHITE,26);background.setStroke(dp(1),dark?0xFF34373D:0xFFDCDDE0);sheet.setBackground(background);sheet.setElevation(dp(10));
     View handle=new View(this);handle.setBackground(shape(dark?0xFF666B73:0xFFC0C3C8,4));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER_HORIZONTAL;hp.bottomMargin=dp(18);sheet.addView(handle,hp);
     sheet.addView(text(String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon),12,muted));
@@ -224,20 +246,27 @@ public final class MainActivity extends Activity {
     TextView address=text(pointAddress(p),16,fg);address.setMaxLines(2);sheet.addView(address);
     if(!p.dynamic){final double lat=p.lat,lon=p.lon;resolveAddress(lat,lon,result->{if(preview!=p)return;p.address=result;address.setText(result);cacheAddress(p.id,lat,lon,result);});}
     LinearLayout buttons=row();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(50));bp.topMargin=dp(20);sheet.addView(buttons,bp);
-    TextView save=primary("Сохранить",true,()->{store.update(p);hidePreview();refreshCards();});
-    TextView cancel=primary("Отменить",false,this::hidePreview);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,-1,1);sp.rightMargin=dp(8);buttons.addView(save,sp);buttons.addView(cancel,new LinearLayout.LayoutParams(0,-1,1));
-    FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);mapFrame.addView(sheet,params);pointSheet=sheet;
+    TextView action=primary(existing?"Удалить":"Сохранить",!existing,()->{
+      if(existing){if(!p.dynamic){store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}}
+      else{store.update(p);AppSounds.play(this,AppSounds.Event.POINT_SAVE);}
+      hidePreview();refreshCards();
+    });
+    if(!p.dynamic)buttons.addView(action,new LinearLayout.LayoutParams(-1,-1));else buttons.setVisibility(View.GONE);
+    sheet.setClickable(true);sheet.setContentDescription("Карточка локации");
+    FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);mapFrame.addView(sheet,params);pointSheet=sheet;updatePreviewValue();
   }
 
   void startMonitor() {
-    if (!Access.monitorReady(this)) {
+    handler.postDelayed(this::refreshCards,300);
+    if (!Access.monitorReady(this) || (pendingOverlay&&!Settings.canDrawOverlays(this))) {
       startAfterAccess = true;
       access.request();
       return;
     }
     startAfterAccess = false;
+    if(pendingOverlay){store.prefs.edit().putBoolean("overlay",true).apply();pendingOverlay=false;}
     try {
-      startForegroundService(new Intent(this, MonitorService.class));
+      startForegroundService(new Intent(this, MonitorService.class).setAction("user_start"));
     } catch (Exception e) {
       toast("Не удалось включить: " + e.getMessage());
     }
@@ -250,7 +279,7 @@ public final class MainActivity extends Activity {
   }
 
   void onAccessChanged() {
-    if (startAfterAccess && Access.monitorReady(this)) startMonitor();
+    if (startAfterAccess && Access.monitorReady(this)&&(!pendingOverlay||Settings.canDrawOverlays(this))) startMonitor();
   }
 
   void locate() {
@@ -374,16 +403,6 @@ public final class MainActivity extends Activity {
               });
       form.addView(move);
     }
-    String[] ids = TARIFF_IDS;
-    ArrayList<CheckBox> checks = new ArrayList<>();
-    for (String id : ids) {
-      CheckBox cb = new CheckBox(this);
-      cb.setText(Point.label(id));
-      cb.setTextColor(fg);
-      cb.setChecked(p.tariffs.contains(id));
-      form.addView(cb);
-      checks.add(cb);
-    }
     Switch on = new Switch(this);
     on.setText("Уведомлять");
     on.setTextColor(fg);
@@ -411,7 +430,7 @@ public final class MainActivity extends Activity {
                 (d, w) -> {
                   if (p.dynamic) {
                     store.prefs.edit().putString("overlayPoint", p.id).apply();
-                  } else store.remove(p.id);
+                  } else {store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}
                   refreshCards();
                 })
             .create();
@@ -444,22 +463,16 @@ public final class MainActivity extends Activity {
                 .getButton(-1)
                 .setOnClickListener(
                     v -> {
-                      ArrayList<String> ts = new ArrayList<>();
-                      for (int i = 0; i < ids.length; i++)
-                        if (checks.get(i).isChecked()) ts.add(ids[i]);
-                      if (ts.isEmpty()) {
-                        toast("Выберите хотя бы один тариф");
-                        return;
-                      }
                       p.name = p.dynamic ? "Моя геопозиция" : name.getText().toString().trim();
                       if (p.name.isEmpty()) {
                         toast("Укажите название");
                         return;
                       }
-                      p.tariffs = ts;
+                      p.tariffs = new ArrayList<>(Collections.singletonList("econom"));
                       p.notify = on.isChecked();
                       p.threshold = threshold[0];
                       store.update(p);
+                      if(!existing)AppSounds.play(this,AppSounds.Event.POINT_SAVE);
                       selected = p.id;
                       refreshCards();
                       dialog.dismiss();
@@ -542,38 +555,26 @@ public final class MainActivity extends Activity {
   Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->run.run());return button;}
   void settings(){showTab(2);}
   LinearLayout settingsContents(){
-    LinearLayout body=column();body.setPadding(dp(14),0,dp(14),dp(24));
-    LinearLayout widget=group(body,"Виджет");
-    sizeSlider(widget,"Размер виджета","scale",60,160);
-    settingsDivider(widget);
-    LinearLayout opacityLabel=row();opacityLabel.addView(text("Прозрачность",13,fg),new LinearLayout.LayoutParams(0,-2,1));TextView opacityValue=text(store.prefs.getInt("opacity",70)+"%",12,muted);opacityLabel.addView(opacityValue);LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,dp(42));widget.addView(opacityLabel,op);
-    SeekBar opacity=new SeekBar(this);opacity.setMax(80);opacity.setProgress(store.prefs.getInt("opacity",70)-20);opacity.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));opacity.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));opacity.setThumbTintList(ColorStateList.valueOf(Color.WHITE));opacity.setContentDescription("Прозрачность виджета");widget.addView(opacity,new LinearLayout.LayoutParams(-1,dp(30)));
-    opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int progress,boolean user){int value=progress+20;opacityValue.setText(value+"%");if(user)store.prefs.edit().putInt("opacity",value).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
-    settingsDivider(widget);sizeSlider(widget,"Размер текста","textScale",60,250);
-    settingsDivider(widget);switchRow(widget,"Показывать тариф",store.prefs.getBoolean("showTariff",true),0,value->store.prefs.edit().putBoolean("showTariff",value).apply());
-    settingAction(widget,"Местоположение: "+store.widgetPoint().name,this::chooseWidgetPoint);
-    LinearLayout tariffs=group(body,"Тарифы виджета");TextView caption=text("Показывать в виджете сверху вниз",11,muted);caption.setPadding(0,0,0,dp(8));tariffs.addView(caption);
-    for(String tariff:TARIFF_IDS){RadarUi.Toggle toggle=switchRow(tariffs,Point.label(tariff),store.widgetTariffs().contains(tariff),RadarUi.tariffColor(tariff),null);toggle.setContentDescription("Тариф виджета: "+Point.label(tariff));toggle.setOnCheckedChangeListener((button,enabled)->{
-      Set<String> selected=new LinkedHashSet<>(store.widgetTariffs());if(enabled)selected.add(tariff);else selected.remove(tariff);
-      if(selected.isEmpty()){button.setChecked(true);toast("Оставьте хотя бы один тариф виджета");return;}
-      store.widgetTariffs(selected);
-    });}
-    LinearLayout pointSettings=group(body,"Тарифы точек");TextView pointHelp=text("Каждая точка на карте показывает свои тарифы.\nВыбор не меняет тарифы виджета.",11,muted);pointSettings.addView(pointHelp);settingAction(pointSettings,"Настроить точку",this::mapLayers);
-    LinearLayout updates=group(body,"Обновление");switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,value->store.prefs.edit().putBoolean("autoUpdate",value).apply());
-    TextView explain=text("Приложение проверяет обновления\nпри каждом запуске",11,muted);explain.setPadding(0,0,0,dp(12));updates.addView(explain);
-    settingsDivider(updates);settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
+    LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
     LinearLayout work=group(body,"Работа приложения");
-    settingAction(work,"Моя геопозиция",()->{for(Point p:store.points())if(p.dynamic){editDetails(p);break;}});
-    switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopService(new Intent(this,MonitorService.class));handler.postDelayed(this::refreshCards,300);});
-    switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false),0,enabled->{if(enabled&&!Settings.canDrawOverlays(this)){access.request();return;}store.prefs.edit().putBoolean("overlay",enabled).apply();if(enabled)startMonitor();});
-    settingAction(work,"Интервал обновления",()->numberDialog("Интервал каждой точки","interval",30,600,30," с"));
-    settingAction(work,"Разрешения приложения",()->access.request());
-    LinearLayout more=group(body,"Дополнительно");switchRow(more,"Звук при запуске",store.prefs.getBoolean("startupSound",true),0,value->store.prefs.edit().putBoolean("startupSound",value).apply());switchRow(more,"Тёмная тема",dark,0,value->store.prefs.edit().putBoolean("dark",value).apply());
-    settingAction(more,"Применить оформление",this::recreate);
-    settingAction(more,"Вход через Яндекс",()->startActivity(new Intent(this,LoginActivity.class)));
-    settingAction(more,"Удалить сессию Яндекса",()->{android.webkit.CookieManager.getInstance().removeAllCookies(done->toast("Сессия удалена"));android.webkit.WebStorage.getInstance().deleteAllData();});
-    TextView version=text("Радар Pro · "+BuildConfig.VERSION_NAME,11,muted);version.setGravity(Gravity.CENTER);version.setPadding(0,dp(8),0,dp(12));body.addView(version);
-    TextView info=text("Надбавки в ₽ — расчётные. Сверяйте с Яндекс Про.\n© OpenStreetMap contributors · Нет рекламы и аналитики.",10,muted);info.setGravity(Gravity.CENTER);body.addView(info);
+    monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
+    overlayToggle=switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false)&&Settings.canDrawOverlays(this),0,enabled->{
+      if(enabled){pendingOverlay=true;startMonitor();}else store.prefs.edit().putBoolean("overlay",false).apply();
+    });
+    settingAction(work,"О приложении",()->new AlertDialog.Builder(this).setTitle("Радар Pro · "+BuildConfig.VERSION_NAME)
+        .setMessage("Надбавки Эконома на карте и в компактном виджете. Сохраняйте удобные точки и следите за изменениями рядом.\n\nНадбавки расчётные — сверяйте с Яндекс Про.\n© OpenStreetMap contributors")
+        .setPositiveButton("Понятно",null).show());
+    LinearLayout widget=group(body,"Виджет");
+    LinearLayout controls=column();controls.setVisibility(View.GONE);
+    settingAction(widget,"Размер и прозрачность",()->{controls.setVisibility(controls.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);});
+    widget.addView(controls);sizeSlider(controls,"Размер виджета","scale",60,160);
+    sizeSlider(controls,"Размер текста","textScale",60,250);
+    sizeSlider(controls,"Прозрачность","opacity",20,100);
+    LinearLayout more=group(body,"Дополнительно");
+    switchRow(more,"Звуки",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
+    LinearLayout updates=group(body,"Обновление");
+    switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
+    settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
     return body;
   }
   LinearLayout group(LinearLayout body,String title){
@@ -588,12 +589,12 @@ public final class MainActivity extends Activity {
     LinearLayout r=row();r.setMinimumHeight(dp(48));
     if(dotColor!=0){View dot=new View(this);dot.setBackground(shape(dotColor,12));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(12),dp(12));params.rightMargin=dp(10);r.addView(dot,params);}
     TextView label=text(title,13,fg);r.addView(label,new LinearLayout.LayoutParams(0,-2,1));RadarUi.Toggle toggle=new RadarUi.Toggle(this);toggle.setContentDescription(title);toggle.setChecked(checked);
-    if(change!=null)toggle.setOnCheckedChangeListener((button,value)->change.set(value));r.addView(toggle,new LinearLayout.LayoutParams(dp(52),dp(48)));r.setOnClickListener(v->toggle.performClick());group.addView(r);return toggle;
+    if(change!=null)toggle.setOnCheckedChangeListener((button,value)->{if(!syncingToggles)change.set(value);});r.addView(toggle,new LinearLayout.LayoutParams(dp(52),dp(48)));r.setOnClickListener(v->toggle.performClick());group.addView(r);return toggle;
   }
   void sizeSlider(LinearLayout group,String title,String key,int min,int max){
     LinearLayout line=row();line.setMinimumHeight(dp(42));
     line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));
-    int current=Math.max(min,Math.min(max,store.prefs.getInt(key,100)));
+    int current=Math.max(min,Math.min(max,store.prefs.getInt(key,"opacity".equals(key)?70:100)));
     TextView value=text(current+"%",12,muted);line.addView(value);group.addView(line);
     SeekBar bar=new SeekBar(this);bar.setMax(max-min);bar.setProgress(current-min);bar.setContentDescription(title);
     bar.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));bar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));bar.setThumbTintList(ColorStateList.valueOf(Color.WHITE));
@@ -623,6 +624,7 @@ public final class MainActivity extends Activity {
   protected void onStart() {
     super.onStart();
     mapView.onStart();
+    androidx.core.content.ContextCompat.registerReceiver(this,monitorState,new IntentFilter("dev.raf.radar.REFRESH"),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
   }
 
   @Override
@@ -632,7 +634,7 @@ public final class MainActivity extends Activity {
     resumed = true;
     if (startupSoundPending) {
       startupSoundPending = false;
-      startupSound.play(this, store.prefs.getBoolean("startupSound", true));
+      startupSound.play(this, store.prefs.getBoolean("sounds", true));
     }
     updateViewing();
     sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));
@@ -653,6 +655,7 @@ public final class MainActivity extends Activity {
   protected void onStop() {
     startupSound.stop();
     access.onStop();
+    unregisterReceiver(monitorState);
     mapView.onStop();
     super.onStop();
   }
@@ -677,6 +680,7 @@ public final class MainActivity extends Activity {
   protected void onSaveInstanceState(Bundle b) {
     super.onSaveInstanceState(b);
     b.putInt("tab", currentTab);
+    b.putBoolean("startAfterAccess",startAfterAccess);b.putBoolean("pendingOverlay",pendingOverlay);
     mapView.onSaveInstanceState(b);
   }
 }

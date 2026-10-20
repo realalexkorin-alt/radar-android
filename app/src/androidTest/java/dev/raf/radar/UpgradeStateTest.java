@@ -21,17 +21,17 @@ public class UpgradeStateTest {
   }
   @Test public void verifyCandidatePreservedData() throws Exception {
     Context c = context();
-    assertEquals(13L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
+    assertEquals(14L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
     Store store = new Store(c);
     Point home = store.points().stream().filter(p -> p.id.equals("upgrade-home")).findFirst().get();
     assertEquals("Дом", home.name); assertEquals(350, home.threshold);
     assertTrue(home.notify); assertTrue(home.enabled); assertEquals("", home.address);
-    assertEquals(java.util.Arrays.asList("econom", "business"), home.tariffs);
+    assertEquals(java.util.Collections.singletonList("econom"), home.tariffs);
     assertEquals(65, store.prefs.getInt("opacity", 0)); assertEquals(130, store.prefs.getInt("scale", 0));
     assertEquals(120, store.prefs.getInt("textScale", 0)); assertEquals(180, store.prefs.getInt("interval", 0));
     assertEquals(37, store.prefs.getInt("ox", 0)); assertEquals(210, store.prefs.getInt("oy", 0));
-    assertFalse(store.prefs.getBoolean("dark", true));
+    assertTrue(store.prefs.getBoolean("dark", false));
     assertEquals("upgrade-home", store.prefs.getString("overlayPoint", ""));
-    assertEquals(java.util.Arrays.asList("econom", "business"), store.widgetTariffs());
+    assertEquals(java.util.Collections.singletonList("econom"), store.widgetTariffs());
   }
 }

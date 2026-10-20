@@ -28,11 +28,12 @@ final class Updates {
       try {
         JSONObject release = new JSONObject(read(UpdateCatalog.LATEST));
         if (!UpdateCatalog.newer(release.getString("tag_name"), BuildConfig.VERSION_NAME)) {
-          if (!silent) show(a, "Установлена последняя версия Радара"); return;
+          if (!silent) {AppSounds.play(a,AppSounds.Event.UPDATE_REPLY);show(a, "Установлена последняя версия Радара");} return;
         }
         JSONObject asset = UpdateCatalog.apk(release);
         a.runOnUiThread(() -> {
           if (!alive(a)) return;
+          if(!silent)AppSounds.play(a,AppSounds.Event.UPDATE_REPLY);
           new AlertDialog.Builder(a).setTitle("Новая версия " + release.optString("tag_name"))
               .setMessage(release.optString("body", "") + "\n\nЗагрузить обновление?")
               .setPositiveButton("Загрузить", (d, w) -> download(a, asset))
@@ -63,6 +64,7 @@ final class Updates {
   static void download(Activity a, JSONObject asset) {
     if (busy) { show(a, "Загрузка уже выполняется"); return; }
     busy = true;
+    AppSounds.play(a,AppSounds.Event.DOWNLOAD);
     android.widget.ProgressBar bar = new android.widget.ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
     bar.setMax(100); bar.setIndeterminate(asset.optLong("size", 0) <= 0);
     AlertDialog progress = new AlertDialog.Builder(a).setTitle("Загрузка обновления")
@@ -98,7 +100,7 @@ final class Updates {
         String digest = asset.getString("digest");
         verify(a, file, digest);
         store.prefs.edit().putString("pendingUpdateDigest", digest).apply();
-        a.runOnUiThread(() -> { if (alive(a)) offerInstall(a); });
+        a.runOnUiThread(() -> { if (alive(a)) {AppSounds.play(a,AppSounds.Event.INSTALL);offerInstall(a);} });
       } catch (Exception e) {
         file.delete(); store.prefs.edit().remove("pendingUpdateDigest").apply();
         failed(a, "Не удалось подготовить обновление", e);
