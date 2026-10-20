@@ -60,7 +60,7 @@ public class PresencePatchTest {
       final MainActivity[] activity={null};scenario.onActivity(a->activity[0]=a);EconomyPatchTest.waitFor(()->activity[0].map!=null);
       scenario.onActivity(a->{
         a.store.prefs.edit().putLong("lat",Double.doubleToLongBits(55.16)).putLong("lon",Double.doubleToLongBits(61.40)).putLong("gpsAt",System.currentTimeMillis()).commit();
-        try{a.peers=Collections.singletonList(new PresenceClient.Peer(new JSONObject().put("id","fixture-peer").put("lat",55.1608).put("lon",61.402).put("observedAt",System.currentTimeMillis())));}catch(Exception e){throw new AssertionError(e);}
+        try{a.peers=new ArrayList<>(Collections.singletonList(new PresenceClient.Peer(new JSONObject().put("id","fixture-peer").put("lat",55.1608).put("lon",61.402).put("observedAt",System.currentTimeMillis()))));}catch(Exception e){throw new AssertionError(e);}
         a.presenceEpoch++;a.nextPresenceQuery=Long.MAX_VALUE;
         a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.16,61.40),15));a.refreshMarkers();
         assertNotNull(a.pointBitmaps.get("me"));
