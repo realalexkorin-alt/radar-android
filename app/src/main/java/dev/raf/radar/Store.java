@@ -17,7 +17,7 @@ public final class Store {
     // Preserve point identity, coordinates, thresholds, switches and overlay position.
     save(points());
     prefs.edit().putStringSet("widgetTariffs",Collections.singleton("econom"))
-        .putBoolean("sounds",prefs.getBoolean("startupSound",true))
+        .putBoolean("sounds",prefs.getBoolean("sounds",prefs.getBoolean("startupSound",true)))
         .putBoolean("dark",true).putBoolean("economyOnlyV1",true).apply();
   }
 

@@ -21,7 +21,6 @@ public class EconomyPatchTest {
     waitFor(()->!MonitorService.running);
     c.getSharedPreferences("radar",0).edit().clear().putBoolean("sounds",false).putBoolean("startupSound",false).putBoolean("autoUpdate",false).commit();
     store=new Store(c);ScreenTest.grantAccess();ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
-    ScreenTest.shell("appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow");
     Point me=store.points().get(0);me.enabled=false;store.update(me);
   }
   @After public void cleanup(){InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{if(overlay!=null)overlay.close();AppSounds.stop();});c.stopService(new Intent(c,MonitorService.class));}
@@ -59,6 +58,8 @@ public class EconomyPatchTest {
   }
   @Test public void newCardSavesAndExistingCardDeletesWithoutCancel(){
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+      final MainActivity[] activity={null};scenario.onActivity(a->activity[0]=a);
+      waitFor(()->activity[0].map!=null);
       Point point=new Point("card","Новая точка",55.7,37.6,false);
       scenario.onActivity(a->{a.edit(point);assertNotNull(a.preview);});
       onView(withText("Отменить")).check(doesNotExist());onView(withText("Сохранить")).perform(click());
