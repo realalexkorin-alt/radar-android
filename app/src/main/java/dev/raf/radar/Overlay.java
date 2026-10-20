@@ -26,7 +26,7 @@ final class Overlay {
     if(root==null){
       root=new LinearLayout(c);root.setOrientation(LinearLayout.VERTICAL);root.setContentDescription("Виджет радара");
       root.setOnClickListener(v->open(false));root.setOnLongClickListener(v->{open(true);return true;});
-      price=new PriceText(c);root.addView(price);installGestures();
+      price=new PriceText(c);root.addView(price,new LinearLayout.LayoutParams(-2,-2));installGestures();
       lp=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
           WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.graphics.PixelFormat.TRANSLUCENT);
       lp.gravity=Gravity.TOP|Gravity.START;lp.x=s.prefs.getInt("ox",dp(20));lp.y=s.prefs.getInt("oy",dp(100));
@@ -43,6 +43,7 @@ final class Overlay {
     float available=c.getResources().getDisplayMetrics().widthPixels-dp(12)-2*padding-2*glow;
     float wanted=android.text.Layout.getDesiredWidth(price.getText(),price.getPaint());
     if(wanted>available)price.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,price.getTextSize()*available/wanted*.98f);
+    price.requestLayout();root.requestLayout();
     root.post(()->{if(root!=null)position(lp.x,lp.y);});
   }
   private void position(int x,int y){

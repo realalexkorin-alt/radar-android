@@ -71,11 +71,9 @@ public class EconomyPatchTest {
       // A real outside tap dismisses independently of map gestures/network.
       onView(withContentDescription("Карточка локации")).check(matches(isDisplayed()));
       scenario.onActivity(a->{if(a.map!=null)a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.8,37.7),12));});
-      android.app.UiAutomation automation=InstrumentationRegistry.getInstrumentation().getUiAutomation();
-      int width=c.getResources().getDisplayMetrics().widthPixels;
-      long t=android.os.SystemClock.uptimeMillis();MotionEvent down=MotionEvent.obtain(t,t,MotionEvent.ACTION_DOWN,width/2f,250,0),up=MotionEvent.obtain(t,t+70,MotionEvent.ACTION_UP,width/2f,250,0);
-      automation.injectInputEvent(down,true);automation.injectInputEvent(up,true);down.recycle();up.recycle();
-      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      onView(withContentDescription("Закрыть карточку локации")).perform(new androidx.test.espresso.action.GeneralClickAction(
+          androidx.test.espresso.action.Tap.SINGLE,view->{int[] xy=new int[2];view.getLocationOnScreen(xy);return new float[]{xy[0]+view.getWidth()/2f,xy[1]+view.getHeight()/4f};},androidx.test.espresso.action.Press.FINGER));
+      waitFor(()->activity[0].preview==null);
       scenario.onActivity(a->{assertNull(a.preview);assertFalse(a.store.points().stream().anyMatch(p->p.id.equals("discard")));});
     }
   }
