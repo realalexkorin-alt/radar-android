@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <queries><package android:name="dev.raf.radar"/></queries>
+ <application android:label="Radar upgrade test" android:allowBackup="false"/>
+ <instrumentation android:name=".UpgradeDriver" android:targetPackage="dev.raf.radar.upgradecheck" android:label="Isolated self-update driver"/>
+</manifest>

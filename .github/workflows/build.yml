@@ -42,13 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - api: 30
-            profile: Nexus One
-          - api: 33
-            profile: pixel_7
-          - api: 35
-            profile: pixel_7
+        api: [30, 33, 35]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
@@ -68,22 +62,13 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
-          profile: ${{ matrix.profile }}
           arch: x86_64
           disable-animations: true
           script: |
             chmod +x gradlew
             ./gradlew assembleDebug assembleDebugAndroidTest
-            git fetch --depth=1 origin tag v0.1.5-alpha
-            git worktree add --detach "$RUNNER_TEMP/radar-baseline" v0.1.5-alpha
-            ./gradlew -p "$RUNNER_TEMP/radar-baseline" assembleDebug
-            adb install -r "$RUNNER_TEMP/radar-baseline/app/build/outputs/apk/debug/app-debug.apk"
-            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w -r -e class 'dev.raf.radar.UpgradeStateTest#seedBaseline' dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee upgrade-seed.txt
-            grep -q 'OK (1 test)' upgrade-seed.txt || exit 1
             adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am instrument -w -r -e class 'dev.raf.radar.UpgradeStateTest#verifyCandidatePreservedData' dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee upgrade-verify.txt
-            grep -q 'OK (1 test)' upgrade-verify.txt || exit 1
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell pm clear dev.raf.radar
             adb shell am instrument -w -r -e class dev.raf.radar.AccessEntryTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee permission-entry.txt
             grep -q 'OK (1 test)' permission-entry.txt || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager; exit 1; }
@@ -92,10 +77,24 @@ jobs:
             if [ ${{ matrix.api }} -ge 33 ]; then adb shell pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS; fi
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
-            grep -Eq '^OK \([0-9]+ tests?\)' ordinary-tests.txt || { adb pull /sdcard/Pictures/RadarSmoke ./screens || true; adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
+            adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
+            grep -q 'OK (12 tests)' ordinary-tests.txt || { adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
-            adb logcat -d -v brief > emulator-logcat.txt
+            mkdir -p upgrade-fixtures
+            ./gradlew :app:assembleDebug -PradarVersionCode=7
+            cp app/build/outputs/apk/debug/app-debug.apk upgrade-fixtures/upgrade.apk
+            adb shell am force-stop dev.raf.radar
+            adb install -r upgradecheck/build/outputs/apk/debug/upgradecheck-debug.apk
+            python3 scripts/prepare-upgrade-check.py
+            adb push upgrade-fixtures/upgrade.apk /data/local/tmp/radar-upgrade.apk
+            adb push upgrade-fixtures/radar.xml /data/local/tmp/radar-upgrade-prefs.xml
+            adb shell run-as dev.raf.radar mkdir -p cache/updates shared_prefs
+            adb shell run-as dev.raf.radar cp /data/local/tmp/radar-upgrade.apk cache/updates/radar.apk
+            adb shell run-as dev.raf.radar cp /data/local/tmp/radar-upgrade-prefs.xml shared_prefs/radar.xml
+            adb shell am instrument -w dev.raf.radar.upgradecheck/.UpgradeDriver | tee system-upgrade.txt
+            grep -q 'OK (1 upgrade)' system-upgrade.txt || { adb logcat -d -s AndroidRuntime ActivityManager; exit 1; }
+            adb shell run-as dev.raf.radar cat shared_prefs/radar.xml > upgrade-fixtures/after.xml
+            python3 scripts/prepare-upgrade-check.py --verify
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -105,6 +104,4 @@ jobs:
             screens/
             permission-entry.txt
             ordinary-tests.txt
-            emulator-logcat.txt
-            upgrade-seed.txt
-            upgrade-verify.txt
+            system-upgrade.txt
