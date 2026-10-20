@@ -21,7 +21,7 @@ public class UpgradeStateTest {
   }
   @Test public void verifyCandidatePreservedData() throws Exception {
     Context c = context();
-    assertEquals(12L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
+    assertEquals(13L, c.getPackageManager().getPackageInfo(c.getPackageName(), 0).getLongVersionCode());
     Store store = new Store(c);
     Point home = store.points().stream().filter(p -> p.id.equals("upgrade-home")).findFirst().get();
     assertEquals("Дом", home.name); assertEquals(350, home.threshold);
