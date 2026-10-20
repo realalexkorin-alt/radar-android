@@ -120,7 +120,7 @@ public final class MainActivity extends Activity {
     LinearLayout tools=column();String[] icons={"search","locate"},names={"Поиск точки","Моя геопозиция"};Runnable[] actions={this::addPoint,this::locate};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
-    TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);mapFrame.addView(loading,ll);
+    TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);ll.topMargin=dp(130);mapFrame.addView(loading,ll);
     mapView.addOnDidFinishLoadingMapListener(()->loading.setVisibility(View.GONE));
     mapView.addOnDidFailLoadingMapListener(e->{loading.setVisibility(View.VISIBLE);loading.setText("Карта недоступна · повторить");loading.setOnClickListener(v->applyMapStyle());});
     mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
@@ -131,7 +131,7 @@ public final class MainActivity extends Activity {
         hidePreview();return false;
       });
       m.addOnCameraMoveListener(()->pointOverlay.invalidate());
-      m.addOnCameraIdleListener(()->{nextPresenceQuery=0;refreshPeers();});
+      m.addOnCameraIdleListener(this::refreshPeers);
       double lat=Double.longBitsToDouble(store.prefs.getLong("lat",Double.doubleToLongBits(56.8389))),lon=Double.longBitsToDouble(store.prefs.getLong("lon",Double.doubleToLongBits(60.5975)));
       m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat,lon),12.3));
     });
@@ -181,7 +181,7 @@ public final class MainActivity extends Activity {
     refreshMarkers();if(preview!=null)updatePreviewValue();
   }
   void refreshMarkers(){
-    if(map==null||map.getStyle()==null||!map.getStyle().isFullyLoaded())return;
+    if(map==null)return;
     java.util.List<org.maplibre.geojson.Feature> glowPoints=new ArrayList<>();pointBitmaps.clear();
     for(Point p:store.points()){
       double lat=p.lat,lon=p.lon;if(p.dynamic){if(store.prefs.getLong("gpsAt",0)==0)continue;lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
@@ -192,6 +192,8 @@ public final class MainActivity extends Activity {
       }
       pointBitmaps.put(p.id,pointIcon(p));
     }
+    pointOverlay.invalidate();
+    if(map.getStyle()==null||!map.getStyle().isFullyLoaded())return;
     org.maplibre.android.style.sources.GeoJsonSource source=map.getStyle().getSourceAs("reading-points");
     org.maplibre.geojson.FeatureCollection data=org.maplibre.geojson.FeatureCollection.fromFeatures(glowPoints);
     if(source==null){

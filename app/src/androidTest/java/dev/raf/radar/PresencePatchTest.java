@@ -61,7 +61,15 @@ public class PresencePatchTest {
       scenario.onActivity(a->{
         a.store.prefs.edit().putLong("lat",Double.doubleToLongBits(55.16)).putLong("lon",Double.doubleToLongBits(61.40)).putLong("gpsAt",System.currentTimeMillis()).commit();
         try{a.peers=Collections.singletonList(new PresenceClient.Peer(new JSONObject().put("id","fixture-peer").put("lat",55.1608).put("lon",61.402).put("observedAt",System.currentTimeMillis())));}catch(Exception e){throw new AssertionError(e);}
+        a.presenceEpoch++;a.nextPresenceQuery=Long.MAX_VALUE;
         a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.16,61.40),15));a.refreshMarkers();
+        assertNotNull(a.pointBitmaps.get("me"));
+        Bitmap overlay=Bitmap.createBitmap(a.pointOverlay.getWidth(),a.pointOverlay.getHeight(),Bitmap.Config.ARGB_8888);a.pointOverlay.draw(new Canvas(overlay));
+        PointF own=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.16,61.40));
+        PointF peer=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.1608,61.402));
+        int gold=overlay.getPixel(Math.round(own.x),Math.round(own.y)),purple=overlay.getPixel(Math.round(peer.x),Math.round(peer.y));
+        assertTrue("Own GPS marker drawn",Color.alpha(gold)>200&&Color.red(gold)>Color.blue(gold));
+        assertTrue("Peer marker drawn",Color.alpha(purple)>200&&Color.blue(purple)>Color.green(purple));overlay.recycle();
       });ScreenTest.capture("presence-gold-purple-map");
     }
   }
