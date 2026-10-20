@@ -127,7 +127,7 @@ final class Updates {
         "APK для " + candidate.packageName + ", а установлено " + a.getPackageName());
     if (candidate.versionCode <= current.getLongVersionCode()) throw new IOException("Установлена эта или более новая версия");
     Set<String> installedSigners = new HashSet<>();
-    if (current.signingInfo != null) for (Signature signer : current.signingInfo.getApkContentsSigners())
+    if (current.signingInfo != null) for (android.content.pm.Signature signer : current.signingInfo.getApkContentsSigners())
       installedSigners.add(Base64.getEncoder().encodeToString(signer.toByteArray()));
     if (installedSigners.isEmpty() || !candidate.certificates.equals(installedSigners))
       throw new IOException("Подпись APK отличается");
