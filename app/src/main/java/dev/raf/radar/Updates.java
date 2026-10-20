@@ -121,12 +121,15 @@ final class Updates {
     for (byte b : md.digest()) hex.append(String.format(Locale.US, "%02x", b));
     if (!digest.substring(7).equalsIgnoreCase(hex.toString())) throw new IOException("Контрольная сумма не совпала");
     PackageManager pm = a.getPackageManager();
-    PackageInfo candidate = pm.getPackageArchiveInfo(file.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
+    ApkInspection candidate = ApkInspection.read(file, android.os.Build.VERSION.SDK_INT);
     PackageInfo current = pm.getPackageInfo(a.getPackageName(), PackageManager.GET_SIGNING_CERTIFICATES);
-    if (candidate == null || !a.getPackageName().equals(candidate.packageName)) throw new IOException("Неверный пакет APK");
-    if (candidate.getLongVersionCode() <= current.getLongVersionCode()) throw new IOException("Установлена эта или более новая версия");
-    if (candidate.signingInfo == null || current.signingInfo == null || !Arrays.equals(
-        candidate.signingInfo.getApkContentsSigners(), current.signingInfo.getApkContentsSigners()))
+    if (!a.getPackageName().equals(candidate.packageName)) throw new IOException(
+        "APK для " + candidate.packageName + ", а установлено " + a.getPackageName());
+    if (candidate.versionCode <= current.getLongVersionCode()) throw new IOException("Установлена эта или более новая версия");
+    Set<String> installedSigners = new HashSet<>();
+    if (current.signingInfo != null) for (Signature signer : current.signingInfo.getApkContentsSigners())
+      installedSigners.add(Base64.getEncoder().encodeToString(signer.toByteArray()));
+    if (installedSigners.isEmpty() || !candidate.certificates.equals(installedSigners))
       throw new IOException("Подпись APK отличается");
   }
 
