@@ -99,11 +99,7 @@ jobs:
             if [ ${{ matrix.api }} -ge 33 ]; then adb shell pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS; fi
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            if [ "${{ inputs.suite }}" = "full" ]; then
-              adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
-            else
-              adb shell am instrument -w -r -e class dev.raf.radar.EconomyPatchTest,dev.raf.radar.UpdateArchiveTest,dev.raf.radar.StartupSoundTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt
-            fi
+            if [ "${{ inputs.suite }}" = "full" ]; then adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; else adb shell am instrument -w -r -e class dev.raf.radar.EconomyPatchTest,dev.raf.radar.UpdateArchiveTest,dev.raf.radar.StartupSoundTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; fi
             grep -Eq '^OK \([0-9]+ tests?\)' ordinary-tests.txt || { adb pull /sdcard/Pictures/RadarSmoke ./screens || true; adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
             adb logcat -d -v brief > emulator-logcat.txt
