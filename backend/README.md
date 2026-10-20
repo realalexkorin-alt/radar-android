@@ -22,6 +22,8 @@ PostgreSQL expires coordinates after 110 seconds from observation (never later t
 
 Missing or broken storage returns 503, never fake points. All API responses forbid caching. Production must expose the API over HTTPS without Vercel login; previews remain protected. Response cap: 200 visible points among the 1000 latest active installations; add spatial indexing before a large rollout.
 
-## Checkpoint, 2026-10-20
+## Validation checkpoint, 2026-10-20
 
-Connection to the reused free Neon resource is verified. SQL access to the same compute is verified through a protected diagnostic deployment. pg_cron is available but not enabled for neondb; installation in postgres is denied to the application role. Email activation was completed on 2026-10-20 via the requested verification email. Compute configuration requires Neon API access; opening personal API-key creation was rejected by automatic approval review because issuing a new privileged key was not explicitly authorized. No new Neon API key was created. No schema installation completed, no real two-client SQL test yet, no production release yet. Temporary test bypass was revoked. Diagnostic deployments remain protected and must be deleted in Vercel before production protection is changed.
+The existing free Neon database is connected. Email activation is complete; cron.database_name=neondb is configured, pg_cron 1.6 and schema.sql are installed. Four API contract tests pass. The real PostgreSQL test passes for two clients, viewport selection, isolated withdrawal, replay rejection, automatic coordinate removal after 121 seconds with no API/SQL traffic and shutdown of the empty scheduler. HTTP preview validation is in progress. Temporary project-scoped Neon API access will be revoked after validation.
+
+The live schema has no movement-history table. Neon infrastructure point-in-time recovery currently has its own retention policy (6 hours observed); working-table expiry is not a promise of erasing infrastructure recovery versions. Do not claim otherwise. Diagnostic previews remain protected; production should be public while Vercel protection stays enabled for previews.

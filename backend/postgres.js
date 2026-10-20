@@ -1,4 +1,6 @@
-import {neon} from '@neondatabase/serverless';
+import {neon,neonConfig} from '@neondatabase/serverless';
+// Bound every database round-trip; unavailable storage must fail closed.
+neonConfig.fetchFunction=(url,options)=>fetch(url,{...options,signal:AbortSignal.timeout(8000)});
 let client;
 export function database() {
  if (!client) {
