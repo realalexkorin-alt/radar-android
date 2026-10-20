@@ -1,3 +1,4 @@
+import {postgres} from '../postgres.js';
 import { createHash } from 'node:crypto';
 
 const PREFIX = 'radar:presence:v1:';
@@ -41,7 +42,7 @@ async function redis(command) {
   const result=await response.json(); if(result.error) throw new Error('storage unavailable');
   return result.result;
 }
-export function handler(command=redis, clock=Date.now) {
+export function handler(command=(process.env.DATABASE_URL ? postgres : redis), clock=Date.now) {
   return async (req,res) => {
     res.setHeader('Cache-Control','no-store, max-age=0');
     res.setHeader('X-Content-Type-Options','nosniff');
