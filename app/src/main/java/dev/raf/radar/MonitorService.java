@@ -23,6 +23,7 @@ public final class MonitorService extends Service implements LocationListener {
       queue.execute(()->{planner.refresh();tick();});
   };
   private int failures = 0;
+  private boolean announced;
   private final BroadcastReceiver manual =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
@@ -96,6 +97,8 @@ public final class MonitorService extends Service implements LocationListener {
       return START_NOT_STICKY;
     }
     if (overlay != null) overlay.refresh();
+    if(i!=null&&"user_start".equals(i.getAction())&&!announced){announced=true;AppSounds.play(this,AppSounds.Event.MONITOR_READY);}
+    sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     return START_NOT_STICKY;
   }
 
@@ -252,6 +255,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onDestroy() {
     running = false;
+    sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);
     try {
       unregisterReceiver(manual);

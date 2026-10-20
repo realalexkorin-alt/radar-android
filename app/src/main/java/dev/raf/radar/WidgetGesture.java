@@ -16,7 +16,7 @@ public final class WidgetGesture {
   public boolean move(float x, float y, long time) {
     if (!active) return false;
     if (Math.hypot(x - this.x, y - this.y) > slop) displaced = true;
-    if (displaced && time - started >= hold) dragging = true;
+    if (displaced) dragging = true;
     return dragging;
   }
   public int up(float x, float y, long time) {

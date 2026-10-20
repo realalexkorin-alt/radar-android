@@ -9,15 +9,16 @@ public final class Store {
 
   public Store(Context c) {
     prefs = c.getSharedPreferences("radar", Context.MODE_PRIVATE);
-    migrateWidgetTariffs();
+    migrateEconomy();
   }
 
-  private void migrateWidgetTariffs() {
-    if (!prefs.contains("widgetTariffs")) {
-      List<String> selected = TariffSelection.ordered(widgetPoint().tariffs);
-      if (selected.isEmpty()) selected = Collections.singletonList("econom");
-      prefs.edit().putStringSet("widgetTariffs", new LinkedHashSet<>(selected)).apply();
-    }
+  private void migrateEconomy() {
+    if (prefs.getBoolean("economyOnlyV1",false)) return;
+    // Preserve point identity, coordinates, thresholds, switches and overlay position.
+    save(points());
+    prefs.edit().putStringSet("widgetTariffs",Collections.singleton("econom"))
+        .putBoolean("sounds",prefs.getBoolean("sounds",prefs.getBoolean("startupSound",true)))
+        .putBoolean("dark",true).putBoolean("economyOnlyV1",true).apply();
   }
 
   public Point widgetPoint() {
@@ -28,16 +29,10 @@ public final class Store {
     return saved.get(0);
   }
 
-  public List<String> widgetTariffs() {
-    migrateWidgetTariffs();
-    List<String> selected = TariffSelection.ordered(prefs.getStringSet("widgetTariffs", Collections.singleton("econom")));
-    return selected.isEmpty() ? Collections.singletonList("econom") : selected;
-  }
+  public List<String> widgetTariffs() { return Collections.singletonList("econom"); }
 
   public void widgetTariffs(Collection<String> values) {
-    List<String> selected = TariffSelection.ordered(values);
-    if (selected.isEmpty()) throw new IllegalArgumentException("Выберите хотя бы один тариф виджета");
-    prefs.edit().putStringSet("widgetTariffs", new LinkedHashSet<>(selected)).apply();
+    prefs.edit().putStringSet("widgetTariffs",Collections.singleton("econom")).apply();
   }
 
   public synchronized List<Point> points() {
@@ -112,7 +107,7 @@ public final class Store {
     JSONArray j = new JSONArray();
     try {
       for (Reading r : a)
-        j.put(
+        if ("econom".equals(r.tariff)) j.put(
             new JSONObject()
                 .put("tariff", r.tariff)
                 .put("rub", r.rub)
@@ -130,6 +125,7 @@ public final class Store {
       JSONArray j = new JSONArray(prefs.getString("read:" + id, "[]"));
       for (int i = 0; i < j.length(); i++) {
         JSONObject r = j.getJSONObject(i);
+        if (!"econom".equals(r.optString("tariff"))) continue;
         a.add(
             new Reading(
                 r.getString("tariff"),

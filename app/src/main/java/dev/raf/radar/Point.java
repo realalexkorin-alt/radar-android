@@ -10,7 +10,7 @@ public final class Point {
   public double lat, lon;
   public boolean dynamic, notify = false;
   public int threshold = 200;
-  public List<String> tariffs = new ArrayList<>(Arrays.asList("econom", "business", "comfortplus"));
+  public List<String> tariffs = new ArrayList<>(Collections.singletonList("econom"));
 
   public Point(String id, String name, double lat, double lon, boolean dynamic) {
     this.id = id;
@@ -46,9 +46,6 @@ public final class Point {
     p.enabled = j.optBoolean("enabled", true);
     p.notify = j.optBoolean("notify");
     p.threshold = j.optInt("threshold", 200);
-    p.tariffs.clear();
-    JSONArray t = j.getJSONArray("tariffs");
-    for (int i = 0; i < t.length(); i++) p.tariffs.add(t.getString(i));
     return p;
   }
 

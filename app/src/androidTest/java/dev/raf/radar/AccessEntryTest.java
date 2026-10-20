@@ -14,20 +14,29 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 public class AccessEntryTest {
   private AccessibilityNodeInfo button(String suffix) {
     long end = android.os.SystemClock.uptimeMillis() + 10000;
+    String observed="";
     do {
-      AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
-      if (root != null) {
-        java.util.ArrayDeque<AccessibilityNodeInfo> queue = new java.util.ArrayDeque<>(); queue.add(root);
+      StringBuilder nodes=new StringBuilder();
+      android.app.UiAutomation automation=InstrumentationRegistry.getInstrumentation().getUiAutomation();
+      java.util.ArrayDeque<AccessibilityNodeInfo> queue=new java.util.ArrayDeque<>();
+      AccessibilityNodeInfo root=automation.getRootInActiveWindow();if(root!=null)queue.add(root);
+      for(android.view.accessibility.AccessibilityWindowInfo window:automation.getWindows()){
+        AccessibilityNodeInfo candidate=window.getRoot();if(candidate!=null)queue.add(candidate);
+      }
+      {
         while (!queue.isEmpty()) {
           AccessibilityNodeInfo n = queue.remove();
           String id = n.getViewIdResourceName();
+          nodes.append("[").append(n.getPackageName()).append(" ").append(id).append(" ").append(n.getText()).append(" visible=").append(n.isVisibleToUser()).append("]\n");
           if (id != null && id.endsWith(":id/" + suffix) && n.isVisibleToUser()) return n;
           for (int i = 0; i < n.getChildCount(); i++) { AccessibilityNodeInfo child = n.getChild(i); if (child != null) queue.add(child); }
         }
       }
+      observed=nodes.toString();
       android.os.SystemClock.sleep(100);
     } while (android.os.SystemClock.uptimeMillis() < end);
-    throw new AssertionError("Permission button missing: " + suffix);
+    ScreenTest.capture("permission-button-missing");
+    throw new AssertionError("Permission button missing: " + suffix + "\n" + observed);
   }
   private void waitForAppDialog() {
     long end = android.os.SystemClock.uptimeMillis() + 10000;
@@ -56,7 +65,7 @@ public class AccessEntryTest {
   @Test public void denialIsGatedAndNextEntryRequestsAgain() throws Exception {
     android.content.Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
     android.accessibilityservice.AccessibilityServiceInfo info = InstrumentationRegistry.getInstrumentation().getUiAutomation().getServiceInfo();
-    info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+    info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS | android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
     InstrumentationRegistry.getInstrumentation().getUiAutomation().setServiceInfo(info);
     Assert.assertFalse(Access.location(c));
     try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {

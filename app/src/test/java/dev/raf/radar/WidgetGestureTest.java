@@ -18,10 +18,10 @@ public class WidgetGestureTest {
     assertTrue(g.move(80, 90, 1600));
     assertEquals(WidgetGesture.DRAG, g.up(80, 90, 1700));
   }
-  @Test public void quickSwipeDoesNotOpenApp() {
+  @Test public void quickDragMovesWithoutOpeningApp() {
     WidgetGesture g = gesture(); g.down(10, 10, 1000);
-    assertFalse(g.move(80, 90, 1100));
-    assertEquals(WidgetGesture.NONE, g.up(80, 90, 1200));
+    assertTrue(g.move(80, 90, 1100));
+    assertEquals(WidgetGesture.DRAG, g.up(80, 90, 1200));
   }
   @Test public void cancelledHoldDoesNothing() {
     WidgetGesture g = gesture(); g.down(10, 10, 1000); g.cancel();
