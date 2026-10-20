@@ -38,7 +38,7 @@ final class Updates {
               .setPositiveButton("Загрузить", (d, w) -> download(a, asset))
               .setNegativeButton("Позже", null).show();
         });
-      } catch (Exception e) { if (!silent) show(a, "Обновление недоступно: " + e.getMessage()); }
+      } catch (Exception e) { if (!silent) failed(a, "Проверка обновлений не завершена", e); }
       finally { busy = false; }
     }, "radar-updates").start();
   }
@@ -101,7 +101,7 @@ final class Updates {
         a.runOnUiThread(() -> { if (alive(a)) offerInstall(a); });
       } catch (Exception e) {
         file.delete(); store.prefs.edit().remove("pendingUpdateDigest").apply();
-        show(a, "Обновление: " + e.getMessage());
+        failed(a, "Не удалось подготовить обновление", e);
       } finally {
         busy = false;
         a.runOnUiThread(() -> { if (alive(a) && progress.isShowing()) progress.dismiss(); });
@@ -121,12 +121,15 @@ final class Updates {
     for (byte b : md.digest()) hex.append(String.format(Locale.US, "%02x", b));
     if (!digest.substring(7).equalsIgnoreCase(hex.toString())) throw new IOException("Контрольная сумма не совпала");
     PackageManager pm = a.getPackageManager();
-    PackageInfo candidate = pm.getPackageArchiveInfo(file.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
+    ApkInspection candidate = ApkInspection.read(file, android.os.Build.VERSION.SDK_INT);
     PackageInfo current = pm.getPackageInfo(a.getPackageName(), PackageManager.GET_SIGNING_CERTIFICATES);
-    if (candidate == null || !a.getPackageName().equals(candidate.packageName)) throw new IOException("Неверный пакет APK");
-    if (candidate.getLongVersionCode() <= current.getLongVersionCode()) throw new IOException("Установлена эта или более новая версия");
-    if (candidate.signingInfo == null || current.signingInfo == null || !Arrays.equals(
-        candidate.signingInfo.getApkContentsSigners(), current.signingInfo.getApkContentsSigners()))
+    if (!a.getPackageName().equals(candidate.packageName)) throw new IOException(
+        "APK для " + candidate.packageName + ", а установлено " + a.getPackageName());
+    if (candidate.versionCode <= current.getLongVersionCode()) throw new IOException("Установлена эта или более новая версия");
+    Set<String> installedSigners = new HashSet<>();
+    if (current.signingInfo != null) for (Signature signer : current.signingInfo.getApkContentsSigners())
+      installedSigners.add(Base64.getEncoder().encodeToString(signer.toByteArray()));
+    if (installedSigners.isEmpty() || !candidate.certificates.equals(installedSigners))
       throw new IOException("Подпись APK отличается");
   }
 
@@ -144,7 +147,7 @@ final class Updates {
         a.runOnUiThread(() -> { if (alive(a)) offerInstall(a); });
       } catch (Exception e) {
         store.prefs.edit().remove("pendingUpdateDigest").apply(); file(a).delete();
-        show(a, "Обновление: " + e.getMessage());
+        failed(a, "Не удалось продолжить установку", e);
         a.runOnUiThread(() -> { if (alive(a) && a instanceof MainActivity) ((MainActivity) a).access.onResume(); });
       } finally { busy = false; }
     }, "radar-install").start();
@@ -169,6 +172,19 @@ final class Updates {
   }
   static void show(Activity a, String message) {
     a.runOnUiThread(() -> { if (alive(a)) android.widget.Toast.makeText(a, message, android.widget.Toast.LENGTH_LONG).show(); });
+  }
+  private static void failed(Activity a, String stage, Exception error) {
+    String detail = stage + "\n\n" + (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage())
+        + "\n\nРадар " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")"
+        + "\nAndroid API " + android.os.Build.VERSION.SDK_INT + " · " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
+    a.runOnUiThread(() -> {
+      if (!alive(a)) return;
+      new AlertDialog.Builder(a).setTitle("Обновление Радара").setMessage(detail)
+          .setPositiveButton("Закрыть", null)
+          .setNeutralButton("Скопировать", (d, w) -> a.getSystemService(android.content.ClipboardManager.class)
+              .setPrimaryClip(android.content.ClipData.newPlainText("Ошибка обновления Радара", detail)))
+          .show();
+    });
   }
   static void detach(Activity a) {
     Dialog dialog = progressDialogs.remove(a);
