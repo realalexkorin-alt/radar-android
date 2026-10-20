@@ -53,7 +53,7 @@ public class TariffSettingsTest {
   @Test public void savingPointDoesNotChangeWidgetTariffsOrSource(){
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       scenario.onActivity(a->{a.store.widgetTariffs(Collections.singleton("vip"));Point p=new Point("saved","Дом",55.75,37.61,false);p.tariffs=new ArrayList<>(Collections.singletonList("econom"));a.store.update(p);a.editDetails(p);});
-      onView(withText("Эконом")).perform(scrollTo(),click());onView(withText("Комфорт+")).perform(scrollTo(),click());onView(withText("Сохранить")).perform(click());
+      onView(withText("Эконом")).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(scrollTo(),click());onView(withText("Комфорт+")).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(scrollTo(),click());onView(withText("Сохранить")).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
       scenario.recreate();scenario.onActivity(a->{Point p=a.store.points().stream().filter(x->x.id.equals("saved")).findFirst().get();assertEquals(Collections.singletonList("comfortplus"),p.tariffs);assertEquals("comfortplus",a.mapReadings(p).get(0).tariff);assertEquals(Collections.singletonList("vip"),a.store.widgetTariffs());assertEquals("me",a.store.widgetPoint().id);});
     }
   }
