@@ -4,7 +4,7 @@ import android.content.Context;
 import android.graphics.*;
 import android.view.View;
 
-/** Original supplied artwork, cropped only while drawing; PRO is a separate control. */
+/** Supplied transparent artwork; separate proportional logo and PRO touch target. */
 final class RadarLogo extends View {
   private static Bitmap artwork;
   private final boolean pro;
@@ -12,7 +12,7 @@ final class RadarLogo extends View {
   private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
   RadarLogo(Context c,boolean pro){
     super(c);this.pro=pro;
-    if(artwork==null)try(java.io.InputStream in=c.getAssets().open("radar_logo.jpg")){
+    if(artwork==null)try(java.io.InputStream in=c.getAssets().open("radar_logo.png")){
       BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;
       artwork=BitmapFactory.decodeStream(in,null,options);
     }catch(java.io.IOException ignored){}
@@ -21,9 +21,12 @@ final class RadarLogo extends View {
   void active(boolean enabled){active=enabled;setSelected(enabled);setContentDescription(enabled?"PRO: мониторинг включён":"PRO: мониторинг выключен");invalidate();}
   @Override protected void onDraw(Canvas canvas){
     if(artwork==null)return;
-    Rect src=pro?new Rect(728,214,963,365):new Rect(60,193,726,388);
+    Rect src=pro?new Rect(716,76,1008,270):new Rect(22,30,716,310);
     if(pro&&active)paint.setColorFilter(new ColorMatrixColorFilter(new float[]{0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0}));
     else paint.setColorFilter(null);
-    canvas.drawBitmap(artwork,src,new RectF(0,0,getWidth(),getHeight()),paint);
+    float scale=Math.min(getWidth()/(float)src.width(),getHeight()/(float)src.height());
+    float width=src.width()*scale,height=src.height()*scale;
+    float left=(getWidth()-width)/2f,top=(getHeight()-height)/2f;
+    canvas.drawBitmap(artwork,src,new RectF(left,top,left+width,top+height),paint);
   }
 }

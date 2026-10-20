@@ -97,7 +97,7 @@ public final class MainActivity extends Activity {
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout title=column();LinearLayout brand=row();
     int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
-    brand.addView(new RadarLogo(this,false),new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/3.4f)));
+    brand.addView(new RadarLogo(this,false),new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/2.48f)));
     pro=new RadarLogo(this,true);pro.setFocusable(true);pro.setClickable(true);pro.setOnClickListener(v->toggleMonitor());
     brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));title.addView(brand);
     state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
