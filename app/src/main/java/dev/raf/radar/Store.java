@@ -10,6 +10,7 @@ public final class Store {
   public Store(Context c) {
     prefs = c.getSharedPreferences("radar", Context.MODE_PRIVATE);
     migrateEconomy();
+    if (!prefs.getBoolean("gpsWidgetV1",false)) prefs.edit().putString("overlayPoint","me").putBoolean("gpsWidgetV1",true).apply();
   }
 
   private void migrateEconomy() {
@@ -22,11 +23,14 @@ public final class Store {
   }
 
   public Point widgetPoint() {
-    List<Point> saved = points();
-    String id = prefs.getString("overlayPoint", "me");
-    for (Point point : saved) if (point.id.equals(id)) return point;
-    for (Point point : saved) if (point.dynamic) return point;
-    return saved.get(0);
+    for (Point point : points()) if (point.dynamic) return point;
+    throw new IllegalStateException("Dynamic point missing");
+  }
+
+  public Reading widgetReading() {
+    if (!LocationState.fresh(this)) return null;
+    for (Reading r : readings("me")) if ("econom".equals(r.tariff) && r.rub != null && r.fresh()) return r;
+    return null;
   }
 
   public List<String> widgetTariffs() { return Collections.singletonList("econom"); }
@@ -99,7 +103,7 @@ public final class Store {
     public String value() {
       return rub != null
           ? (rub > 0 ? "+" : "") + rub + " ₽"
-          : ratio != null ? String.format(java.util.Locale.US, "×%.2f", ratio) : "—";
+          : "—";
     }
   }
 

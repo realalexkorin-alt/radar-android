@@ -19,6 +19,11 @@ import org.maplibre.android.maps.*;
 
 public final class MainActivity extends Activity {
   Store store; Access access;
+  MapGps mapGps;
+  List<PresenceClient.Peer> peers=new ArrayList<>();
+  Bitmap peerBitmap;
+  long nextPresenceQuery;int presenceEpoch;boolean presenceQuery;
+
   final StartupSound startupSound = new StartupSound();
   boolean startupSoundPending;
   boolean startAfterAccess, pendingOverlay, resumed, dark;
@@ -36,11 +41,13 @@ public final class MainActivity extends Activity {
   String selected="me";
   Handler handler=new Handler();
   static final String[] TARIFF_IDS={"econom"};
-  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();refreshCards();handler.postDelayed(this,5000);}}};
+  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
     setTheme(R.style.AppThemeDark);
     super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
+    mapGps=new MapGps(this,store,this::refreshMarkers);
+    PresenceClient.reconcile(this);
     startupSoundPending = saved == null;
     if(saved!=null){startAfterAccess=saved.getBoolean("startAfterAccess");pendingOverlay=saved.getBoolean("pendingOverlay");}
     currentTab=saved==null?0:saved.getInt("tab",0);
@@ -88,6 +95,14 @@ public final class MainActivity extends Activity {
     mapView=new MapView(this);mapView.onCreate(saved);mapFrame.addView(mapView,new FrameLayout.LayoutParams(-1,-1));
     pointOverlay=new View(this){@Override protected void onDraw(Canvas c){
       if(map==null)return;
+      String own=PresenceClient.ownId(store);
+      if(peerBitmap==null)peerBitmap=locationIcon(false,true);
+      Bitmap peerIcon=peerBitmap;
+      for(PresenceClient.Peer peer:peers){
+        if(!peer.fresh()||peer.id.equals(own))continue;
+        PointF xy=map.getProjection().toScreenLocation(new LatLng(peer.lat,peer.lon));
+        c.drawBitmap(peerIcon,xy.x-peerIcon.getWidth()/2f,xy.y-peerIcon.getHeight()/2f,null);
+      }
       for(Point p:store.points()){
         LatLng location=pointLocation(p);if(location==null)continue;
         PointF xy=map.getProjection().toScreenLocation(location);Bitmap icon=pointBitmaps.get(p.id);
@@ -116,6 +131,7 @@ public final class MainActivity extends Activity {
         hidePreview();return false;
       });
       m.addOnCameraMoveListener(()->pointOverlay.invalidate());
+      m.addOnCameraIdleListener(()->{nextPresenceQuery=0;refreshPeers();});
       double lat=Double.longBitsToDouble(store.prefs.getLong("lat",Double.doubleToLongBits(56.8389))),lon=Double.longBitsToDouble(store.prefs.getLong("lon",Double.doubleToLongBits(60.5975)));
       m.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat,lon),12.3));
     });
@@ -144,7 +160,7 @@ public final class MainActivity extends Activity {
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
-  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&(r.rub!=null||r.ratio!=null)){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
+  Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&r.rub!=null){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){
     if(cards==null)return;
     if(pro!=null)pro.active(MonitorService.running);
@@ -207,6 +223,7 @@ public final class MainActivity extends Activity {
     return rows;
   }
   Bitmap pointIcon(Point point){
+    if(point.dynamic)return locationIcon(true,LocationState.fresh(store));
     List<Store.Reading> rows=mapReadings(point);
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
     int width=dp(point.dynamic?114:56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
@@ -219,6 +236,24 @@ public final class MainActivity extends Activity {
       paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(RadarUi.value(reading),width/2f,top+dp(20),paint);
     }
     return bitmap;
+  }
+  Bitmap locationIcon(boolean own,boolean fresh){
+    int size=dp(56),color=own?0xFFFFCC45:0xFFAB45FF;
+    Bitmap icon=Bitmap.createBitmap(size,size,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(icon);
+    Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);float center=size/2f;
+    paint.setShader(new RadialGradient(center,center,dp(25),new int[]{Color.argb(fresh?110:35,Color.red(color),Color.green(color),Color.blue(color)),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));
+    canvas.drawCircle(center,center,dp(25),paint);paint.setShader(null);
+    paint.setColor(0xFF17191F);canvas.drawCircle(center,center,dp(8),paint);
+    paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(color);paint.setAlpha(fresh?255:100);canvas.drawCircle(center,center,dp(8),paint);
+    paint.setStyle(Paint.Style.FILL);canvas.drawCircle(center,center,dp(4),paint);return icon;
+  }
+  void refreshPeers(){
+    if(!resumed||currentTab!=0||map==null||presenceQuery||SystemClock.elapsedRealtime()<nextPresenceQuery)return;
+    nextPresenceQuery=SystemClock.elapsedRealtime()+30000;presenceQuery=true;int epoch=presenceEpoch;
+    org.maplibre.android.geometry.LatLngBounds b=map.getProjection().getVisibleRegion().latLngBounds;
+    PresenceClient.query(b.getLonWest(),b.getLatSouth(),b.getLonEast(),b.getLatNorth(),result->{
+      presenceQuery=false;if(resumed&&currentTab==0&&presenceEpoch==epoch){peers=result;pointOverlay.invalidate();}
+    });
   }
   void toggleMonitor(){
     if(MonitorService.running||startAfterAccess)stopMonitor();else{pendingOverlay=true;startMonitor();}
@@ -233,7 +268,7 @@ public final class MainActivity extends Activity {
   }
   void hidePreview(){if(pointSheet!=null)mapFrame.removeView(pointSheet);if(pointDismiss!=null)mapFrame.removeView(pointDismiss);pointDismiss=null;pointSheet=null;preview=null;previewValue=null;}
   TextView previewValue;
-  void updatePreviewValue(){if(previewValue!=null&&preview!=null){Store.Reading reading=displayReading(preview);previewValue.setText("Кеф "+RadarUi.value(reading));previewValue.setTextColor(PriceLevel.color(reading==null?null:reading.rub));};}
+  void updatePreviewValue(){if(previewValue!=null&&preview!=null){Store.Reading reading=displayReading(preview);previewValue.setText("Надбавка "+RadarUi.value(reading));previewValue.setTextColor(PriceLevel.color(reading==null?null:reading.rub));};}
   void edit(Point p){
     if(p.dynamic&&store.prefs.getLong("gpsAt",0)>0){p.lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));p.lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
     showTab(0);hidePreview();preview=p;selected=p.id;
@@ -242,7 +277,7 @@ public final class MainActivity extends Activity {
     LinearLayout sheet=column();sheet.setPadding(dp(18),dp(10),dp(18),dp(18));GradientDrawable background=shape(dark?0xFF16181B:Color.WHITE,26);background.setStroke(dp(1),dark?0xFF34373D:0xFFDCDDE0);sheet.setBackground(background);sheet.setElevation(dp(10));
     View handle=new View(this);handle.setBackground(shape(dark?0xFF666B73:0xFFC0C3C8,4));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER_HORIZONTAL;hp.bottomMargin=dp(18);sheet.addView(handle,hp);
     sheet.addView(text(String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon),12,muted));
-    previewValue=heading("Кеф "+RadarUi.value(displayReading(p)),22);LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=dp(12);vp.bottomMargin=dp(10);sheet.addView(previewValue,vp);
+    previewValue=heading("Надбавка "+RadarUi.value(displayReading(p)),22);LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=dp(12);vp.bottomMargin=dp(10);sheet.addView(previewValue,vp);
     TextView address=text(pointAddress(p),16,fg);address.setMaxLines(2);sheet.addView(address);
     if(!p.dynamic){final double lat=p.lat,lon=p.lon;resolveAddress(lat,lon,result->{if(preview!=p)return;p.address=result;address.setText(result);cacheAddress(p.id,lat,lon,result);});}
     LinearLayout buttons=row();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(50));bp.topMargin=dp(20);sheet.addView(buttons,bp);
@@ -281,6 +316,7 @@ public final class MainActivity extends Activity {
   }
 
   void onAccessChanged() {
+    if(mapGps!=null&&resumed)mapGps.start();
     if (startAfterAccess && Access.monitorReady(this)&&(!pendingOverlay||Settings.canDrawOverlays(this))) startMonitor();
   }
 
@@ -291,7 +327,7 @@ public final class MainActivity extends Activity {
     }
     long age = System.currentTimeMillis() - store.prefs.getLong("gpsAt", 0);
     if (age > 120000) {
-      toast("Ожидаем свежую геопозицию. Включите мониторинг и GPS.");
+      toast("Ожидаем свежую геопозицию. Проверьте, что GPS включён.");
       return;
     }
     if (map != null)
@@ -371,7 +407,7 @@ public final class MainActivity extends Activity {
     if (!p.dynamic) {
       TextView coords = text(String.format(Locale.US, "%.5f, %.5f", p.lat, p.lon), 12, muted);
       form.addView(coords);
-      TextView coefficient = text("Кеф: " + pointValues(p), 16, fg);
+      TextView coefficient = text("Надбавка: " + pointValues(p), 16, fg);
       coefficient.setPadding(0, dp(8), 0, dp(8));
       form.addView(coefficient);
       TextView address = text(pointAddress(p), 13, muted);
@@ -394,7 +430,7 @@ public final class MainActivity extends Activity {
                   coords.setText(String.format(Locale.US, "%.5f, %.5f", p.lat, p.lon));
                   p.address = "";
                   address.setText(pointAddress(p));
-                  coefficient.setText("Кеф: —");
+                  coefficient.setText("Надбавка: —");
                   final double moveLat = p.lat, moveLon = p.lon;
                   resolveAddress(moveLat, moveLon, resolved -> {
                     if (p.lat != moveLat || p.lon != moveLon) return;
@@ -415,8 +451,7 @@ public final class MainActivity extends Activity {
     form.addView(
         text(
             "Пауза 30 минут. Рост ещё на 50 ₽ — сразу.\n"
-                + "Уведомления используют расчётную надбавку в ₽; по множителю × не"
-                + " отправляются.",
+                + "Уведомления используют расчётную надбавку в ₽.",
             12,
             muted));
     ScrollView sc = new ScrollView(this);
@@ -428,11 +463,9 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Сохранить", null)
             .setNegativeButton("Отменить", null)
             .setNeutralButton(
-                p.dynamic ? "В виджет" : existing ? "Удалить" : null,
+                !p.dynamic && existing ? "Удалить" : null,
                 (d, w) -> {
-                  if (p.dynamic) {
-                    store.prefs.edit().putString("overlayPoint", p.id).apply();
-                  } else {store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}
+                  if(!p.dynamic){store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}
                   refreshCards();
                 })
             .create();
@@ -573,6 +606,11 @@ public final class MainActivity extends Activity {
     sizeSlider(controls,"Размер текста","textScale",60,250);
     sizeSlider(controls,"Прозрачность","opacity",20,100);
     LinearLayout more=group(body,"Дополнительно");
+    switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{
+      store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);
+    });
+    TextView sharing=text("Показывать моё местоположение пользователям Радар PRO при включённом мониторинге. Точка исчезает не позднее двух минут после потери связи.",11,muted);
+    sharing.setPadding(0,0,0,dp(10));more.addView(sharing);
     switchRow(more,"Звуки",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
@@ -608,10 +646,6 @@ public final class MainActivity extends Activity {
   }
   void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));line.addView(RadarUi.icon(this,"right",muted,14));line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
   void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}
-  void chooseWidgetPoint(){
-    List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;
-    new AlertDialog.Builder(this).setTitle("Местоположение виджета").setItems(names,(dialog,index)->{store.prefs.edit().putString("overlayPoint",points.get(index).id).apply();rebuildSettings();}).setNegativeButton("Отменить",null).show();
-  }
   void mapLayers(){
     List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;
     new AlertDialog.Builder(this).setTitle("Тарифы точек").setItems(names,(dialog,index)->editDetails(points.get(index))).setNegativeButton("Отменить",null).show();
@@ -634,6 +668,7 @@ public final class MainActivity extends Activity {
     super.onResume();
     mapView.onResume();
     resumed = true;
+    mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
       startupSoundPending = false;
       startupSound.play(this, store.prefs.getBoolean("sounds", true));
@@ -647,6 +682,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     resumed = false;
+    presenceEpoch++;mapGps.stop();peers.clear();
     store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);
     mapView.onPause();
@@ -665,6 +701,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     startupSound.stop();
+    mapGps.stop();
     Updates.detach(this);
     if (access != null) access.close();
     handler.removeCallbacksAndMessages(null);

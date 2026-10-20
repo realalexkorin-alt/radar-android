@@ -34,7 +34,7 @@ final class Overlay {
       if(!screenRegistered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
         androidx.core.content.ContextCompat.registerReceiver(c,screen,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);screenRegistered=true;}
     }
-    Store.Reading reading=null;for(Store.Reading r:s.readings(s.widgetPoint().id))if("econom".equals(r.tariff))reading=r;
+    Store.Reading reading=s.widgetReading();
     price.reading(reading);
     float scale=s.prefs.getInt("scale",100)/100f,textScale=s.prefs.getInt("textScale",100)/100f;
     int padding=dp(2+2*scale),glow=dp(10);root.setPadding(padding,padding,padding,padding);price.setPadding(glow,glow,glow,glow);

@@ -7,16 +7,24 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: 'Relevant Economy regression or complete legacy suite'
+        description: 'Relevant presence regression or complete legacy suite'
         type: choice
-        options: [economy, full]
-        default: economy
+        options: [presence, full]
+        default: presence
 concurrency:
   group: radar-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
 jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test backend/test/*.test.js
   build:
     runs-on: ubuntu-24.04
     steps:
@@ -99,12 +107,12 @@ jobs:
             if [ ${{ matrix.api }} -ge 33 ]; then adb shell pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS; fi
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            if [ "${{ inputs.suite }}" = "full" ]; then adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; else adb shell am instrument -w -r -e class dev.raf.radar.EconomyPatchTest,dev.raf.radar.UpdateArchiveTest,dev.raf.radar.StartupSoundTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; fi
+            if [ "${{ inputs.suite }}" = "full" ]; then adb shell am instrument -w -r -e notClass dev.raf.radar.AccessEntryTest,dev.raf.radar.UpgradeStateTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; else adb shell am instrument -w -r -e class dev.raf.radar.PresencePatchTest,dev.raf.radar.EconomyPatchTest,dev.raf.radar.UpdateArchiveTest,dev.raf.radar.StartupSoundTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee ordinary-tests.txt; fi
             grep -Eq '^OK \([0-9]+ tests?\)' ordinary-tests.txt || { adb pull /sdcard/Pictures/RadarSmoke ./screens || true; adb logcat -d -s AndroidRuntime TestRunner ActivityManager PackageParser PackageManager ApkSignatureVerifier; exit 1; }
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
             adb logcat -d -v brief > emulator-logcat.txt
             mkdir -p upgrade-fixtures
-            ./gradlew :app:assembleDebug -PradarVersionCode=16
+            ./gradlew :app:assembleDebug -PradarVersionCode=17
             cp app/build/outputs/apk/debug/app-debug.apk upgrade-fixtures/upgrade.apk
             adb shell am force-stop dev.raf.radar
             adb install -r upgradecheck/build/outputs/apk/debug/upgradecheck-debug.apk

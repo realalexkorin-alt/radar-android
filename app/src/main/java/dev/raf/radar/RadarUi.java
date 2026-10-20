@@ -31,7 +31,7 @@ final class RadarUi {
   }
   static String value(Store.Reading reading) {
     if (reading == null) return "—";
-    return reading.rub != null ? (reading.rub > 0 ? "+" : "") + reading.rub : reading.value();
+    return reading.rub != null ? (reading.rub > 0 ? "+" : "") + reading.rub : "—";
   }
   static ImageView icon(Context c, String name, int color, int size) {
     ImageView image = new ImageView(c); image.setImageDrawable(new Icon(name,color));

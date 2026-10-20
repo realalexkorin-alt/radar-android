@@ -1,0 +1,1 @@
+{"name":"radar-presence","private":true,"version":"0.1.15","type":"module","scripts":{"test":"node --test"},"engines":{"node":">=22"}}

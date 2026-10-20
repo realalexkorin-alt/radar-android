@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public final class MonitorService extends Service implements LocationListener {
-  public static boolean running = false;
+  public static volatile boolean running = false;
   private Store store;
   private ScheduledExecutorService queue;
   private LocationManager locations;
@@ -64,6 +64,7 @@ public final class MonitorService extends Service implements LocationListener {
             .build();
     startForeground(1, n);
     running = true;
+    PresenceClient.start(this);
     IntentFilter requests = new IntentFilter("dev.raf.radar.MANUAL");
     requests.addAction("dev.raf.radar.VIEWING");
     androidx.core.content.ContextCompat.registerReceiver(
@@ -217,30 +218,10 @@ public final class MonitorService extends Service implements LocationListener {
 
   @Override
   public void onLocationChanged(Location l) {
-    long age = SystemClock.elapsedRealtimeNanos() - l.getElapsedRealtimeNanos();
-    if (age < 0 || age > 120_000_000_000L || l.getAccuracy() > 500) return;
-    if (store.prefs.getLong("gpsAt", 0) > 0) {
-      float[] distance = new float[1];
-      Location.distanceBetween(
-          Double.longBitsToDouble(store.prefs.getLong("lat", 0)),
-          Double.longBitsToDouble(store.prefs.getLong("lon", 0)),
-          l.getLatitude(),
-          l.getLongitude(),
-          distance);
-      if (distance[0] > 250) {
-        store.readings("me", Collections.emptyList());
-        planner.expedite("me");
-      }
+    if (LocationState.accept(store,l)) {
+      if (store.readings("me").isEmpty()) planner.expedite("me");
+      broadcast();
     }
-    store
-        .prefs
-        .edit()
-        .putLong("lat", Double.doubleToLongBits(l.getLatitude()))
-        .putLong("lon", Double.doubleToLongBits(l.getLongitude()))
-        .putLong("gpsAt", System.currentTimeMillis())
-        .putFloat("accuracy", l.getAccuracy())
-        .apply();
-    broadcast();
   }
 
   @Override
@@ -255,6 +236,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onDestroy() {
     running = false;
+    PresenceClient.stop(this);
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);
     try {
