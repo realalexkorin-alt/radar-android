@@ -79,7 +79,7 @@ public final class MonitorService extends Service implements LocationListener {
         for (String provider : locations.getProviders(true)) {
           Location last = locations.getLastKnownLocation(provider);
           if (last != null) onLocationChanged(last);
-          locations.requestLocationUpdates(provider, 15000, 20, this);
+          locations.requestLocationUpdates(provider, 15000, 0, this);
         }
       } catch (SecurityException ignored) {
       }

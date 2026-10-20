@@ -21,7 +21,7 @@ public final class MainActivity extends Activity {
   Store store; Access access;
   MapGps mapGps;
   List<PresenceClient.Peer> peers=new ArrayList<>();
-  Bitmap peerBitmap;
+  Bitmap peerBitmap, nearbyPeerBitmap;
   long nextPresenceQuery;int presenceEpoch;boolean presenceQuery;
 
   final StartupSound startupSound = new StartupSound();
@@ -97,10 +97,14 @@ public final class MainActivity extends Activity {
       if(map==null)return;
       String own=PresenceClient.ownId(store);
       if(peerBitmap==null)peerBitmap=locationIcon(false,true);
-      Bitmap peerIcon=peerBitmap;
+      if(nearbyPeerBitmap==null)nearbyPeerBitmap=nearbyPeerIcon();
+      LatLng ownLocation=pointLocation(store.widgetPoint());
+      PointF ownScreen=ownLocation==null?null:map.getProjection().toScreenLocation(ownLocation);
       for(PresenceClient.Peer peer:peers){
         if(!peer.fresh()||peer.id.equals(own))continue;
         PointF xy=map.getProjection().toScreenLocation(new LatLng(peer.lat,peer.lon));
+        // Keep the true coordinate; a wider purple ring remains visible around our gold dot.
+        Bitmap peerIcon=ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
         c.drawBitmap(peerIcon,xy.x-peerIcon.getWidth()/2f,xy.y-peerIcon.getHeight()/2f,null);
       }
       for(Point p:store.points()){
@@ -248,6 +252,12 @@ public final class MainActivity extends Activity {
     paint.setColor(0xFF17191F);canvas.drawCircle(center,center,dp(8),paint);
     paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(color);paint.setAlpha(fresh?255:100);canvas.drawCircle(center,center,dp(8),paint);
     paint.setStyle(Paint.Style.FILL);canvas.drawCircle(center,center,dp(4),paint);return icon;
+  }
+  Bitmap nearbyPeerIcon(){
+    Bitmap icon=locationIcon(false,true);Canvas canvas=new Canvas(icon);
+    Paint ring=new Paint(Paint.ANTI_ALIAS_FLAG);ring.setStyle(Paint.Style.STROKE);
+    ring.setStrokeWidth(dp(3));ring.setColor(0xFFAB45FF);
+    canvas.drawCircle(icon.getWidth()/2f,icon.getHeight()/2f,dp(15),ring);return icon;
   }
   void refreshPeers(){
     if(!resumed||currentTab!=0||map==null||presenceQuery||SystemClock.elapsedRealtime()<nextPresenceQuery)return;
