@@ -1,7 +1,0 @@
-plugins { id 'com.android.application' }
-android {
- namespace 'dev.raf.radar.upgradecheck'
- compileSdk 35
- defaultConfig { applicationId 'dev.raf.radar.upgradecheck'; minSdk 28; targetSdk 35; versionCode 1; versionName 'test' }
- compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-}
