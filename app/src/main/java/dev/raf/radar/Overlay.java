@@ -56,29 +56,50 @@ final class Overlay {
     GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
         new int[]{Color.argb(alpha,28,28,20),Color.argb(alpha,12,13,15)});
     background.setCornerRadius(dp(22));
-    root.setBackground(background); root.setPadding(dp(14),dp(12),dp(10),dp(12));
+    root.setBackground(background);
     root.setElevation(dp(8));
     float scale=s.prefs.getInt("scale",100)/100f, textScale=s.prefs.getInt("textScale",100)/100f;
-    int available=Math.max(dp(100),c.getResources().getDisplayMetrics().widthPixels-dp(92));
+    int horizontal=dp(10*scale), vertical=dp(7*scale), gap=dp(6*scale);
+    int button=dp(36), rowPadding=dp(3*scale);
+    root.setPadding(horizontal,vertical,horizontal,vertical);
+    int available=Math.max(dp(40),c.getResources().getDisplayMetrics().widthPixels
+        -dp(16)-2*horizontal-button-gap);
     Point point=s.widgetPoint();
     LinearLayout body=new LinearLayout(c);body.setGravity(Gravity.CENTER_VERTICAL);root.addView(body);
     LinearLayout rows=new LinearLayout(c);rows.setOrientation(LinearLayout.VERTICAL);body.addView(rows);
     java.util.List<Store.Reading> readings=s.readings(point.id);
+    // Keep every selected tariff on one line, even at the largest slider setting.
+    float textSp=28*scale*textScale;
+    android.text.TextPaint measure=new android.text.TextPaint();
+    measure.setTypeface(android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.BOLD));
+    float density=c.getResources().getDisplayMetrics().scaledDensity;
+    measure.setTextSize(textSp*density);
+    float widest=1;
+    for(String tariff:s.widgetTariffs()){
+      Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
+      String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"  ":"";
+      widest=Math.max(widest,measure.measureText(name+RadarUi.value(reading)));
+    }
+    android.graphics.Paint.FontMetrics metrics=measure.getFontMetrics();
+    float height=(metrics.bottom-metrics.top)*s.widgetTariffs().size();
+    float availableHeight=Math.max(dp(40),c.getResources().getDisplayMetrics().heightPixels
+        -dp(96)-2*vertical-2*rowPadding*s.widgetTariffs().size());
+    textSp*=Math.min(1f,Math.min(available/widest,availableHeight/height));
     for(String tariff:s.widgetTariffs()){
       Store.Reading reading=null;for(Store.Reading r:readings)if(tariff.equals(r.tariff))reading=r;
       String name=s.prefs.getBoolean("showTariff",true)?Point.label(tariff)+"  ":"";
       String value=RadarUi.value(reading);
       android.text.SpannableString content=new android.text.SpannableString(name+value);
       content.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),name.length(),content.length(),0);
-      TextView cell=RadarUi.text(c,"",20*scale*textScale,fg,false);cell.setText(content);
-      cell.setPadding(dp(4),dp(3),dp(10),dp(3));cell.setMinWidth(dp(100*scale));cell.setMaxWidth(available);
+      TextView cell=RadarUi.text(c,"",textSp,fg,false);cell.setText(content);
+      cell.setPadding(0,rowPadding,0,rowPadding);cell.setSingleLine(true);cell.setMaxWidth(available);
       cell.setContentDescription(point.name+": "+Point.label(tariff)+", "+value);
-      if(reading!=null&&!reading.fresh()){cell.setAlpha(.5f);cell.setContentDescription(Point.label(tariff)+": данные устарели");}
+      if(reading!=null&&!reading.fresh()){cell.setContentDescription(Point.label(tariff)+": данные устарели");}
       rows.addView(cell);
     }
     FrameLayout expand=new FrameLayout(c);expand.setContentDescription(expanded?"Свернуть меню виджета":"Раскрыть меню виджета");
     ImageView arrow=RadarUi.icon(c,expanded?"down":"right",fg,24);expand.addView(arrow,new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER));
-    expand.setOnClickListener(v->{if(expanded)hideMenu();else showMenu();});body.addView(expand,new LinearLayout.LayoutParams(dp(36),dp(52)));
+    expand.setOnClickListener(v->{if(expanded)hideMenu();else showMenu();});LinearLayout.LayoutParams buttonParams=new LinearLayout.LayoutParams(button,dp(36));buttonParams.leftMargin=gap;body.addView(expand,buttonParams);
     root.post(()->{if(root!=null)position(lp.x,lp.y);});
   }
   private void showMenu() {

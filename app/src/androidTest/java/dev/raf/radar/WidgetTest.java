@@ -101,6 +101,43 @@ public class WidgetTest {
       });
     }
   }
+  @Test public void whiteTextFitsAtEverySizeAndSurvivesRecreation() {
+    try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+      scenario.onActivity(a -> {
+        attach(a);
+        Point point=store.widgetPoint();
+        store.readings(point.id,java.util.Collections.singletonList(
+            new Store.Reading("econom",120,null,System.currentTimeMillis()-600000,"test")));
+      });
+      for(int percent:new int[]{60,100,160,250}){
+        scenario.onActivity(a -> {
+          store.prefs.edit().putInt("textScale",percent).commit();overlay.refresh();
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        scenario.onActivity(a -> {
+          ViewGroup body=(ViewGroup)((ViewGroup)root()).getChildAt(0);
+          ViewGroup rows=(ViewGroup)body.getChildAt(0);
+          Assert.assertTrue(root().getWidth()<=a.getResources().getDisplayMetrics().widthPixels);
+          for(int i=0;i<rows.getChildCount();i++){
+            TextView cell=(TextView)rows.getChildAt(i);
+            Assert.assertEquals(android.graphics.Color.WHITE,cell.getCurrentTextColor());
+            Assert.assertEquals(1f,cell.getAlpha(),0f);
+            Assert.assertEquals(1,cell.getLineCount());
+            Assert.assertEquals(0,cell.getLayout().getEllipsisCount(0));
+            Assert.assertTrue(cell.getLayout().getLineWidth(0)<=cell.getWidth()+1);
+          }
+        });
+        ScreenTest.capture("widget-text-011-"+percent);
+      }
+      scenario.onActivity(a -> {
+        store.widgetTariffs(java.util.Collections.singletonList("econom"));
+        overlay.close();overlay.refresh();
+        Assert.assertEquals(250,new Store(a).prefs.getInt("textScale",0));
+      });
+      InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+      ScreenTest.capture("widget-text-011-single");
+    }
+  }
   @Test public void tapHoldDragAndSavedPosition() {
     try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
       scenario.onActivity(this::attach);
