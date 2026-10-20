@@ -85,14 +85,14 @@ final class PresenceClient {
       main.post(()->callback.ready(peers));
     });
   }
-  private static String request(String method,String url,JSONObject body,String secret)throws Exception{
+  static String request(String method,String url,JSONObject body,String secret)throws Exception{
     HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
     connection.setConnectTimeout(8000);connection.setReadTimeout(8000);connection.setInstanceFollowRedirects(false);connection.setRequestMethod(method);
     try{
       if(secret!=null)connection.setRequestProperty("Authorization","Bearer "+secret);
       if(body!=null){connection.setRequestProperty("Content-Type","application/json");connection.setDoOutput(true);
         try(OutputStream output=connection.getOutputStream()){output.write(body.toString().getBytes(StandardCharsets.UTF_8));}}
-      if(connection.getResponseCode()!=200)throw new IOException("Presence unavailable");
+      if(connection.getResponseCode()!=200)throw new IOException("Presence HTTP "+connection.getResponseCode());
       try(InputStream input=connection.getInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
         byte[] buffer=new byte[4096];int n,total=0;while((n=input.read(buffer))!=-1){total+=n;if(total>128000)throw new IOException("Response too large");output.write(buffer,0,n);}return output.toString("UTF-8");
       }

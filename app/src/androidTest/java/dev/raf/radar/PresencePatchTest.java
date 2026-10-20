@@ -73,6 +73,45 @@ public class PresencePatchTest {
       });ScreenTest.capture("presence-gold-purple-map");
     }
   }
+  @Test public void coincidentPeerRemainsVisibleAroundOwnMarker() throws Exception {
+    try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+      final MainActivity[] activity={null};scenario.onActivity(a->activity[0]=a);
+      EconomyPatchTest.waitFor(()->activity[0].map!=null);
+      scenario.onActivity(a->{
+        a.store.prefs.edit().putLong("lat",Double.doubleToLongBits(55.16)).putLong("lon",Double.doubleToLongBits(61.40)).putLong("gpsAt",System.currentTimeMillis()).commit();
+        try{a.peers=new ArrayList<>(Collections.singletonList(new PresenceClient.Peer(new JSONObject().put("id","fixture-colocated").put("lat",55.16).put("lon",61.40).put("observedAt",System.currentTimeMillis()))));}catch(Exception e){throw new AssertionError(e);}
+        a.presenceEpoch++;a.nextPresenceQuery=Long.MAX_VALUE;
+        a.map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(new org.maplibre.android.geometry.LatLng(55.16,61.40),12.3));a.refreshMarkers();
+        Bitmap overlay=Bitmap.createBitmap(a.pointOverlay.getWidth(),a.pointOverlay.getHeight(),Bitmap.Config.ARGB_8888);a.pointOverlay.draw(new Canvas(overlay));
+        PointF xy=a.map.getProjection().toScreenLocation(new org.maplibre.android.geometry.LatLng(55.16,61.40));
+        int gold=overlay.getPixel(Math.round(xy.x),Math.round(xy.y));
+        int purple=overlay.getPixel(Math.round(xy.x+a.dp(15)),Math.round(xy.y));
+        assertTrue("Own gold center survives overlap",Color.red(gold)>Color.blue(gold));
+        assertTrue("Colocated peer purple ring survives overlap",Color.alpha(purple)>200&&Color.blue(purple)>Color.red(purple)&&Color.blue(purple)>Color.green(purple));overlay.recycle();
+      });ScreenTest.capture("presence-colocated-gold-purple");
+    }
+  }
+  @Test public void androidHttpsPublishesAndWithdrawsTwoSyntheticClients() throws Exception {
+    String a=java.util.UUID.randomUUID().toString().replace("-","")+java.util.UUID.randomUUID().toString().replace("-","");
+    String b=java.util.UUID.randomUUID().toString().replace("-","")+java.util.UUID.randomUUID().toString().replace("-","");
+    long revision=System.currentTimeMillis();String endpoint=PresenceClient.ENDPOINT;
+    String query=endpoint+"?west=-123.45679&south=-47.12346&east=-123.45677&north=-47.12344";
+    try{
+      JSONObject body=new JSONObject().put("lat",-47.12345).put("lon",-123.45678).put("accuracy",10).put("observedAt",System.currentTimeMillis()).put("revision",++revision);
+      String first=new JSONObject(PresenceClient.request("PUT",endpoint,body,a)).getString("id");
+      body.put("revision",++revision).put("observedAt",System.currentTimeMillis());
+      String second=new JSONObject(PresenceClient.request("PUT",endpoint,body,b)).getString("id");
+      org.json.JSONArray points=new JSONObject(PresenceClient.request("GET",query,null,null)).getJSONArray("points");
+      Set<String> ids=new HashSet<>();for(int i=0;i<points.length();i++)ids.add(points.getJSONObject(i).getString("id"));
+      assertTrue("First Android HTTPS publication visible",ids.contains(first));assertTrue("Second Android HTTPS publication visible",ids.contains(second));
+      PresenceClient.request("DELETE",endpoint,new JSONObject().put("revision",++revision),a);
+      points=new JSONObject(PresenceClient.request("GET",query,null,null)).getJSONArray("points");
+      ids.clear();for(int i=0;i<points.length();i++)ids.add(points.getJSONObject(i).getString("id"));
+      assertFalse("Withdrawal removes own fixture",ids.contains(first));assertTrue(ids.contains(second));
+    }finally{
+      try{PresenceClient.request("DELETE",endpoint,new JSONObject().put("revision",++revision),a);}finally{PresenceClient.request("DELETE",endpoint,new JSONObject().put("revision",++revision),b);}
+    }
+  }
   @Test public void peerExpiryAndOwnIdentityAreStable() throws Exception {
     long now=System.currentTimeMillis();PresenceClient.Peer peer=new PresenceClient.Peer(new JSONObject().put("id","peer").put("lat",55).put("lon",61).put("observedAt",now));assertTrue(peer.fresh());
     PresenceClient.Peer old=new PresenceClient.Peer(new JSONObject().put("id","peer").put("lat",55).put("lon",61).put("observedAt",now-120001));assertFalse(old.fresh());
