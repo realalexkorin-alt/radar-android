@@ -28,6 +28,7 @@ public final class MainActivity extends Activity {
   boolean startupSoundPending;
   boolean startAfterAccess, pendingOverlay, resumed, dark;
   RadarLogo pro, brandLogo;
+  SenseLogo senseLogo;LinearLayout classicBrand;TextView mapLoading;int senseHeight;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
   int fg,bg,surface,muted,currentTab;
@@ -52,7 +53,7 @@ public final class MainActivity extends Activity {
     if(saved!=null){startAfterAccess=saved.getBoolean("startAfterAccess");pendingOverlay=saved.getBoolean("pendingOverlay");}
     currentTab=saved==null?0:saved.getInt("tab",0);
     String id=getIntent().getStringExtra("point");if(id!=null)selected=id;
-    build(saved);if(saved!=null)brandLogo.motion.angle=saved.getFloat("radarSweepAngle",-45);openRequestedSettings(getIntent());
+    build(saved);if(saved!=null){brandLogo.motion.angle=saved.getFloat("radarSweepAngle",-45);senseLogo.motion.angle=saved.getFloat("senseSweepAngle",-45);}openRequestedSettings(getIntent());
     if(saved==null&&store.prefs.getBoolean("autoUpdate",true))handler.postDelayed(()->Updates.checkAutomatic(this,store),1200);
   }
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);openRequestedSettings(intent);}
@@ -116,16 +117,23 @@ public final class MainActivity extends Activity {
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout title=column();LinearLayout brand=row();
     int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
-    brandLogo=new RadarLogo(this,false);brandLogo.experimental(store.prefs.getBoolean("experimentalLogo",false));
+    brandLogo=new RadarLogo(this,false);
     brand.addView(brandLogo,new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/2.48f)));
     pro=new RadarLogo(this,true);pro.setFocusable(true);pro.setClickable(true);pro.setOnClickListener(v->toggleMonitor());
-    brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));title.addView(brand);
+    brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));classicBrand=brand;
+    FrameLayout logoFrame=new FrameLayout(this);logoFrame.addView(brand,new FrameLayout.LayoutParams(-2,-2));
+    int senseWidth=Math.min(210,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-100);
+    senseHeight=(int)(senseWidth*SenseLogo.HEIGHT/SenseLogo.WIDTH);
+    senseLogo=new SenseLogo(this);senseLogo.setOnClickListener(v->toggleMonitor());
+    senseLogo.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.VISIBLE:View.GONE);
+    classicBrand.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.GONE:View.VISIBLE);
+    logoFrame.addView(senseLogo,new FrameLayout.LayoutParams(dp(senseWidth),dp(senseHeight)));title.addView(logoFrame);
     state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
     LinearLayout tools=column();String[] icons={"search","locate"},names={"Поиск точки","Моя геопозиция"};Runnable[] actions={this::addPoint,this::locate};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
-    TextView loading=text("Загрузка карты…",12,fg);pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);ll.topMargin=dp(130);mapFrame.addView(loading,ll);
+    TextView loading=text("Загрузка карты…",12,fg);mapLoading=loading;pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);ll.topMargin=dp(130);mapFrame.addView(loading,ll);
     mapView.addOnDidFinishLoadingMapListener(()->loading.setVisibility(View.GONE));
     mapView.addOnDidFailLoadingMapListener(e->{loading.setVisibility(View.VISIBLE);loading.setText("Карта недоступна · повторить");loading.setOnClickListener(v->applyMapStyle());});
     mapView.getMapAsync(m->{map=m;applyMapStyle();m.getUiSettings().setCompassEnabled(false);
@@ -166,10 +174,13 @@ public final class MainActivity extends Activity {
   }
   void syncBrandLogo(){
     if(brandLogo==null)return;
-    brandLogo.experimental(store.prefs.getBoolean("experimentalLogo",false));
-    brandLogo.active(MonitorService.running);
-    brandLogo.motionAllowed(resumed&&currentTab==0);
-    if(pro!=null){pro.experimental(store.prefs.getBoolean("experimentalLogo",false));pro.motionAllowed(resumed&&currentTab==0);}
+    boolean experimental=store.prefs.getBoolean("experimentalLogo",false);
+    classicBrand.setVisibility(experimental?View.GONE:View.VISIBLE);
+    senseLogo.setVisibility(experimental?View.VISIBLE:View.GONE);
+    brandLogo.experimental(false);brandLogo.active(MonitorService.running);brandLogo.motionAllowed(false);
+    if(pro!=null){pro.experimental(false);pro.motionAllowed(false);pro.setEnabled(!experimental);pro.setClickable(!experimental);}
+    senseLogo.state(MonitorService.running,resumed&&currentTab==0&&experimental);
+    if(mapLoading!=null){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapLoading.getLayoutParams();int top=dp(experimental?senseHeight+65:130);if(lp.topMargin!=top){lp.topMargin=top;mapLoading.setLayoutParams(lp);}}
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
@@ -744,6 +755,7 @@ public final class MainActivity extends Activity {
   protected void onSaveInstanceState(Bundle b) {
     super.onSaveInstanceState(b);
     if(brandLogo!=null)b.putFloat("radarSweepAngle",brandLogo.sweepAngle());
+    if(senseLogo!=null)b.putFloat("senseSweepAngle",senseLogo.motion.angle);
     b.putInt("tab", currentTab);
     b.putBoolean("startAfterAccess",startAfterAccess);b.putBoolean("pendingOverlay",pendingOverlay);
     mapView.onSaveInstanceState(b);
