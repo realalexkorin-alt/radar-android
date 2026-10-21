@@ -3,6 +3,9 @@ on:
   push:
     branches: ['codex/*-logo']
   workflow_dispatch:
+concurrency:
+  group: radar-logo-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

@@ -28,7 +28,7 @@ public final class MainActivity extends Activity {
   boolean startupSoundPending;
   boolean startAfterAccess, pendingOverlay, resumed, dark;
   RadarLogo pro, brandLogo;
-  SenseLogo senseLogo;LinearLayout classicBrand;TextView mapLoading;int senseHeight;
+  SenseLogo senseLogo;LinearLayout classicBrand,mapTitle;TextView mapLoading;int senseHeight;
   boolean senseStartPending,senseCommandPending,senseDesired;int senseClickRevision;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
@@ -116,7 +116,7 @@ public final class MainActivity extends Activity {
       }
     }};pointOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
-    LinearLayout title=column();LinearLayout brand=row();
+    LinearLayout title=column();mapTitle=title;LinearLayout brand=row();
     int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
     brandLogo=new RadarLogo(this,false);
     brand.addView(brandLogo,new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/2.48f)));
@@ -184,6 +184,7 @@ public final class MainActivity extends Activity {
     brandLogo.experimental(false);brandLogo.active(MonitorService.running);brandLogo.motionAllowed(false);
     if(pro!=null){pro.experimental(false);pro.motionAllowed(false);pro.setEnabled(!experimental);pro.setClickable(!experimental);}
     senseLogo.state(MonitorService.running,resumed&&currentTab==0&&experimental);
+    if(mapTitle!=null&&mapTitle.getLayoutParams() instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapTitle.getLayoutParams();int left=dp(experimental?45:20);if(lp.leftMargin!=left){lp.leftMargin=left;mapTitle.setLayoutParams(lp);}}
     if(mapLoading!=null){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapLoading.getLayoutParams();int top=dp(experimental?senseHeight+65:130);if(lp.topMargin!=top){lp.topMargin=top;mapLoading.setLayoutParams(lp);}}
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}

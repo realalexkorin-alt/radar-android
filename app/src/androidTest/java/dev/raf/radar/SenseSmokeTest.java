@@ -32,7 +32,7 @@ public class SenseSmokeTest {
       // Two presses in the same UI turn cancel a pending start instead of starting twice.
       scenario.onActivity(a->{tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);});
       SystemClock.sleep(300);scenario.onActivity(a->{a.refreshCards();assertFalse(MonitorService.running);assertFalse(a.senseStartPending);assertEquals(0,a.senseLogo.motion.pro,.001);});
-      scenario.onActivity(a->tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY));EconomyPatchTest.waitFor(()->MonitorService.running);
+      scenario.onActivity(a->{tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);});EconomyPatchTest.waitFor(()->MonitorService.running);
       scenario.onActivity(a->{a.refreshCards();assertTrue("Service starts before five-second animation",a.senseLogo.motion.progress<.8f);});
       SystemClock.sleep(2100);capture("sense-fragments");SystemClock.sleep(1400);capture("sense-locator-emerging");SystemClock.sleep(2100);
       scenario.onActivity(a->{
@@ -42,6 +42,8 @@ public class SenseSmokeTest {
         Bitmap on=LogoSmokeTest.render(logo);logo.motion.progress=0;logo.motion.pro=0;Bitmap off=LogoSmokeTest.render(logo);logo.motion.progress=old;logo.motion.pro=pro;
         int y=Math.round(on.getHeight()*980f/SenseLogo.HEIGHT);for(int x=on.getWidth()/10;x<on.getWidth()*9/10;x++)assertEquals("SENSE text remains unchanged",off.getPixel(x,y),on.getPixel(x,y));on.recycle();off.recycle();
       });capture("sense-working-green");
+      scenario.onActivity(a->{tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);});
+      SystemClock.sleep(300);scenario.onActivity(a->{assertTrue("Latest queued start wins",MonitorService.running);a.refreshCards();});
       scenario.moveToState(Lifecycle.State.STARTED);SystemClock.sleep(200);
       InstrumentationRegistry.getInstrumentation().runOnMainSync(()->assertFalse(activity[0].senseLogo.animationRunning()));
       scenario.moveToState(Lifecycle.State.RESUMED);scenario.onActivity(a->{assertEquals("No five-second replay on return",1,a.senseLogo.motion.progress,.001);assertEquals(1,a.senseLogo.motion.pro,.001);});
