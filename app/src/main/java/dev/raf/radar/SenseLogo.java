@@ -76,6 +76,10 @@ final class SenseLogo extends View {
     if(!load(getContext()))return;float s=scale();int save=canvas.save();canvas.translate((getWidth()-WIDTH*s)/2,(getHeight()-HEIGHT*s)/2);canvas.scale(s,s);
     float light=SenseMotion.smooth(p,0,.18f);
     paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColorFilter(null);paint.setAlpha(255);
+    // Glow is behind the opaque metal, with a soft elliptical falloff rather than a box.
+    int halo=canvas.save();canvas.scale(1.2f,.5f,663,1118);
+    paint.setShader(proOrange);paint.setAlpha(Math.round(90*(1-indicator)));canvas.drawCircle(663,1118,225,paint);
+    paint.setShader(proGreen);paint.setAlpha(Math.round(130*indicator));canvas.drawCircle(663,1118,225,paint);canvas.restoreToCount(halo);paint.setShader(null);paint.setAlpha(255);
     // The supplied reference is the exact resting state, including its blue mechanism.
     if(p<=.0001f&&!isPressed()){canvas.drawBitmap(artwork,null,REFERENCE,paint);}else{
       paint.setShader(plate);canvas.drawCircle(CX,CY,INNER,paint);paint.setShader(null);
@@ -85,8 +89,6 @@ final class SenseLogo extends View {
       drawLetter(canvas,p,light);
     }
     // Indicator follows the real service, independently of the mechanical travel.
-    paint.setStyle(Paint.Style.FILL);paint.setShader(proOrange);paint.setAlpha(Math.round(90*(1-indicator)));canvas.drawRect(400,1020,920,1220,paint);
-    paint.setShader(proGreen);paint.setAlpha(Math.round(130*indicator));canvas.drawRect(400,1020,920,1220,paint);paint.setShader(null);
     paint.setAlpha(Math.round(255*(1-indicator)));canvas.drawBitmap(orangePro,null,REFERENCE,paint);
     paint.setAlpha(Math.round(255*indicator));canvas.drawBitmap(greenPro,null,REFERENCE,paint);paint.setAlpha(255);
     canvas.restoreToCount(save);
@@ -101,7 +103,13 @@ final class SenseLogo extends View {
       // The reference backing is reconstructed behind the opaque S silhouette,
       // so the intact S never leaves a second static letter behind it.
       paint.setStyle(Paint.Style.FILL);paint.setShader(plate);paint.setAlpha(255);canvas.drawCircle(CX,CY,INNER,paint);paint.setShader(null);
-      int backing=canvas.save();canvas.clipOutPath(letter);canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(backing);
+      float backing=1-SenseMotion.smooth(p,0,.15f);
+      if(backing>0){int original=canvas.save();canvas.clipOutPath(letter);paint.setAlpha(Math.round(255*backing));canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*backing*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(original);}
+      // Clean recessed metal doors: no raster S or luminous S ghost travels with them.
+      paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(0xFF35484E);paint.setAlpha(Math.round(180*(1-backing)));
+      canvas.drawCircle(CX,CY,INNER-22,paint);canvas.drawCircle(CX,CY,INNER-32,paint);
+      for(int yy=-180;yy<=180;yy+=120){canvas.drawCircle(CX+side*210,CY+yy,7,paint);canvas.drawLine(CX+side*30,CY+yy,CX+side*170,CY+yy,paint);}
+      paint.setAlpha(255);paint.setStyle(Paint.Style.FILL);
       paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);paint.setColor(0xFF293B43);canvas.drawLine(CX,CY-INNER,CX,CY+INNER,paint);paint.setStyle(Paint.Style.FILL);
       canvas.restoreToCount(saved);
     }
