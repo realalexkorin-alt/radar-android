@@ -52,7 +52,7 @@ public final class MainActivity extends Activity {
     if(saved!=null){startAfterAccess=saved.getBoolean("startAfterAccess");pendingOverlay=saved.getBoolean("pendingOverlay");}
     currentTab=saved==null?0:saved.getInt("tab",0);
     String id=getIntent().getStringExtra("point");if(id!=null)selected=id;
-    build(saved);openRequestedSettings(getIntent());
+    build(saved);if(saved!=null)brandLogo.motion.angle=saved.getFloat("radarSweepAngle",-45);openRequestedSettings(getIntent());
     if(saved==null&&store.prefs.getBoolean("autoUpdate",true))handler.postDelayed(()->Updates.checkAutomatic(this,store),1200);
   }
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);openRequestedSettings(intent);}
@@ -169,6 +169,7 @@ public final class MainActivity extends Activity {
     brandLogo.experimental(store.prefs.getBoolean("experimentalLogo",false));
     brandLogo.active(MonitorService.running);
     brandLogo.motionAllowed(resumed&&currentTab==0);
+    if(pro!=null){pro.experimental(store.prefs.getBoolean("experimentalLogo",false));pro.motionAllowed(resumed&&currentTab==0);}
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
@@ -742,6 +743,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onSaveInstanceState(Bundle b) {
     super.onSaveInstanceState(b);
+    if(brandLogo!=null)b.putFloat("radarSweepAngle",brandLogo.sweepAngle());
     b.putInt("tab", currentTab);
     b.putBoolean("startAfterAccess",startAfterAccess);b.putBoolean("pendingOverlay",pendingOverlay);
     mapView.onSaveInstanceState(b);

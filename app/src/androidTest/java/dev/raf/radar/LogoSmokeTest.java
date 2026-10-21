@@ -37,6 +37,7 @@ public class LogoSmokeTest {
       scenario.onActivity(a->{assertFalse(a.brandLogo.animationRunning());assertProColor(a.pro,false);});
       ScreenTest.capture("logo-experimental-off");
       scenario.onActivity(a->a.pro.performClick());EconomyPatchTest.waitFor(()->MonitorService.running);
+      scenario.onActivity(MainActivity::refreshCards);SystemClock.sleep(650);
       scenario.onActivity(a->{
         a.refreshCards();assertTrue(a.pro.isSelected());assertTrue(a.brandLogo.animationRunning());
         assertProColor(a.pro,true);frames[0]=render(a.brandLogo);assertGreen(frames[0]);
@@ -44,6 +45,22 @@ public class LogoSmokeTest {
       SystemClock.sleep(350);
       scenario.onActivity(a->{frames[1]=render(a.brandLogo);assertFalse("Radar sweep advances",frames[0].sameAs(frames[1]));});
       ScreenTest.capture("logo-experimental-green");
+      // Actual PRO stop starts a transition without teleporting the vector beam.
+      scenario.onActivity(a->a.pro.performClick());EconomyPatchTest.waitFor(()->!MonitorService.running);
+      scenario.onActivity(a->{
+        float before=a.brandLogo.sweepAngle();a.refreshCards();
+        assertTrue("No stop-angle reset",angularDistance(before,a.brandLogo.sweepAngle())<3);
+        assertTrue("Stop starts from green",a.brandLogo.motion.level>.8f);
+      });
+      SystemClock.sleep(250);
+      scenario.onActivity(a->{assertTrue("Color fades gradually",a.brandLogo.motion.level>0&&a.brandLogo.motion.level<1);});
+      ScreenTest.capture("logo-transition-stopping");SystemClock.sleep(500);
+      float[] frozen={0};scenario.onActivity(a->{assertFalse(a.brandLogo.animationRunning());assertFalse(a.pro.animationRunning());frozen[0]=a.brandLogo.sweepAngle();assertProColor(a.pro,false);});
+      SystemClock.sleep(150);scenario.onActivity(a->assertEquals("Stopped beam holds angle",frozen[0],a.brandLogo.sweepAngle(),.01f));
+      ScreenTest.capture("logo-transition-stopped");
+      scenario.onActivity(a->a.pro.performClick());EconomyPatchTest.waitFor(()->MonitorService.running);
+      scenario.onActivity(a->{float before=a.brandLogo.sweepAngle();a.refreshCards();assertTrue("Restart keeps angle",angularDistance(before,a.brandLogo.sweepAngle())<3);});
+      SystemClock.sleep(650);
       scenario.moveToState(Lifecycle.State.STARTED);
       InstrumentationRegistry.getInstrumentation().runOnMainSync(()->assertFalse("Background stops frames",activity[0].brandLogo.animationRunning()));
       scenario.moveToState(Lifecycle.State.RESUMED);
@@ -63,6 +80,7 @@ public class LogoSmokeTest {
       legacy[0].recycle();frames[0].recycle();frames[1].recycle();
     }finally{c.stopService(new Intent(c,MonitorService.class));}
   }
+  static float angularDistance(float a,float b){float d=Math.abs(a-b)%360;return Math.min(d,360-d);}
   static Bitmap render(View view){
     Bitmap b=Bitmap.createBitmap(view.getWidth(),view.getHeight(),Bitmap.Config.ARGB_8888);view.draw(new Canvas(b));return b;
   }

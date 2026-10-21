@@ -9,6 +9,9 @@ import android.view.View;
 final class RadarLogo extends View {
   private static Bitmap artwork;
   private static final ColorMatrixColorFilter GREEN=new ColorMatrixColorFilter(new float[]{0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0});
+  private static final ColorMatrixColorFilter[] TINTS=new ColorMatrixColorFilter[33];
+  static{for(int i=1;i<TINTS.length;i++){float t=i/32f;TINTS[i]=new ColorMatrixColorFilter(new float[]{1-t,t,0,0,0,t,1-t,0,0,0,0,0,1,0,0,0,0,0,1,0});}}
+  final LogoMotion motion=new LogoMotion();
   private final boolean pro;
   private boolean active,experimental,motionAllowed,attached,framePosted;
   private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
@@ -18,7 +21,7 @@ final class RadarLogo extends View {
   private final Shader redGlow=new RadialGradient(142,134,134,new int[]{0x00FF6528,0x00FF6528,0x50FF6528,0x00FF6528},new float[]{0,.75f,.90f,1},Shader.TileMode.CLAMP);
   private final Shader sweep=new SweepGradient(142,134,new int[]{0x0038FF86,0x0038FF86,0x3038FF86,0xB038FF86},new float[]{0,.72f,.94f,1});
   private final Runnable frame=new Runnable(){public void run(){
-    framePosted=false;if(!shouldAnimate())return;invalidate();scheduleFrame();
+    framePosted=false;motion.advance(SystemClock.elapsedRealtime());invalidate();if(shouldAnimate())scheduleFrame();
   }};
   RadarLogo(Context c,boolean pro){
     super(c);this.pro=pro;
@@ -29,44 +32,48 @@ final class RadarLogo extends View {
     if(!pro)setContentDescription("Радар");
   }
   void active(boolean enabled){
-    active=enabled;setSelected(enabled);
+    motion.active(enabled,SystemClock.elapsedRealtime());active=enabled;setSelected(enabled);
     setContentDescription(pro?(enabled?"PRO: мониторинг включён":"PRO: мониторинг выключен"):"Радар");
     syncAnimation();invalidate();
   }
   void experimental(boolean enabled){experimental=enabled;syncAnimation();invalidate();}
   void motionAllowed(boolean enabled){motionAllowed=enabled;syncAnimation();}
   boolean animationRunning(){return framePosted;}
-  float sweepAngle(){return (SystemClock.elapsedRealtime()%4000L)*.09f;}
-  private boolean shouldAnimate(){return !pro&&experimental&&active&&motionAllowed&&attached&&getWindowVisibility()==VISIBLE&&isShown();}
+  float sweepAngle(){motion.advance(SystemClock.elapsedRealtime());return motion.angle;}
+  private boolean visibleMotion(){return experimental&&motionAllowed&&attached&&getWindowVisibility()==VISIBLE&&isShown();}
+  private boolean shouldAnimate(){return visibleMotion()&&motion.moving();}
   private void scheduleFrame(){if(!framePosted){framePosted=true;postDelayed(frame,33);}}
-  private void syncAnimation(){if(shouldAnimate())scheduleFrame();else{removeCallbacks(frame);framePosted=false;}}
+  private void syncAnimation(){motion.visible(visibleMotion(),SystemClock.elapsedRealtime());if(shouldAnimate())scheduleFrame();else{removeCallbacks(frame);framePosted=false;}}
   @Override protected void onAttachedToWindow(){super.onAttachedToWindow();attached=true;syncAnimation();}
   @Override protected void onDetachedFromWindow(){attached=false;syncAnimation();super.onDetachedFromWindow();}
   @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);syncAnimation();}
   @Override public void onVisibilityAggregated(boolean visible){super.onVisibilityAggregated(visible);syncAnimation();}
   @Override protected void onDraw(Canvas canvas){
     if(artwork==null)return;
+    motion.advance(SystemClock.elapsedRealtime());
     source.set(pro?716:22,pro?76:30,pro?1008:716,pro?270:310);
     float scale=Math.min(getWidth()/(float)source.width(),getHeight()/(float)source.height());
     float width=source.width()*scale,height=source.height()*scale;
     float left=(getWidth()-width)/2f,top=(getHeight()-height)/2f;
     paint.setShader(null);paint.setStyle(Paint.Style.FILL);
-    paint.setColorFilter(pro&&active?GREEN:null);
+    paint.setAlpha(255);paint.setColorFilter(pro?(experimental?TINTS[Math.round(motion.level*32)]:(active?GREEN:null)):null);
     if(pro||!experimental){
       destination.set(left,top,left+width,top+height);canvas.drawBitmap(artwork,source,destination,paint);return;
     }
     int saved=canvas.save();canvas.translate(left,top);canvas.scale(scale,scale);
     // Keep the supplied lettering, tinting only its first red letter when PRO really runs.
     source.set(288,30,402,310);destination.set(266,0,380,280);
-    paint.setColorFilter(active?GREEN:null);canvas.drawBitmap(artwork,source,destination,paint);
+    paint.setColorFilter(TINTS[Math.round(motion.level*32)]);canvas.drawBitmap(artwork,source,destination,paint);
     source.set(402,30,716,310);destination.set(380,0,694,280);
     paint.setColorFilter(null);canvas.drawBitmap(artwork,source,destination,paint);
     drawRadar(canvas);canvas.restoreToCount(saved);
   }
   private void drawRadar(Canvas canvas){
-    int color=active?0xFF38FF86:0xFFFF6528;
-    paint.setColor(Color.WHITE);paint.setStyle(Paint.Style.FILL);paint.setShader(active?greenGlow:redGlow);
-    canvas.drawCircle(142,134,134,paint);paint.setShader(null);
+    float level=motion.level;
+    int color=Color.rgb(Math.round(255+(56-255)*level),Math.round(101+(255-101)*level),Math.round(40+(134-40)*level));
+    paint.setColor(Color.WHITE);paint.setStyle(Paint.Style.FILL);paint.setShader(redGlow);paint.setAlpha(Math.round(255*(1-level)));
+    canvas.drawCircle(142,134,134,paint);paint.setShader(greenGlow);paint.setAlpha(Math.round(255*level));
+    canvas.drawCircle(142,134,134,paint);paint.setShader(null);paint.setAlpha(255);
     paint.setColor(0xFF0B1817);canvas.drawCircle(142,134,120,paint);
     paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(9);paint.setColor(0xFF414B4B);canvas.drawCircle(142,134,124,paint);
     paint.setStrokeWidth(2);paint.setColor(0xFFB5C5BE);canvas.drawCircle(142,134,128,paint);
@@ -77,10 +84,10 @@ final class RadarLogo extends View {
     int ticks=canvas.save();canvas.translate(142,134);paint.setAlpha(210);paint.setStrokeWidth(2);
     for(int i=0;i<24;i++){canvas.drawLine(i%3==0?108:113,0,118,0,paint);canvas.rotate(15);}
     canvas.restoreToCount(ticks);paint.setAlpha(255);
-    int beam=canvas.save();canvas.rotate(active?sweepAngle():-45,142,134);
-    if(active){
-      paint.setStyle(Paint.Style.FILL);paint.setShader(sweep);
-      canvas.drawCircle(142,134,106,paint);paint.setShader(null);
+    int beam=canvas.save();canvas.rotate(motion.angle,142,134);
+    if(level>0){
+      paint.setStyle(Paint.Style.FILL);paint.setAlpha(Math.round(255*level));paint.setShader(sweep);
+      canvas.drawCircle(142,134,106,paint);paint.setShader(null);paint.setAlpha(255);
     }
     paint.setColor(color);paint.setStrokeWidth(7);paint.setAlpha(40);
     canvas.drawLine(142,134,248,134,paint);paint.setStrokeWidth(2);paint.setAlpha(255);
