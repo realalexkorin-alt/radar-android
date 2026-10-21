@@ -24,7 +24,7 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify SENSE reference integrity
-        run: python3 -c "import hashlib; assert hashlib.sha256(open('app/src/main/assets/sense_pro.png','rb').read()).hexdigest() == '1432efc285f9683b6cbed035d298cb79ea3bf0324e083a66e206cdf2a72ac61d'"
+        run: python3 -c "import hashlib; assert hashlib.sha256(open('app/src/main/assets/sense_pro.png','rb').read()).hexdigest() == '8e91f4ad3ba234dcb5f794a9a5198121bb1ce93dfade622d389960f5e381a0dd'"
       - run: chmod +x gradlew && ./gradlew :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest --tests dev.raf.radar.SenseMotionTest
       - name: Enable emulator acceleration
         run: |
