@@ -41,7 +41,7 @@ final class SenseLogo extends View {
         float nx=x*WIDTH/width,ny=y*HEIGHT/height;
         int i=y*width+x,p=pixels[i],a=Color.alpha(p),r=Color.red(p),g=Color.green(p),b=Color.blue(p);
         // Only cyan illumination inside the emblem; neutral metal and SENSE stay original.
-        if(ny<880&&Math.hypot(nx-CX,ny-CY)<440&&a>0&&b-r>30&&g-r>25)lights[i]=Color.argb(a,r,Math.max(g,b),Math.round(r+(g-r)*.35f));
+        if(ny<880&&Math.hypot(nx-CX,ny-CY)<440&&a>0&&b-r>30&&g-r>25)lights[i]=Color.argb(a,Math.round(r+(Math.max(g,b)-r)*.22f),Math.max(g,b),Math.round(r+(Math.max(g,b)-r)*.52f));
         // PRO's illuminated inset only, preserving the surrounding metal frame.
         if(nx>490&&nx<837&&ny>1065&&ny<1168&&a>0&&r>g*1.1f&&g>b*1.25f)
           indicator[i]=Color.argb(a,Math.round(b+(r-b)*.22f),r,Math.round(b+(r-b)*.52f));
@@ -89,7 +89,7 @@ final class SenseLogo extends View {
   }
   private void drawFragments(Canvas canvas,float p,float light){
     float press=1-.06f*SenseMotion.smooth(p,0,.2f)-(isPressed()?.025f:0);
-    float split=SenseMotion.smooth(p,.2f,.6f),opacity=1-SenseMotion.smooth(p,.4f,.6f);
+    float split=SenseMotion.smooth(p,.2f,.6f),opacity=1-SenseMotion.smooth(p,.4f,.6f);if(opacity<=0)return;
     for(int i=0;i<4;i++){
       int saved=canvas.save();canvas.clipPath(inside);canvas.translate(DX[i]*split,DY[i]*split);canvas.scale(press,press,CX,CY);canvas.rotate((i%2==0?-12:12)*split,CX,CY);canvas.clipPath(fragments[i]);
       paint.setAlpha(Math.round(255*opacity));canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*opacity*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(saved);

@@ -29,7 +29,7 @@ public final class MainActivity extends Activity {
   boolean startAfterAccess, pendingOverlay, resumed, dark;
   RadarLogo pro, brandLogo;
   SenseLogo senseLogo;LinearLayout classicBrand;TextView mapLoading;int senseHeight;
-  boolean senseStartPending;int senseClickRevision;
+  boolean senseStartPending,senseCommandPending,senseDesired;int senseClickRevision;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
   int fg,bg,surface,muted,currentTab;
@@ -178,6 +178,7 @@ public final class MainActivity extends Activity {
     boolean experimental=store.prefs.getBoolean("experimentalLogo",false);
     if(experimental&&!senseLogo.available()){experimental=false;store.prefs.edit().putBoolean("experimentalLogo",false).apply();toast("Не удалось загрузить SENSE. Восстановлен обычный логотип.");}
     if(MonitorService.running)senseStartPending=false;
+    if(MonitorService.running==senseDesired)senseCommandPending=false;
     classicBrand.setVisibility(experimental?View.GONE:View.VISIBLE);
     senseLogo.setVisibility(experimental?View.VISIBLE:View.GONE);
     brandLogo.experimental(false);brandLogo.active(MonitorService.running);brandLogo.motionAllowed(false);
@@ -293,9 +294,19 @@ public final class MainActivity extends Activity {
   }
   void toggleSenseMonitor(){
     int revision=++senseClickRevision;
-    if(senseStartPending||MonitorService.running||startAfterAccess){senseStartPending=false;stopMonitor();return;}
-    senseStartPending=true;toggleMonitor();
-    handler.postDelayed(()->{if(revision==senseClickRevision&&!MonitorService.running&&!startAfterAccess)senseStartPending=false;},1500);
+    senseDesired=senseCommandPending?!senseDesired:!(MonitorService.running||startAfterAccess);
+    senseCommandPending=true;
+    if(senseDesired){senseStartPending=true;pendingOverlay=true;startMonitor();}
+    else{
+      boolean submitted=(senseStartPending&&!startAfterAccess)||MonitorService.running;
+      senseStartPending=false;startAfterAccess=false;pendingOverlay=false;
+      store.prefs.edit().putBoolean("overlay",false).apply();
+      // Deliver cancellation after onCreate/startForeground, never kill a pending FGS.
+      if(submitted)try{startService(new Intent(this,MonitorService.class).setAction("stop"));}
+      catch(Exception e){senseCommandPending=false;toast("Не удалось выключить: "+e.getMessage());}
+      handler.postDelayed(this::refreshCards,200);
+    }
+    handler.postDelayed(()->{if(revision==senseClickRevision&&!MonitorService.running&&!startAfterAccess){senseStartPending=false;senseCommandPending=false;}},1500);
   }
   void toggleMonitor(){
     if(MonitorService.running||startAfterAccess)stopMonitor();else{pendingOverlay=true;startMonitor();}
@@ -347,7 +358,7 @@ public final class MainActivity extends Activity {
     try {
       startForegroundService(new Intent(this, MonitorService.class).setAction("user_start"));
     } catch (Exception e) {
-      senseStartPending=false;toast("Не удалось включить: " + e.getMessage());
+      senseStartPending=false;senseCommandPending=false;toast("Не удалось включить: " + e.getMessage());
     }
   }
 

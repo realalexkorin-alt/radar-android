@@ -94,7 +94,8 @@ public final class MonitorService extends Service implements LocationListener {
   public int onStartCommand(Intent i, int flags, int id) {
     if (store == null || !Access.monitorReady(this)) { stopSelf(); return START_NOT_STICKY; }
     if (i != null && "stop".equals(i.getAction())) {
-      stopSelf();
+      // A newer queued start wins over an earlier stop from rapid button presses.
+      stopSelf(id);
       return START_NOT_STICKY;
     }
     if (overlay != null) overlay.refresh();
