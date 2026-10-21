@@ -79,7 +79,7 @@ final class SenseLogo extends View {
     if(p<=.0001f&&!isPressed()){canvas.drawBitmap(artwork,null,REFERENCE,paint);}else{
       paint.setShader(plate);canvas.drawCircle(CX,CY,INNER,paint);paint.setShader(null);
       int body=canvas.save();canvas.clipOutPath(letter);canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(body);
-      drawFragments(canvas,p,light);drawLocator(canvas,p);
+      drawLocator(canvas,p);drawFragments(canvas,p,light);
     }
     // Indicator follows the real service, independently of the five-second mechanism.
     paint.setStyle(Paint.Style.FILL);paint.setShader(proOrange);paint.setAlpha(Math.round(90*(1-motion.pro)));canvas.drawRect(485,1068,840,1165,paint);
@@ -97,7 +97,9 @@ final class SenseLogo extends View {
   }
   private void drawLocator(Canvas canvas,float p){
     float visibility=SenseMotion.smooth(p,.5f,.8f);if(visibility<=0)return;
-    int saved=canvas.save();canvas.clipPath(inside);paint.setStyle(Paint.Style.STROKE);paint.setShader(null);paint.setColor(0xFF38FF86);paint.setAlpha(Math.round(150*visibility));paint.setStrokeWidth(2);
+    int saved=canvas.save();canvas.clipPath(inside);
+    paint.setStyle(Paint.Style.FILL);paint.setShader(plate);paint.setAlpha(Math.round(255*visibility));canvas.drawCircle(CX,CY,INNER,paint);paint.setShader(null);
+    paint.setStyle(Paint.Style.STROKE);paint.setColor(0xFF38FF86);paint.setAlpha(Math.round(150*visibility));paint.setStrokeWidth(2);
     for(int radius=70;radius<=280;radius+=70)canvas.drawCircle(CX,CY,radius,paint);
     canvas.drawLine(CX-280,CY,CX+280,CY,paint);canvas.drawLine(CX,CY-280,CX,CY+280,paint);
     int ticks=canvas.save();canvas.translate(CX,CY);for(int i=0;i<36;i++){canvas.drawLine(i%3==0?260:270,0,280,0,paint);canvas.rotate(10);}canvas.restoreToCount(ticks);
