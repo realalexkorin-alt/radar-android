@@ -27,7 +27,7 @@ public final class MainActivity extends Activity {
   final StartupSound startupSound = new StartupSound();
   boolean startupSoundPending;
   boolean startAfterAccess, pendingOverlay, resumed, dark;
-  RadarLogo pro;
+  RadarLogo pro, brandLogo;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
   int fg,bg,surface,muted,currentTab;
@@ -116,7 +116,8 @@ public final class MainActivity extends Activity {
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout title=column();LinearLayout brand=row();
     int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
-    brand.addView(new RadarLogo(this,false),new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/2.48f)));
+    brandLogo=new RadarLogo(this,false);brandLogo.experimental(store.prefs.getBoolean("experimentalLogo",false));
+    brand.addView(brandLogo,new LinearLayout.LayoutParams(dp(logoWidth),dp(logoWidth/2.48f)));
     pro=new RadarLogo(this,true);pro.setFocusable(true);pro.setClickable(true);pro.setOnClickListener(v->toggleMonitor());
     brand.addView(pro,new LinearLayout.LayoutParams(dp(64),dp(48)));title.addView(brand);
     state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
@@ -159,8 +160,15 @@ public final class MainActivity extends Activity {
   void showTab(int tab){
     currentTab=Math.max(0,Math.min(2,tab));mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
     if(navigation!=null){String[] icons={"map","list","settings"};for(int i=0;i<3;i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);item.setSelected(i==currentTab);int color=i==currentTab?RadarUi.YELLOW:muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[i],color));((TextView)item.getChildAt(1)).setTextColor(color);}}
+    syncBrandLogo();
     if(currentTab==2&&resumed)rebuildSettings();
     updateViewing();if(currentTab!=2){sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));refreshCards();}
+  }
+  void syncBrandLogo(){
+    if(brandLogo==null)return;
+    brandLogo.experimental(store.prefs.getBoolean("experimentalLogo",false));
+    brandLogo.active(MonitorService.running);
+    brandLogo.motionAllowed(resumed&&currentTab==0);
   }
   void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
@@ -168,6 +176,7 @@ public final class MainActivity extends Activity {
   void refreshCards(){
     if(cards==null)return;
     if(pro!=null)pro.active(MonitorService.running);
+    syncBrandLogo();
     syncWorkToggles();
     if(state!=null){state.setText(MonitorService.running?"Мониторинг включён":"Мониторинг выключен");state.setTextColor(MonitorService.running?0xFF99D641:muted);}
     cards.removeAllViews();
@@ -623,6 +632,9 @@ public final class MainActivity extends Activity {
     });
     TextView sharing=text("Показывать моё местоположение пользователям Радар PRO при включённом мониторинге. Точка исчезает не позднее двух минут после потери связи.",11,muted);
     sharing.setPadding(0,0,0,dp(10));more.addView(sharing);
+    switchRow(more,"Экспериментальный",store.prefs.getBoolean("experimentalLogo",false),0,enabled->{
+      store.prefs.edit().putBoolean("experimentalLogo",enabled).apply();syncBrandLogo();
+    });
     switchRow(more,"Звуки",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
@@ -679,7 +691,7 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     mapView.onResume();
-    resumed = true;
+    resumed = true;syncBrandLogo();
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
       startupSoundPending = false;
@@ -693,7 +705,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onPause() {
-    resumed = false;
+    resumed = false;syncBrandLogo();
     presenceEpoch++;mapGps.stop();peers.clear();
     store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);

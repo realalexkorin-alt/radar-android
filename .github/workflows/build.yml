@@ -114,7 +114,7 @@ jobs:
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
             adb logcat -d -v brief > emulator-logcat.txt
             mkdir -p upgrade-fixtures
-            ./gradlew :app:assembleDebug -PradarVersionCode=18
+            ./gradlew :app:assembleDebug -PradarVersionCode=19
             cp app/build/outputs/apk/debug/app-debug.apk upgrade-fixtures/upgrade.apk
             adb shell am force-stop dev.raf.radar
             adb install -r upgradecheck/build/outputs/apk/debug/upgradecheck-debug.apk
