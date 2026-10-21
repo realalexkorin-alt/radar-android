@@ -4,10 +4,12 @@ let ready;
 export async function initialize(sql=database()) {
  if(!ready)ready=(async()=>{
   await sql.transaction([
+   sql`SELECT pg_advisory_xact_lock(72915022)`,
    sql.query(`CREATE TABLE IF NOT EXISTS radar_presence.profiles_v2(id text PRIMARY KEY,name text NOT NULL,revision bigint NOT NULL)`),
    sql.query(`CREATE TABLE IF NOT EXISTS radar_presence.members_v2(id text PRIMARY KEY REFERENCES radar_presence.profiles_v2(id),point jsonb NOT NULL,expires_at timestamptz NOT NULL)`),
    sql.query(`CREATE INDEX IF NOT EXISTS radar_members_v2_expiry ON radar_presence.members_v2(expires_at)`),
    sql.query(`CREATE OR REPLACE FUNCTION radar_presence.cleanup_members_v2() RETURNS void LANGUAGE plpgsql AS $$ BEGIN
+    PERFORM pg_advisory_xact_lock(72915021);
     DELETE FROM radar_presence.members_v2 WHERE expires_at<=clock_timestamp();
     IF NOT EXISTS(SELECT 1 FROM radar_presence.members_v2) THEN PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname='radar-members-v2-expiry'; END IF;
    END $$`)
@@ -25,6 +27,7 @@ export const memberStore={
   const sql=database();await initialize(sql);
   // All commands for an installation serialize with deletion and increasing revisions.
   const r=await sql.transaction([
+   sql`SELECT pg_advisory_xact_lock(72915021)`,
    sql`SELECT pg_advisory_xact_lock(hashtextextended(${id},72915021))`,
    sql`WITH accepted AS (INSERT INTO radar_presence.profiles_v2 AS p(id,name,revision) VALUES(${id},${name},${revision}) ON CONFLICT(id) DO UPDATE SET name=CASE WHEN EXCLUDED.name='' THEN p.name ELSE EXCLUDED.name END,revision=EXCLUDED.revision WHERE p.revision<EXCLUDED.revision RETURNING id),
    published AS (INSERT INTO radar_presence.members_v2(id,point,expires_at)
@@ -36,7 +39,7 @@ export const memberStore={
    sql`SELECT pg_advisory_xact_lock(72915021)`,
    sql`SELECT cron.schedule('radar-members-v2-expiry','*/10 * * * *','SELECT radar_presence.cleanup_members_v2()') WHERE ${mode}='put' AND NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='radar-members-v2-expiry')`
   ]);
-  return r[1][0].accepted>0;
+  return r[2][0].accepted>0;
  },
  async list(bounds,directory){
   const sql=database();await initialize(sql);

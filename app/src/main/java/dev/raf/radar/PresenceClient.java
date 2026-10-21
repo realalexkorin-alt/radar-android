@@ -54,7 +54,7 @@ final class PresenceClient {
   }
   static void reconcile(Context c){
     Store s=new Store(c);
-    if(!s.prefs.getBoolean("shareLocation",false))withdraw(c);else if(!MonitorService.running)offline(c);
+    if(!s.prefs.getBoolean("shareLocation",false))withdraw(c);
     token(s);if(!s.prefs.getString("profileName","").isEmpty())profileChanged(c);
     if(!s.prefs.getBoolean("membersV2",false)){worker.execute(()->{try{request("DELETE",LEGACY,new JSONObject().put("revision",revision(s)),token(s));s.prefs.edit().putBoolean("membersV2",true).apply();}catch(Exception ignored){}});}
   }

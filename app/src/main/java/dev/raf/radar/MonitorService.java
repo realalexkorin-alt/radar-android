@@ -23,7 +23,8 @@ public final class MonitorService extends Service implements LocationListener {
       queue.execute(()->{planner.refresh();tick();});
   };
   private int failures = 0;
-  private boolean announced;
+  private boolean announced,stopping;
+  private final android.os.Handler cueHandler=new android.os.Handler(android.os.Looper.getMainLooper());
   private final BroadcastReceiver manual =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
@@ -95,11 +96,12 @@ public final class MonitorService extends Service implements LocationListener {
     if (store == null || !Access.monitorReady(this)) { stopSelf(); return START_NOT_STICKY; }
     if (i != null && "stop".equals(i.getAction())) {
       // A newer queued start wins over an earlier stop from rapid button presses.
-      stopSelf(id);
+      stopping=true;AppSounds.stopMonitor();stopSelf(id);
       return START_NOT_STICKY;
     }
+    stopping=false;
     if (overlay != null) overlay.refresh();
-    if(i!=null&&"user_start".equals(i.getAction())&&!announced){announced=true;AppSounds.play(this,AppSounds.Event.MONITOR_READY);}
+    if(i!=null&&"user_start".equals(i.getAction())&&!announced){announced=true;cueHandler.post(()->{if(running&&!stopping)AppSounds.play(this,AppSounds.Event.MONITOR_READY);});}
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     return START_NOT_STICKY;
   }
@@ -236,7 +238,7 @@ public final class MonitorService extends Service implements LocationListener {
 
   @Override
   public void onDestroy() {
-    running = false;
+    running = false;cueHandler.removeCallbacksAndMessages(null);AppSounds.stopMonitor();
     PresenceClient.stop(this);
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);

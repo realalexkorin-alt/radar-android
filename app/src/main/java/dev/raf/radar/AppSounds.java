@@ -12,6 +12,7 @@ final class AppSounds {
   private static final Random random=new Random();
   private static final Map<Event,Integer> previous=new EnumMap<>(Event.class);
   private static MediaPlayer player;
+  private static Event current;
   private static AudioManager audio;
   private static AudioFocusRequest focus;
   static int[] variants(Event event) {
@@ -36,7 +37,7 @@ final class AppSounds {
     if(!app.getSharedPreferences("radar",0).getBoolean("sounds",true))return;
     AudioManager manager=app.getSystemService(AudioManager.class);
     if(manager==null||manager.getRingerMode()!=AudioManager.RINGER_MODE_NORMAL)return;
-    stop();audio=manager;
+    stop();audio=manager;current=event;
     AudioAttributes attributes=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
     focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -48,7 +49,9 @@ final class AppSounds {
       player.setOnCompletionListener(p->stop());player.setOnErrorListener((p,w,e)->{stop();return true;});player.start();
     }catch(RuntimeException unavailable){stop();}
   }
+  static void stopMonitor(){if(current==Event.MONITOR_READY)stop();}
   static void stop(){
+    current=null;
     if(player!=null){player.release();player=null;}
     if(audio!=null&&focus!=null)audio.abandonAudioFocusRequest(focus);
     focus=null;
