@@ -29,6 +29,10 @@ public class SenseSmokeTest {
         tap(a.senseLogo,663,1118);assertFalse("PRO is an indicator",MonitorService.running);
         assertEquals(0,a.senseLogo.motion.pro,.001);assertFalse(a.senseLogo.animationRunning());
       });capture("sense-off-reference");
+      scenario.onActivity(a->{
+        try{scene("sense-phase-press",a.senseLogo,.1f);scene("sense-phase-fragments",a.senseLogo,.4f);scene("sense-phase-reveal",a.senseLogo,.65f);scene("sense-phase-work",a.senseLogo,1);}
+        catch(Exception e){throw new AssertionError(e);}
+      });
       // Two presses in the same UI turn cancel a pending start instead of starting twice.
       scenario.onActivity(a->{tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);});
       SystemClock.sleep(300);scenario.onActivity(a->{a.refreshCards();assertFalse(MonitorService.running);assertFalse(a.senseStartPending);assertEquals(0,a.senseLogo.motion.pro,.001);});
@@ -66,8 +70,14 @@ public class SenseSmokeTest {
     long now=SystemClock.uptimeMillis();MotionEvent down=MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,x,y,0),up=MotionEvent.obtain(now,now+30,MotionEvent.ACTION_UP,x,y,0);
     view.dispatchTouchEvent(down);view.dispatchTouchEvent(up);down.recycle();up.recycle();
   }
+  static void scene(String name,SenseLogo logo,float progress) throws Exception {
+    Bitmap bitmap=Bitmap.createBitmap(logo.getWidth(),logo.getHeight(),Bitmap.Config.ARGB_8888);logo.drawScene(new Canvas(bitmap),progress,1,30);save(name,bitmap);
+  }
   static void capture(String name) throws Exception {
     InstrumentationRegistry.getInstrumentation().waitForIdleSync();Bitmap bitmap=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();if(bitmap==null)return;
+    save(name,bitmap);
+  }
+  static void save(String name,Bitmap bitmap) throws Exception {
     Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();ContentValues values=new ContentValues();values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,name+".png");values.put(android.provider.MediaStore.Images.Media.MIME_TYPE,"image/png");values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,"Pictures/RadarSmoke");
     android.net.Uri uri=c.getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri!=null)try(java.io.OutputStream out=c.getContentResolver().openOutputStream(uri)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();
   }
