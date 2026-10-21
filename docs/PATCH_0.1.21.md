@@ -22,3 +22,14 @@ Focused workflow: backend contract tests, SenseMotion unit tests, Android releas
 Live HTTPS/Neon check uses two random identities in a tiny offshore bounding box: create, rename, stable ID, online/offline, isolated withdrawal and replay rejection; fixture coordinates removed in finally. No broad production location query. Seven-day physical cleanup has not been time-accelerated or claimed observed; query expiry and scheduling implementation are documented separately.
 
 Manual acceptance: judge motion/metal layers and sound synchronization on the physical phone; verify name updates between two real devices and house-number availability at high zoom.
+
+## Release checkpoint
+- Tested Android source: 1d206b9ed8469dc1674f20c9fdca0b9f65366b94.
+- Focused workflow: 39590908992. API 30 build dependency download initially failed transiently (Groovy/httpclient Maven resolution); only that job was retried. API 35 completed successfully on the final source.
+- Final API 35 artifact: 12341781730, ZIP SHA-256 20ae4cc495fa111a834ddfac749970035d45a19e8ced4236ee3ad21b879649e3.
+- APK versionCode 22, versionName 0.1.21-alpha. SHA-256 e0bcaef820ad8098c742c550dc2ebc4770a4513b6d836ae04e3dbf58c48763a3.
+- Signing certificate SHA-256 7baf77afc2f4b5c570c9b08d6092f55ad3ec10a2d798649c846bf2a1429bbd89 (unchanged).
+- Backend production dpl_DhjHeTKx5SgHpPeRAstsTA7gELTk is READY. Live HTTPS/Neon synthetic lifecycle check passed; subsequent scoped query confirmed fixture coordinates removed.
+- Protected preview could be deployed, but the connection could not authorize its protected URL. No protection setting was weakened; verification used the additive production API while legacy /api/presence remained unchanged.
+
+Final focused workflow attempt 2 completed successfully on API 30 and API 35; API 30 log confirms OK (2 tests). Six backend contracts and four SenseMotion cases passed. No production implementation changed after the tested source.
