@@ -81,7 +81,11 @@ final class SenseLogo extends View {
     // The supplied reference is the exact resting state, including its blue mechanism.
     if(p<=.0001f&&!isPressed()){canvas.drawBitmap(artwork,null,REFERENCE,paint);}else{
       paint.setShader(plate);canvas.drawCircle(CX,CY,INNER,paint);paint.setShader(null);
-      int body=canvas.save();canvas.clipOutPath(letter);canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(body);
+      int body=canvas.save();canvas.clipOutPath(inside);canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(body);
+      // Retire the original inner mechanism during the press, before S pieces move.
+      // Keeping a full reference behind the pieces would leave a second S silhouette.
+      float backing=1-SenseMotion.smooth(p,0,.2f);
+      if(backing>0){int inner=canvas.save();canvas.clipPath(inside);canvas.clipOutPath(letter);paint.setAlpha(Math.round(255*backing));canvas.drawBitmap(artwork,null,REFERENCE,paint);paint.setAlpha(Math.round(255*backing*light));canvas.drawBitmap(greenLights,null,REFERENCE,paint);paint.setAlpha(255);canvas.restoreToCount(inner);}
       drawLocator(canvas,p,angle);drawFragments(canvas,p,light);
     }
     // Indicator follows the real service, independently of the five-second mechanism.
