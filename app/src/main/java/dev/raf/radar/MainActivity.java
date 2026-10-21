@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
   boolean startAfterAccess, pendingOverlay, resumed, dark;
   RadarLogo pro, brandLogo;
   SenseLogo senseLogo;LinearLayout classicBrand;TextView mapLoading;int senseHeight;
+  boolean senseStartPending;int senseClickRevision;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
   int fg,bg,surface,muted,currentTab;
@@ -124,7 +125,7 @@ public final class MainActivity extends Activity {
     FrameLayout logoFrame=new FrameLayout(this);logoFrame.addView(brand,new FrameLayout.LayoutParams(-2,-2));
     int senseWidth=Math.min(210,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-100);
     senseHeight=(int)(senseWidth*SenseLogo.HEIGHT/SenseLogo.WIDTH);
-    senseLogo=new SenseLogo(this);senseLogo.setOnClickListener(v->toggleMonitor());
+    senseLogo=new SenseLogo(this);senseLogo.setOnClickListener(v->toggleSenseMonitor());
     senseLogo.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.VISIBLE:View.GONE);
     classicBrand.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.GONE:View.VISIBLE);
     logoFrame.addView(senseLogo,new FrameLayout.LayoutParams(dp(senseWidth),dp(senseHeight)));title.addView(logoFrame);
@@ -175,6 +176,8 @@ public final class MainActivity extends Activity {
   void syncBrandLogo(){
     if(brandLogo==null)return;
     boolean experimental=store.prefs.getBoolean("experimentalLogo",false);
+    if(experimental&&!senseLogo.available()){experimental=false;store.prefs.edit().putBoolean("experimentalLogo",false).apply();toast("Не удалось загрузить SENSE. Восстановлен обычный логотип.");}
+    if(MonitorService.running)senseStartPending=false;
     classicBrand.setVisibility(experimental?View.GONE:View.VISIBLE);
     senseLogo.setVisibility(experimental?View.VISIBLE:View.GONE);
     brandLogo.experimental(false);brandLogo.active(MonitorService.running);brandLogo.motionAllowed(false);
@@ -288,6 +291,12 @@ public final class MainActivity extends Activity {
       presenceQuery=false;if(resumed&&currentTab==0&&presenceEpoch==epoch){peers=result;pointOverlay.invalidate();}
     });
   }
+  void toggleSenseMonitor(){
+    int revision=++senseClickRevision;
+    if(senseStartPending||MonitorService.running||startAfterAccess){senseStartPending=false;stopMonitor();return;}
+    senseStartPending=true;toggleMonitor();
+    handler.postDelayed(()->{if(revision==senseClickRevision&&!MonitorService.running&&!startAfterAccess)senseStartPending=false;},1500);
+  }
   void toggleMonitor(){
     if(MonitorService.running||startAfterAccess)stopMonitor();else{pendingOverlay=true;startMonitor();}
   }
@@ -338,7 +347,7 @@ public final class MainActivity extends Activity {
     try {
       startForegroundService(new Intent(this, MonitorService.class).setAction("user_start"));
     } catch (Exception e) {
-      toast("Не удалось включить: " + e.getMessage());
+      senseStartPending=false;toast("Не удалось включить: " + e.getMessage());
     }
   }
 

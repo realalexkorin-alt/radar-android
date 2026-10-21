@@ -30,8 +30,9 @@ final class SenseLogo extends View {
     inside.addCircle(CX,CY,INNER,Path.Direction.CW);
     for(int i=0;i<4;i++){Path band=new Path();band.addRect(380,210+i*132,870,210+(i+1)*132,Path.Direction.CW);fragments[i]=new Path();fragments[i].op(letter,band,Path.Op.INTERSECT);}
   }
-  private static synchronized void load(Context context){
-    if(artwork!=null)return;
+  boolean available(){return load(getContext());}
+  private static synchronized boolean load(Context context){
+    if(artwork!=null)return true;
     try(java.io.InputStream input=context.getAssets().open("sense_pro.png")){
       BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;artwork=BitmapFactory.decodeStream(input,null,options);if(artwork==null)throw new java.io.IOException("Invalid SENSE artwork");
       int width=artwork.getWidth(),height=artwork.getHeight();int[] pixels=new int[width*height];artwork.getPixels(pixels,0,width,0,0,width,height);
@@ -46,8 +47,8 @@ final class SenseLogo extends View {
           indicator[i]=Color.argb(a,Math.round(b+(r-b)*.22f),r,Math.round(b+(r-b)*.52f));
       }
       greenLights=Bitmap.createBitmap(lights,width,height,Bitmap.Config.ARGB_8888);
-      greenPro=Bitmap.createBitmap(indicator,width,height,Bitmap.Config.ARGB_8888);
-    }catch(java.io.IOException e){throw new IllegalStateException("SENSE artwork unavailable",e);}
+      greenPro=Bitmap.createBitmap(indicator,width,height,Bitmap.Config.ARGB_8888);return true;
+    }catch(java.io.IOException e){artwork=null;android.util.Log.w("SenseLogo","SENSE artwork unavailable",e);return false;}
   }
   void state(boolean active,boolean visible){if(getVisibility()==VISIBLE)load(getContext());running=active;requestedVisible=visible;bind();setSelected(active);setContentDescription(active?"S: выключить мониторинг":"S: включить мониторинг");invalidate();}
   boolean animationRunning(){return framePosted;}
@@ -71,7 +72,7 @@ final class SenseLogo extends View {
   }
   @Override public boolean performClick(){return super.performClick();}
   @Override protected void onDraw(Canvas canvas){
-    load(getContext());motion.advance(SystemClock.elapsedRealtime());float s=scale();int save=canvas.save();canvas.translate((getWidth()-WIDTH*s)/2,(getHeight()-HEIGHT*s)/2);canvas.scale(s,s);
+    if(!load(getContext()))return;motion.advance(SystemClock.elapsedRealtime());float s=scale();int save=canvas.save();canvas.translate((getWidth()-WIDTH*s)/2,(getHeight()-HEIGHT*s)/2);canvas.scale(s,s);
     float p=motion.progress,light=SenseMotion.smooth(p,0,.8f);
     paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColorFilter(null);paint.setAlpha(255);
     // The supplied reference is the exact resting state, including its blue mechanism.

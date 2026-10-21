@@ -19,7 +19,7 @@ public class SenseSmokeTest {
     c.getSharedPreferences("radar",0).edit().clear().putBoolean("autoUpdate",false).putBoolean("sounds",false).commit();ScreenTest.grantAccess();
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       MainActivity[] activity={null};Bitmap[] legacy={null};
-      scenario.onActivity(a->{activity[0]=a;assertFalse(a.store.prefs.getBoolean("experimentalLogo",false));assertEquals(View.GONE,a.senseLogo.getVisibility());legacy[0]=LogoSmokeTest.render(a.brandLogo);});
+      scenario.onActivity(a->{activity[0]=a;a.nextPresenceQuery=Long.MAX_VALUE;a.presenceEpoch++;assertFalse(a.store.prefs.getBoolean("experimentalLogo",false));assertEquals(View.GONE,a.senseLogo.getVisibility());legacy[0]=LogoSmokeTest.render(a.brandLogo);});
       onView(withContentDescription("Вкладка Настройки")).perform(click());
       onView(withContentDescription("Экспериментальный")).perform(scrollTo(),click());
       onView(withContentDescription("Вкладка Карта")).perform(click());
@@ -29,6 +29,9 @@ public class SenseSmokeTest {
         tap(a.senseLogo,663,1118);assertFalse("PRO is an indicator",MonitorService.running);
         assertEquals(0,a.senseLogo.motion.pro,.001);assertFalse(a.senseLogo.animationRunning());
       });capture("sense-off-reference");
+      // Two presses in the same UI turn cancel a pending start instead of starting twice.
+      scenario.onActivity(a->{tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY);});
+      SystemClock.sleep(300);scenario.onActivity(a->{a.refreshCards();assertFalse(MonitorService.running);assertFalse(a.senseStartPending);assertEquals(0,a.senseLogo.motion.pro,.001);});
       scenario.onActivity(a->tap(a.senseLogo,SenseLogo.CX,SenseLogo.CY));EconomyPatchTest.waitFor(()->MonitorService.running);
       scenario.onActivity(a->{a.refreshCards();assertTrue("Service starts before five-second animation",a.senseLogo.motion.progress<.8f);});
       SystemClock.sleep(2100);capture("sense-fragments");SystemClock.sleep(1400);capture("sense-locator-emerging");SystemClock.sleep(2100);
