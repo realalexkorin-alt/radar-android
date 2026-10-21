@@ -21,7 +21,8 @@ public final class MainActivity extends Activity {
   Store store; Access access;
   MapGps mapGps;
   List<PresenceClient.Peer> peers=new ArrayList<>();
-  Bitmap peerBitmap, nearbyPeerBitmap;
+  Bitmap peerBitmap, nearbyPeerBitmap, offlinePeerBitmap;
+  AlertDialog nameDialog,friendsDialog;LinearLayout friendsRows;List<PresenceClient.Peer> friends=new ArrayList<>();long nextDirectory;boolean directoryPending;
   long nextPresenceQuery;int presenceEpoch;boolean presenceQuery;
 
   final StartupSound startupSound = new StartupSound();
@@ -43,7 +44,7 @@ public final class MainActivity extends Activity {
   String selected="me";
   Handler handler=new Handler();
   static final String[] TARIFF_IDS={"econom"};
-  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();handler.postDelayed(this,5000);}}};
+  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();refreshFriends(false);handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
     setTheme(R.style.AppThemeDark);
@@ -99,20 +100,23 @@ public final class MainActivity extends Activity {
       if(map==null)return;
       String own=PresenceClient.ownId(store);
       if(peerBitmap==null)peerBitmap=locationIcon(false,true);
+      if(offlinePeerBitmap==null)offlinePeerBitmap=locationIcon(false,false);
       if(nearbyPeerBitmap==null)nearbyPeerBitmap=nearbyPeerIcon();
       LatLng ownLocation=pointLocation(store.widgetPoint());
       PointF ownScreen=ownLocation==null?null:map.getProjection().toScreenLocation(ownLocation);
       for(PresenceClient.Peer peer:peers){
-        if(!peer.fresh()||peer.id.equals(own))continue;
+        if(!peer.retained()||peer.id.equals(own))continue;
         PointF xy=map.getProjection().toScreenLocation(new LatLng(peer.lat,peer.lon));
         // Keep the true coordinate; a wider purple ring remains visible around our gold dot.
-        Bitmap peerIcon=ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
+        Bitmap peerIcon=!peer.fresh()?offlinePeerBitmap:ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
         c.drawBitmap(peerIcon,xy.x-peerIcon.getWidth()/2f,xy.y-peerIcon.getHeight()/2f,null);
+        drawPersonLabel(c,xy,peer.name,peer.fresh()?null:peer.status());
       }
       for(Point p:store.points()){
         LatLng location=pointLocation(p);if(location==null)continue;
         PointF xy=map.getProjection().toScreenLocation(location);Bitmap icon=pointBitmaps.get(p.id);
         if(icon!=null)c.drawBitmap(icon,xy.x-icon.getWidth()/2f,xy.y-icon.getHeight()/2f,null);
+        if(p.dynamic)drawPersonLabel(c,xy,store.prefs.getString("profileName",""),null);
       }
     }};pointOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
@@ -126,12 +130,12 @@ public final class MainActivity extends Activity {
     int senseWidth=Math.round(0.65f*Math.min(210,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-100));
     senseHeight=(int)(senseWidth*SenseLogo.HEIGHT/SenseLogo.WIDTH);
     senseLogo=new SenseLogo(this);senseLogo.setOnClickListener(v->toggleSenseMonitor());
-    senseLogo.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.VISIBLE:View.GONE);
-    classicBrand.setVisibility(store.prefs.getBoolean("experimentalLogo",false)?View.GONE:View.VISIBLE);
+    senseLogo.setVisibility(View.VISIBLE);
+    classicBrand.setVisibility(View.GONE);
     logoFrame.addView(senseLogo,new FrameLayout.LayoutParams(dp(senseWidth),dp(senseHeight)));title.addView(logoFrame);
     state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
-    LinearLayout tools=column();String[] icons={"search","locate"},names={"Поиск точки","Моя геопозиция"};Runnable[] actions={this::addPoint,this::locate};
+    LinearLayout tools=column();String[] icons={"search","locate","person"},names={"Поиск точки","Моя геопозиция","Друзья"};Runnable[] actions={this::addPoint,this::locate,this::showFriends};
     for(int i=0;i<icons.length;i++){View button=iconButton(icons[i],names[i],actions[i]);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(48),dp(48));lp.bottomMargin=dp(8);tools.addView(button,lp);}
     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);tp.setMargins(0,dp(16),dp(16),0);mapFrame.addView(tools,tp);
     TextView loading=text("Загрузка карты…",12,fg);mapLoading=loading;pad(loading,12,8);loading.setBackground(shape(surface,12));FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);ll.topMargin=dp(130);mapFrame.addView(loading,ll);
@@ -175,7 +179,7 @@ public final class MainActivity extends Activity {
   }
   void syncBrandLogo(){
     if(brandLogo==null)return;
-    boolean experimental=store.prefs.getBoolean("experimentalLogo",false);
+    boolean experimental=true;
     if(experimental&&!senseLogo.available()){experimental=false;store.prefs.edit().putBoolean("experimentalLogo",false).apply();toast("Не удалось загрузить SENSE. Восстановлен обычный логотип.");}
     if(MonitorService.running)senseStartPending=false;
     if(MonitorService.running==senseDesired)senseCommandPending=false;
@@ -270,7 +274,7 @@ public final class MainActivity extends Activity {
     return bitmap;
   }
   Bitmap locationIcon(boolean own,boolean fresh){
-    int size=dp(56),color=own?0xFFFFCC45:0xFFAB45FF;
+    int size=dp(56),color=own?0xFFFFCC45:fresh?0xFFAB45FF:0xFF92969F;
     Bitmap icon=Bitmap.createBitmap(size,size,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(icon);
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);float center=size/2f;
     paint.setShader(new RadialGradient(center,center,dp(25),new int[]{Color.argb(fresh?110:35,Color.red(color),Color.green(color),Color.blue(color)),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));
@@ -292,6 +296,40 @@ public final class MainActivity extends Activity {
     PresenceClient.query(b.getLonWest(),b.getLatSouth(),b.getLonEast(),b.getLatNorth(),result->{
       presenceQuery=false;if(resumed&&currentTab==0&&presenceEpoch==epoch){peers=result;pointOverlay.invalidate();}
     });
+  }
+  void syncScreenAwake(){
+    if(resumed&&store.prefs.getBoolean("keepScreenOn",false))getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+  }
+  void editName(boolean required){
+    if(isFinishing()||isDestroyed()||(nameDialog!=null&&nameDialog.isShowing()))return;
+    EditText input=new EditText(this);input.setSingleLine(true);input.setText(store.prefs.getString("profileName",""));input.setHint("Ваше имя");input.setTextColor(fg);input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(32)});
+    LinearLayout box=column();box.setPadding(dp(24),dp(8),dp(24),0);box.addView(input);
+    AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(required?"Как вас зовут?":"Изменить имя").setView(box).setCancelable(!required).setPositiveButton("Сохранить",null);
+    if(!required)builder.setNegativeButton("Отмена",null);
+    nameDialog=builder.create();nameDialog.setOnShowListener(v->nameDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(b->{
+      String name=input.getText().toString().replaceAll("[\\p{Cc}\\p{Cf}]","").trim().replaceAll("\\s+"," ");
+      if(name.isEmpty()){input.setError("Введите имя");return;}
+      store.prefs.edit().putString("profileName",name).apply();PresenceClient.profileChanged(this);pointOverlay.invalidate();nameDialog.dismiss();if(currentTab==2)rebuildSettings();
+    }));nameDialog.show();
+  }
+  void drawPersonLabel(Canvas canvas,PointF xy,String name,String status){
+    if(name==null||name.isEmpty())return;Paint label=new Paint(Paint.ANTI_ALIAS_FLAG);label.setTextSize(dp(10));label.setColor(0xB3FFFFFF);label.setTextAlign(Paint.Align.CENTER);
+    canvas.drawText(name,xy.x,xy.y+dp(24),label);if(status!=null){label.setTextSize(dp(9));canvas.drawText(status,xy.x,xy.y+dp(37),label);}
+  }
+  void showFriends(){
+    friendsRows=column();ScrollView scroll=new ScrollView(this);scroll.addView(friendsRows);
+    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setPositiveButton("Закрыть",null).create();friendsDialog.show();renderFriends();refreshFriends(true);
+  }
+  void refreshFriends(boolean force){
+    if(!resumed||friendsDialog==null||!friendsDialog.isShowing()||directoryPending)return;
+    renderFriends();if(!force&&SystemClock.elapsedRealtime()<nextDirectory)return;nextDirectory=SystemClock.elapsedRealtime()+30000;directoryPending=true;
+    PresenceClient.directory(result->{directoryPending=false;if(!isDestroyed()){friends=result;renderFriends();}});
+  }
+  void renderFriends(){
+    if(friendsRows==null)return;friendsRows.removeAllViews();String own=PresenceClient.ownId(store);int count=0;
+    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name,14,fg));details.addView(text(p.status(),11,muted));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnClickListener(v->{if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
+    if(count==0){TextView empty=text(directoryPending?"Загрузка…":"Пока нет пользователей с открытым местоположением",13,muted);pad(empty,20,20);friendsRows.addView(empty);}
   }
   void toggleSenseMonitor(){
     int revision=++senseClickRevision;
@@ -645,6 +683,9 @@ public final class MainActivity extends Activity {
   void settings(){showTab(2);}
   LinearLayout settingsContents(){
     LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
+    LinearLayout profile=group(body,"Профиль");
+    settingAction(profile,"Имя: "+store.prefs.getString("profileName","Не указано"),()->editName(false));
+    TextView identity=text("ID: "+PresenceClient.ownId(store),10,muted);identity.setTextIsSelectable(true);profile.addView(identity);
     LinearLayout work=group(body,"Работа приложения");
     monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
     overlayToggle=switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false)&&Settings.canDrawOverlays(this),0,enabled->{
@@ -663,11 +704,9 @@ public final class MainActivity extends Activity {
     switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{
       store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);
     });
-    TextView sharing=text("Показывать моё местоположение пользователям Радар PRO при включённом мониторинге. Точка исчезает не позднее двух минут после потери связи.",11,muted);
+    TextView sharing=text("Показывать моё местоположение пользователям Радар PRO при включённом мониторинге. После потери связи последняя точка остаётся серой до 7 дней. Выключение передачи скрывает её; для удаления нужна связь.",11,muted);
     sharing.setPadding(0,0,0,dp(10));more.addView(sharing);
-    switchRow(more,"Экспериментальный",store.prefs.getBoolean("experimentalLogo",false),0,enabled->{
-      store.prefs.edit().putBoolean("experimentalLogo",enabled).apply();syncBrandLogo();
-    });
+    switchRow(more,"Не выключать экран",store.prefs.getBoolean("keepScreenOn",false),0,enabled->{store.prefs.edit().putBoolean("keepScreenOn",enabled).apply();syncScreenAwake();});
     switchRow(more,"Звуки",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
@@ -724,7 +763,8 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     mapView.onResume();
-    resumed = true;syncBrandLogo();
+    resumed = true;syncBrandLogo();syncScreenAwake();
+    if(store.prefs.getString("profileName","").isEmpty())handler.post(()->editName(true));
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
       startupSoundPending = false;
@@ -738,7 +778,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onPause() {
-    resumed = false;syncBrandLogo();
+    resumed = false;syncBrandLogo();syncScreenAwake();
     presenceEpoch++;mapGps.stop();peers.clear();
     store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);
@@ -759,6 +799,7 @@ public final class MainActivity extends Activity {
   protected void onDestroy() {
     startupSound.stop();
     mapGps.stop();
+    if(nameDialog!=null)nameDialog.dismiss();if(friendsDialog!=null)friendsDialog.dismiss();
     Updates.detach(this);
     if (access != null) access.close();
     handler.removeCallbacksAndMessages(null);

@@ -14,7 +14,7 @@ final class SenseMotion {
   void advance(long now){
     float dt=Math.max(0,now-last);last=now;if(!visible)return;
     float oldSpeed=speed();
-    progress=approach(progress,running?1:0,dt/(running?5000f:1500f));
+    progress=approach(progress,running?1:0,dt/(running?1985.25f:1500f));
     pro=approach(pro,running?1:0,dt/500f);
     angle=(angle+dt*.09f*(oldSpeed+speed())*.5f)%360f;
   }

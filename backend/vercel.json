@@ -1,1 +1,1 @@
-{"regions":["iad1"],"functions":{"api/presence.js":{"maxDuration":15}}}
+{"regions":["iad1"],"functions":{"api/presence.js":{"maxDuration":15},"api/members.js":{"maxDuration":30}}}

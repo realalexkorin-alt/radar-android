@@ -60,6 +60,7 @@ final class RadarUi {
       switch(name) {
         case "search": c.drawCircle(10.5f,10.5f,6.5f,p);line(c,15.5f,15.5f,21,21);break;
         case "layers": line(c,3,9,12,3,21,9,12,15,3,9);line(c,3,14,12,20,21,14);break;
+        case "person": c.drawCircle(12,7,4,p);c.drawArc(4,13,20,27,180,180,false,p);break;
         case "locate": line(c,3,10,21,3,14,21,11,13,3,10);break;
         case "plus": line(c,12,5,12,19);line(c,5,12,19,12);break;
         case "close": line(c,5,5,19,19);line(c,19,5,5,19);break;

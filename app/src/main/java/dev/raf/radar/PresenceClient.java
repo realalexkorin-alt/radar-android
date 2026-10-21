@@ -12,7 +12,8 @@ import org.json.*;
 
 /** Serialized presence writes ensure a withdrawal follows any in-flight publication. */
 final class PresenceClient {
-  static final String ENDPOINT="https://radar-presence.vercel.app/api/presence";
+  static final String LEGACY="https://radar-presence.vercel.app/api/presence";
+  static final String ENDPOINT="https://radar-presence.vercel.app/api/members";
   private static final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
   private static ScheduledFuture<?> publishing;
   private static volatile long nextPublish;
@@ -24,7 +25,7 @@ final class PresenceClient {
   }
   static synchronized void stop(Context c){
     if(publishing!=null){publishing.cancel(false);publishing=null;}
-    withdraw(c);
+    offline(c);
   }
   static void sharingChanged(Context c){
     if(!new Store(c).prefs.getBoolean("shareLocation",false))withdraw(c);
@@ -33,11 +34,12 @@ final class PresenceClient {
   private static void publish(Context c){
     Store s=new Store(c);long now=SystemClock.elapsedRealtime();
     if(!MonitorService.running || !s.prefs.getBoolean("shareLocation",false) || !Access.monitorReady(c) || !LocationState.fresh(s))return;
+    if(s.prefs.getString("profileName","").isEmpty())return;
     if(now<nextPublish)return;nextPublish=now+30000;
     try{
       JSONObject body=new JSONObject().put("revision",revision(s)).put("lat",Double.longBitsToDouble(s.prefs.getLong("lat",0)))
           .put("lon",Double.longBitsToDouble(s.prefs.getLong("lon",0))).put("accuracy",s.prefs.getFloat("accuracy",500))
-          .put("observedAt",s.prefs.getLong("gpsAt",0));
+          .put("observedAt",s.prefs.getLong("gpsAt",0)).put("name",s.prefs.getString("profileName",""));
       request("PUT",ENDPOINT,body,token(s));
       s.prefs.edit().putBoolean("presencePublished",true).apply();
     }catch(Exception ignored){ /* Presence failure never blocks taxi data or the service. */ }
@@ -47,12 +49,25 @@ final class PresenceClient {
       Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
       try{request("DELETE",ENDPOINT,new JSONObject().put("revision",revision(s)),secret);
         s.prefs.edit().putBoolean("presencePublished",false).apply();
-      }catch(Exception ignored){ /* Server TTL removes a point even offline or after process death. */ }
+      }catch(Exception ignored){ /* Server retention bounds a failed withdrawal while offline. */ }
     });
   }
   static void reconcile(Context c){
-    if(!MonitorService.running || !new Store(c).prefs.getBoolean("shareLocation",false))withdraw(c);
+    Store s=new Store(c);
+    if(!s.prefs.getBoolean("shareLocation",false))withdraw(c);else if(!MonitorService.running)offline(c);
+    token(s);if(!s.prefs.getString("profileName","").isEmpty())profileChanged(c);
+    if(!s.prefs.getBoolean("membersV2",false)){worker.execute(()->{try{request("DELETE",LEGACY,new JSONObject().put("revision",revision(s)),token(s));s.prefs.edit().putBoolean("membersV2",true).apply();}catch(Exception ignored){}});}
   }
+  static void profileChanged(Context c){
+    Context app=c.getApplicationContext();worker.execute(()->{Store s=new Store(app);try{request("POST",ENDPOINT,new JSONObject().put("revision",revision(s)).put("name",s.prefs.getString("profileName","")),token(s));}catch(Exception ignored){}});
+    nextPublish=0;
+  }
+  static void offline(Context c){
+    Context app=c.getApplicationContext();worker.execute(()->{Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
+      try{request("POST",ENDPOINT,new JSONObject().put("revision",revision(s)).put("offline",true),secret);}catch(Exception ignored){}
+    });
+  }
+  static void directory(Result callback){queryUrl(ENDPOINT+"?directory=1",callback);}
   private static long revision(Store s){
     long revision=Math.max(System.currentTimeMillis(),s.prefs.getLong("presenceRevision",0)+1);
     s.prefs.edit().putLong("presenceRevision",revision).commit();return revision;
@@ -64,22 +79,27 @@ final class PresenceClient {
     s.prefs.edit().putString("presenceToken",token).commit();return token;
   }
   static String ownId(Store s){
-    String token=s.prefs.getString("presenceToken",null);if(token==null)return "";
+    String token=token(s);
     try{StringBuilder result=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)))result.append(String.format(Locale.US,"%02x",b&255));return result.toString();}
     catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}
   }
   static final class Peer {
-    final String id;final double lat,lon;final long observedAt;
-    Peer(JSONObject p)throws JSONException{id=p.getString("id");lat=p.getDouble("lat");lon=p.getDouble("lon");observedAt=p.getLong("observedAt");}
-    boolean fresh(){long age=System.currentTimeMillis()-observedAt;return age>=-5000&&age<120000;}
+    final String id,name;final double lat,lon;final long observedAt,lastSeen;final boolean offline;
+    Peer(JSONObject p)throws JSONException{id=p.getString("id");lat=p.getDouble("lat");lon=p.getDouble("lon");observedAt=p.getLong("observedAt");name=p.optString("name","Пользователь "+id.substring(0,6));lastSeen=p.optLong("lastSeen",observedAt);offline=p.optBoolean("offline",false);}
+    boolean fresh(){long age=System.currentTimeMillis()-lastSeen;return !offline&&age>=-5000&&age<120000;}
+    boolean retained(){long age=System.currentTimeMillis()-lastSeen;return age>=-5000&&age<7L*86400000;}
+    String status(){if(fresh())return "В сети";long age=Math.max(0,(System.currentTimeMillis()-lastSeen)/1000);String unit="с";if(age>=86400){age/=86400;unit="д";}else if(age>=3600){age/=3600;unit="ч";}else if(age>=60){age/=60;unit="м";}return "Был в сети "+age+" "+unit+" назад";}
   }
   interface Result{void ready(List<Peer> peers);}
   static void query(double west,double south,double east,double north,Result callback){
+    queryUrl(ENDPOINT+String.format(Locale.US,"?west=%.6f&south=%.6f&east=%.6f&north=%.6f",west,south,east,north),callback);
+  }
+  private static void queryUrl(String url,Result callback){
     worker.execute(()->{List<Peer> peers=new ArrayList<>();
-      try{String url=ENDPOINT+String.format(Locale.US,"?west=%.6f&south=%.6f&east=%.6f&north=%.6f",west,south,east,north);
+      try{
         JSONArray points=new JSONObject(request("GET",url,null,null)).getJSONArray("points");
         for(int i=0;i<Math.min(200,points.length());i++){
-          Peer p=new Peer(points.getJSONObject(i));if(p.fresh()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);
+          Peer p=new Peer(points.getJSONObject(i));if(p.retained()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);
         }
       }catch(Exception ignored){}
       main.post(()->callback.ready(peers));
