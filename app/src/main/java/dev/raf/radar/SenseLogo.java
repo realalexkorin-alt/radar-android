@@ -9,7 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 /** Supplied metal textures + sliding iris doors and an intact S + vector locator. Only the center is a button. */
 final class SenseLogo extends View {
   static final float WIDTH=1268,HEIGHT=1240,CX=634,CY=480,INNER=310;
-  private static Bitmap artwork,greenLights,greenPro;
+  private static Bitmap artwork,greenLights,orangePro,greenPro;
   private static final RectF REFERENCE=new RectF(0,0,WIDTH,HEIGHT);
   final SenseMotion motion=new SenseMotion();
   private boolean running,requestedVisible,attached,framePosted,tracking;
@@ -33,7 +33,7 @@ final class SenseLogo extends View {
     try(java.io.InputStream input=context.getAssets().open("sense_pro.png")){
       BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;artwork=BitmapFactory.decodeStream(input,null,options);if(artwork==null)throw new java.io.IOException("Invalid SENSE artwork");
       int width=artwork.getWidth(),height=artwork.getHeight();int[] pixels=new int[width*height];artwork.getPixels(pixels,0,width,0,0,width,height);
-      int[] lights=new int[pixels.length],indicator=new int[pixels.length];
+      int[] lights=new int[pixels.length],indicator=new int[pixels.length],orange=new int[pixels.length];
       for(int y=0;y<height;y++)for(int x=0;x<width;x++){
         float nx=x*WIDTH/width,ny=y*HEIGHT/height;
         int i=y*width+x,p=pixels[i],a=Color.alpha(p),r=Color.red(p),g=Color.green(p),b=Color.blue(p);
@@ -41,10 +41,11 @@ final class SenseLogo extends View {
         if(ny<880&&Math.hypot(nx-CX,ny-CY)<440&&a>0&&b-r>30&&g-r>25)lights[i]=Color.argb(a,Math.round(r+(Math.max(g,b)-r)*.22f),Math.max(g,b),Math.round(r+(Math.max(g,b)-r)*.52f));
         // PRO's illuminated inset only, preserving the surrounding metal frame.
         if(nx>400&&nx<920&&ny>1020&&ny<1220&&a>0&&r>g*1.1f&&r-b>25)
-          indicator[i]=Color.argb(a,Math.round(b+(r-b)*.22f),r,Math.round(b+(r-b)*.52f));
+          {orange[i]=p;indicator[i]=Color.argb(a,Math.round(b+(r-b)*.22f),r,Math.round(b+(r-b)*.52f));pixels[i]=0;}
       }
       greenLights=Bitmap.createBitmap(lights,width,height,Bitmap.Config.ARGB_8888);
-      greenPro=Bitmap.createBitmap(indicator,width,height,Bitmap.Config.ARGB_8888);return true;
+      orangePro=Bitmap.createBitmap(orange,width,height,Bitmap.Config.ARGB_8888);
+      greenPro=Bitmap.createBitmap(indicator,width,height,Bitmap.Config.ARGB_8888);artwork=Bitmap.createBitmap(pixels,width,height,Bitmap.Config.ARGB_8888);return true;
     }catch(java.io.IOException e){artwork=null;android.util.Log.w("SenseLogo","SENSE artwork unavailable",e);return false;}
   }
   void state(boolean active,boolean visible){if(getVisibility()==VISIBLE)load(getContext());running=active;requestedVisible=visible;bind();setSelected(active);setContentDescription(active?"S: выключить мониторинг":"S: включить мониторинг");invalidate();}
@@ -86,6 +87,7 @@ final class SenseLogo extends View {
     // Indicator follows the real service, independently of the mechanical travel.
     paint.setStyle(Paint.Style.FILL);paint.setShader(proOrange);paint.setAlpha(Math.round(90*(1-indicator)));canvas.drawRect(400,1020,920,1220,paint);
     paint.setShader(proGreen);paint.setAlpha(Math.round(130*indicator));canvas.drawRect(400,1020,920,1220,paint);paint.setShader(null);
+    paint.setAlpha(Math.round(255*(1-indicator)));canvas.drawBitmap(orangePro,null,REFERENCE,paint);
     paint.setAlpha(Math.round(255*indicator));canvas.drawBitmap(greenPro,null,REFERENCE,paint);paint.setAlpha(255);
     canvas.restoreToCount(save);
   }

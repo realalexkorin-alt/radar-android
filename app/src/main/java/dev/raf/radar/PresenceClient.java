@@ -25,14 +25,15 @@ final class PresenceClient {
   }
   static synchronized void stop(Context c){
     if(publishing!=null){publishing.cancel(false);publishing=null;}
-    offline(c);
+    if(new Store(c).prefs.getBoolean("shareLocation",false))offline(c);else withdraw(c);
   }
   static void sharingChanged(Context c){
     if(!new Store(c).prefs.getBoolean("shareLocation",false))withdraw(c);
-    else{nextPublish=0;worker.execute(()->publish(c.getApplicationContext()));}
+    else{new Store(c).prefs.edit().putBoolean("presenceDeletePending",false).apply();nextPublish=0;worker.execute(()->publish(c.getApplicationContext()));}
   }
   private static void publish(Context c){
     Store s=new Store(c);long now=SystemClock.elapsedRealtime();
+    if(s.prefs.getBoolean("presenceDeletePending",false)){if(now>=nextPublish){nextPublish=now+30000;withdraw(c);}return;}
     if(!MonitorService.running || !s.prefs.getBoolean("shareLocation",false) || !Access.monitorReady(c) || !LocationState.fresh(s))return;
     if(s.prefs.getString("profileName","").isEmpty())return;
     if(now<nextPublish)return;nextPublish=now+30000;
@@ -45,10 +46,10 @@ final class PresenceClient {
     }catch(Exception ignored){ /* Presence failure never blocks taxi data or the service. */ }
   }
   static void withdraw(Context c){
-    Context app=c.getApplicationContext();worker.execute(()->{
+    Context app=c.getApplicationContext();new Store(app).prefs.edit().putBoolean("presenceDeletePending",true).apply();worker.execute(()->{
       Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
       try{request("DELETE",ENDPOINT,new JSONObject().put("revision",revision(s)),secret);
-        s.prefs.edit().putBoolean("presencePublished",false).apply();
+        s.prefs.edit().putBoolean("presencePublished",false).putBoolean("presenceDeletePending",false).apply();
       }catch(Exception ignored){ /* Server retention bounds a failed withdrawal while offline. */ }
     });
   }
@@ -101,7 +102,7 @@ final class PresenceClient {
         for(int i=0;i<Math.min(200,points.length());i++){
           Peer p=new Peer(points.getJSONObject(i));if(p.retained()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);
         }
-      }catch(Exception ignored){}
+      }catch(Exception ignored){main.post(()->callback.ready(null));return;}
       main.post(()->callback.ready(peers));
     });
   }
