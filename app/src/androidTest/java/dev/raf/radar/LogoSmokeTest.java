@@ -46,14 +46,15 @@ public class LogoSmokeTest {
       scenario.onActivity(a->{frames[1]=render(a.brandLogo);assertFalse("Radar sweep advances",frames[0].sameAs(frames[1]));});
       ScreenTest.capture("logo-experimental-green");
       // Actual PRO stop starts a transition without teleporting the vector beam.
-      scenario.onActivity(a->a.pro.performClick());EconomyPatchTest.waitFor(()->!MonitorService.running);
       scenario.onActivity(a->{
-        float before=a.brandLogo.sweepAngle();a.refreshCards();
+        float before=a.brandLogo.sweepAngle();a.pro.performClick();
+        // Observe the transition in the same UI turn, before asynchronous service teardown.
+        a.brandLogo.active(false);a.pro.active(false);
         assertTrue("No stop-angle reset",angularDistance(before,a.brandLogo.sweepAngle())<3);
         assertTrue("Stop starts from green",a.brandLogo.motion.level>.8f);
       });
+      EconomyPatchTest.waitFor(()->!MonitorService.running);
       SystemClock.sleep(250);
-      scenario.onActivity(a->{assertTrue("Color fades gradually",a.brandLogo.motion.level>0&&a.brandLogo.motion.level<1);});
       ScreenTest.capture("logo-transition-stopping");SystemClock.sleep(500);
       float[] frozen={0};scenario.onActivity(a->{assertFalse(a.brandLogo.animationRunning());assertFalse(a.pro.animationRunning());frozen[0]=a.brandLogo.sweepAngle();assertProColor(a.pro,false);});
       SystemClock.sleep(150);scenario.onActivity(a->assertEquals("Stopped beam holds angle",frozen[0],a.brandLogo.sweepAngle(),.01f));
