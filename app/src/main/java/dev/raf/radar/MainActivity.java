@@ -109,7 +109,7 @@ public final class MainActivity extends Activity {
         // Keep the true coordinate; a wider purple ring remains visible around our gold dot.
         Bitmap peerIcon=!peer.fresh()?offlinePeerBitmap:ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
         c.drawBitmap(peerIcon,xy.x-peerIcon.getWidth()/2f,xy.y-peerIcon.getHeight()/2f,null);
-        drawPersonLabel(c,xy,peer.name,peer.fresh()?null:peer.status());
+        drawPersonLabel(c,xy,peer.name,peer.fresh()?peer.locationAge():peer.status());
       }
       for(Point p:store.points()){
         LatLng location=pointLocation(p);if(location==null)continue;
@@ -272,7 +272,10 @@ public final class MainActivity extends Activity {
     for(int i=0;i<rows.size();i++){
       Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
       int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
-      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(RadarUi.value(reading),width/2f,top+dp(20),paint);
+      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);boolean trend=store.prefs.getBoolean("forecast",false);float valueCenter=trend?(width-dp(24))/2f:width/2f;paint.setTextSize(dp(12));
+      if(trend){float available=width-dp(30);float measured=paint.measureText(RadarUi.value(reading));if(measured>available)paint.setTextSize(dp(12)*available/measured);}
+      canvas.drawText(RadarUi.value(reading),valueCenter,top+dp(20),paint);
+      if(trend){int direction=store.prefs.getInt("trend:"+point.id,0);int trendColor=direction>0?0xFF62E69D:direction<0?0xFFFF6878:0xFF9399A2;paint.setColor(trendColor);paint.setStrokeWidth(dp(1.5f));paint.setStrokeCap(Paint.Cap.ROUND);float x=width-dp(11),y=top+dp(11);if(direction==0)canvas.drawLine(x-dp(4),y,x+dp(4),y,paint);else{float sign=direction>0?-1:1;canvas.drawLine(x,y-sign*dp(4),x,y+sign*dp(4),paint);canvas.drawLine(x,y+sign*dp(4),x-dp(3),y+sign*dp(1),paint);canvas.drawLine(x,y+sign*dp(4),x+dp(3),y+sign*dp(1),paint);}paint.setTextSize(dp(7));canvas.drawText("0%",x,top+dp(25),paint);paint.setTextSize(dp(12));}
     }
     paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);if(showAge)canvas.drawText(age,width/2f,ageTop+dp(13),paint);
     return bitmap;
@@ -333,7 +336,7 @@ public final class MainActivity extends Activity {
   }
   void renderFriends(){
     if(friendsRows==null)return;if(friendsDialog!=null&&friendsDialog.isShowing()){android.widget.Button refresh=friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL);refresh.setEnabled(!directoryPending);refresh.setText(directoryPending?"Обновление…":"Обновить");if(friendsRefreshIcon!=null)friendsRefreshIcon.loading(directoryPending);}friendsRows.removeAllViews();FriendUi.controls(this);FriendUi.badge(this);String own=PresenceClient.ownId(store);int count=0;
-    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name+" · ID "+p.id,14,fg));details.addView(text(p.status(),11,muted));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnLongClickListener(v->{FriendUi.remove(this,p);return true;});line.setOnClickListener(v->{if(!p.hasLocation){toast("Пользователь ещё не передавал координаты");return;}if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
+    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name+" · ID "+p.id,14,fg));details.addView(text(p.fresh()?p.locationAge():p.status(),11,muted));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnLongClickListener(v->{FriendUi.remove(this,p);return true;});line.setOnClickListener(v->{if(!p.hasLocation){toast("Пользователь ещё не передавал координаты");return;}if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
     if(count>0){TextView hint=text("Удерживайте друга в списке, чтобы удалить",10,muted);pad(hint,20,8);friendsRows.addView(hint);}
     if(directoryError){TextView retry=text("Не удалось обновить · повторить",12,muted);pad(retry,20,12);retry.setOnClickListener(v->refreshFriends(true));friendsRows.addView(retry);}
     if(count==0&&!directoryError){TextView empty=text(directoryPending?"Загрузка…":"Пока нет друзей. Добавьте друга по ID — он должен подтвердить запрос",13,muted);pad(empty,20,20);friendsRows.addView(empty);}
@@ -712,6 +715,7 @@ public final class MainActivity extends Activity {
     sizeSlider(controls,"Размер текста","textScale",60,250);
     sizeSlider(controls,"Прозрачность","opacity",20,100);
     LinearLayout more=group(body,"Дополнительно");
+    switchRow(more,"Прогнозирование",store.prefs.getBoolean("forecast",false),0,enabled->{store.prefs.edit().putBoolean("forecast",enabled).apply();refreshCards();});
     switchRow(more,"Время обновления точек",store.prefs.getBoolean("mapPointUpdateTime",false),0,enabled->{store.prefs.edit().putBoolean("mapPointUpdateTime",enabled).apply();refreshCards();});
     switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{
       store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);

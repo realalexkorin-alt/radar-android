@@ -109,6 +109,10 @@ public final class Store {
 
   public void readings(String id, List<Reading> a) {
     long successful=lastSuccessfulReading(id);
+    for(Reading reading:a)if("econom".equals(reading.tariff)&&reading.rub!=null&&reading.time>prefs.getLong("trendAt:"+id,0)){
+      int direction=prefs.contains("trendValue:"+id)?Integer.compare(reading.rub,prefs.getInt("trendValue:"+id,0)):0;
+      prefs.edit().putInt("trend:"+id,direction).putInt("trendValue:"+id,reading.rub).putLong("trendAt:"+id,reading.time).apply();
+    }
     for(Reading r:a)if("econom".equals(r.tariff)&&r.rub!=null&&r.time>0)successful=Math.max(successful,r.time);
     JSONArray j = new JSONArray();
     try {
