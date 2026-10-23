@@ -1,10 +1,5 @@
 # 0.1.25-alpha — reliable peer loading
 
-- API response measured at 9.7 seconds; previous Android read timeout was 8 seconds. Connect/read timeouts now 15/25 seconds.
-- Reads use a separate serialized executor from publication/withdrawal writes, avoiding queue starvation.
-- A malformed peer does not fail the complete response. Last successful directory is cached across Activity/process restarts. Errors preserve data.
-- Friends refresh control stays open and displays an in-progress state; repeated refresh does not enqueue duplicates.
-- Map and friends rows display the age of the actual coordinate observation separately from online/last-seen status.
-- Existing public sharing and 7-day retention contract remain until private accounts/friendships are introduced.
+Measured API response 9.7s exceeded old Android read timeout 8s. New connect/read 15/25s. Separate serialized reader executor avoids publication queue starvation. Malformed records are isolated. Successful directory cache survives restarts; errors preserve it. Friends has explicit refresh/progress and coordinate age separate from last seen. Public sharing and 7-day retention remain until private accounts.
 
-Validation: focused Android two-synthetic-client HTTPS publish/query/withdraw test and cached-peer UI test.
+Validation: workflow 39935841801 passed assembly/lint/formatter and 2 Android tests: real HTTPS two synthetic clients (publish, query, offline retention, cleanup) and cached-directory recreation/error/refresh UI. First run exposed test fixture refresh interference, isolated in test only; repeat passed.
