@@ -125,7 +125,8 @@ public final class MonitorService extends Service implements LocationListener {
         }
         eligible.add(q.id);
       }
-      String id = planner.next(eligible, now, store.prefs.getInt("interval", 120) * 1000L, "me");
+      long interval=store.prefs.getInt("interval",120)*1000L;
+      String id = planner.next(eligible, now, interval, "me", browsing||!widgetPoint.isEmpty()?10000L:interval);
       if (id == null) return;
       Point p = null;
       for (Point q : a)

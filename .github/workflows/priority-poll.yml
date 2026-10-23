@@ -1,0 +1,25 @@
+name: Priority widget polling
+on:
+  push:
+    branches: ['codex/priority-poll']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew && ./gradlew :app:assembleRelease :app:lintDebug :app:testDebugUnitTest --tests dev.raf.radar.PollPlannerTest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: priority-release
+          path: app/build/outputs/apk/release/*.apk

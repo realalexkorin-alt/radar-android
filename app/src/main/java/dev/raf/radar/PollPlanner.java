@@ -13,18 +13,23 @@ public final class PollPlanner {
   }
 
   public synchronized String next(List<String> eligible, long now, long interval, String priority) {
+    return next(eligible,now,interval,priority,interval);
+  }
+
+  public synchronized String next(List<String> eligible,long now,long interval,String priority,long priorityInterval) {
     if (now < nextGlobal || eligible.isEmpty()) return null;
+    long gap=priorityInterval<30000?10000:15000;
     if (priority != null && eligible.contains(priority)
         && now >= due.getOrDefault(priority, 0L)) {
-      due.put(priority, now + Math.max(30000, interval));
-      nextGlobal = now + 15000;
+      due.put(priority, now + Math.max(10000, priorityInterval));
+      nextGlobal = now + gap;
       return priority;
     }
     for (int n = 0; n < eligible.size(); n++) {
       String id = eligible.get(Math.floorMod(cursor++, eligible.size()));
       if (now >= due.getOrDefault(id, 0L)) {
         due.put(id, now + Math.max(30000, interval));
-        nextGlobal = now + 15000;
+        nextGlobal = now + gap;
         return id;
       }
     }

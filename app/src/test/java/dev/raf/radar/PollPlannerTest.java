@@ -6,6 +6,19 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+  @Test public void mainWidgetTenSecondTargetPreservesBackoffAndSavedInterval(){
+    PollPlanner p=new PollPlanner();List<String> main=Collections.singletonList("me");
+    assertEquals("me",p.next(main,100000,120000,"me",10000));
+    assertNull(p.next(main,109999,120000,"me",10000));
+    assertEquals("me",p.next(main,110000,120000,"me",10000));
+    p.backoff(110000,900000);p.refresh();assertNull(p.next(main,1009999,120000,"me",10000));
+    assertEquals("me",p.next(main,1010000,120000,"me",10000));
+    PollPlanner saved=new PollPlanner();List<String> onlySaved=Collections.singletonList("saved");
+    assertEquals("saved",saved.next(onlySaved,100000,120000,"me",10000));
+    assertNull(saved.next(onlySaved,110000,120000,"me",10000));
+    assertEquals("saved",saved.next(onlySaved,220000,120000,"me",10000));
+  }
+
   @Test public void dynamicFirstEvenWhenCursorIsOnSavedPoint() {
     PollPlanner p = new PollPlanner();
     List<String> ids = Arrays.asList("saved", "me");
