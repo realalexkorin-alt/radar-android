@@ -1,11 +1,11 @@
-# 0.1.29-alpha — fair polling and coordinate-bound surcharge
+# 0.1.29-alpha — data freshness and fair queue
 
-Final integration review found two related data issues:
-- A continuously due 10-second main widget could starve saved points. Due saved points now receive alternating slots; main alone still targets 10 seconds, mixed queues can take 20 seconds for main. Server backoff/global limits remain.
-- Gradual movement could carry an old fare over many small GPS steps. Bind own-location fare to the coordinates used for its request, invalidate after accumulated movement beyond 250 m, expedite a new fetch. Keep last-success timestamp for the optional age caption. No invented surcharge when data is unavailable.
+Continuously due main-widget polling no longer starves saved points. Main alone targets 10 seconds; mixed due queues can take 20 seconds for main. Global budget/server backoff remain.
 
-Focused validation: PollPlanner fairness/budget/backoff tests; native gradual-movement test with real Android Location distances, cache invalidation and zero-ruble success.
+Bind own-location surcharge to request coordinates; invalidate after accumulated movement beyond 250m and expedite next fetch. Last-success age is preserved. Coalesce concurrent map/dialog/background friend refresh into one request and bound in-flight location publication to one.
 
-- Coalesce simultaneous friend refreshes from map, dialog and background sync into one request; keep only one location publication in flight. This bounds queue growth during slow network responses. Native test verifies three concurrent subscribers receive one network result.
+Whitelist migrated coordinate fields so the old installation hash cannot overwrite numeric private-account identity. Registration records initial last-seen time.
 
-- Whitelist migrated coordinate fields so a legacy installation hash cannot overwrite the private numeric account ID in friend responses. Registration records an initial last-seen timestamp. Verified against a synthetic legacy publication migrated into an account.
+Validation: workflow 39939674831 passed backend auth tests, assembly/lint, PollPlanner fairness/budget/backoff unit suite and 2 Android API-35 tests (gradual GPS movement/fare invalidation/zero success; 3 concurrent refresh subscribers with one request). Source 3d45de9b6e0b34be1e3fe9a666f0c9bbea9d2aa7. Artifact 12494962959 SHA-256 b1b21a3bc70e201376ac470e11a1695a0a1825f5446a6bffa25e440e126a6ebf.
+
+Production backend dpl_HoVTaYp1yoYAwBQQXoqEeMTVXfSk READY. Live legacy-to-private migration verified numeric ID/coordinates, public withdrawal, name propagation and explicit point deletion preserving friendship. Temporary account/coordinate fixtures removed. Physical two-phone acceptance remains manual. True Huawei push requires external app configuration; see HUAWEI_PUSH_SETUP.md.
