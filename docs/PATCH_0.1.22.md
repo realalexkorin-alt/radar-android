@@ -18,3 +18,11 @@ Focused checks: ReadingAge unit boundaries and WidgetAgeTest for default-off, bo
 5. Accounts: chosen/free ID 1–999, password, change password, 16-digit recovery code, migration.
 6. Confirmed friendship by ID, request handling, private persistent last locations, refresh button.
 7. Push notifications, friend-request badge and Huawei delivery.
+
+## Verification checkpoint
+- Source: 36fc9e89eadb6d2c632aa49e39ec407caf023bbe.
+- Focused workflow 39932594875 completed successfully: release/debug assembly, lint, ReadingAge unit test and WidgetAgeTest on API 35 (OK 1 test). No backend or full app regression suite run.
+- Artifact 12491414087 ZIP SHA-256 25ab4cfde16c429f455c95030f2642cb8e3e0f181818179eb163a16a6320d662.
+- Signed APK SHA-256 04680a9bd7929d792a746fbf364d804d04b8e33b0f3c1234656f6d8f4b683371; versionCode 23.
+- Existing release certificate verified: 7baf77afc2f4b5c570c9b08d6092f55ad3ec10a2d798649c846bf2a1429bbd89.
+- Screenshot inspected: subtle age text at bottom left beneath the price content, no clipping.
