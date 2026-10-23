@@ -14,6 +14,11 @@ GitHub is the source of truth. Each release is signed with the existing certific
 | 0.1.29 | Fair queue, fare bound to request coordinates, coalesced peer refresh and migration identity fix |
 | 0.1.30 | Rolling private diagnostic reports, stalled-update watchdog, offline retries, protected server reader and settings cleanup |
 
+| 0.1.31 | Compact profile, clean settings, rounded dialogs and vector friend refresh |
+| 0.1.32 | Optional surcharge direction with placeholder0%, single online/offline caption |
+| 0.1.33 | Five-minute fixed-point observations, durable account-scoped queue, server weather and private history |
+| 0.1.34 | Geographic anchors, local label dragging and kilometer-area glow |
+
 ## Remaining external dependency
 Actual push when app is fully closed: no Huawei Push Kit app configuration is available. SDK/provider transport is not implemented or advertised as complete. See HUAWEI_PUSH_SETUP.md. Local notifications require app/foreground monitoring to sync.
 
@@ -32,3 +37,8 @@ One API-35 emulator only for changed native flows; pure scheduler changes use ta
 
 ## Diagnostics 0.1.30
 Production /api/diagnostics accepts authenticated uploads; read requires a separate private bearer. Last-hour journal and bounded offline queue are persisted. Server retention7d/50 reports per user. `scripts/read-diagnostics.py` derives read access from the existing protected signing backup; see PATCH_0.1.30.md. Live auth/upload/read/filter/dedup/cascade checks passed. Previous server runtime-log connector403 remains; application reports provide a separate verified read path. Reports start after the new APK is installed; cause of the old hour-long stall is still unconfirmed.
+
+## Statistics acceptance
+Install0.1.33 or newer on both phones, enable monitoring and5–10 fixed points per phone. Forecast toggle affects display only; it does not enable/disable collection. Actual capture follows successful fresh replies at a target minimum interval5min per point; API pauses and process stops create real gaps. No moving GPS trace is collected. Weather is hourly model data from Open-Meteo, rounded-coordinate cache30min, explicit units and timestamp. Server history90d; weather failure preserves surcharge with NULL weather. Access via scripts/read-statistics.py and the same protected reader derivation as diagnostics. Synthetic tests on production passed auth, zero, dedup, one-kilometer region assignment, weather/time/units and deletion; fixture data removed. Summary is initially empty until phones install the new APK. First-day analysis measures coverage and sampling quality; predictive accuracy is not established.
+
+Release/test/signature details for the completed series: PATCH_SERIES_0.1.31-34.md. Latest versionCode35; the latest APK contains all four incremental changes.
