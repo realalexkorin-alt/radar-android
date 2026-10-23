@@ -12,10 +12,13 @@ final class Overlay {
   private final WindowManager wm;
   private LinearLayout root;
   private PriceText price;
+  private TextView updated;
+  private final android.os.Handler ageHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+  private final Runnable ageTick=()->updateAge();
   private WindowManager.LayoutParams lp;
   private boolean touching,framePending,screenRegistered;
   private int pendingX,pendingY;
-  private final BroadcastReceiver screen=new BroadcastReceiver(){public void onReceive(Context context,Intent intent){if(price!=null)price.invalidate();}};
+  private final BroadcastReceiver screen=new BroadcastReceiver(){public void onReceive(Context context,Intent intent){if(price!=null)price.invalidate();updateAge();}};
   Overlay(Context c,Store s){this.c=c;this.s=s;wm=c.getSystemService(WindowManager.class);}
   int dp(float n){return RadarUi.dp(c,n);}
   private void open(boolean settings){c.startActivity(new Intent(c,MainActivity.class).putExtra("widgetSettings",settings)
@@ -26,11 +29,13 @@ final class Overlay {
     if(root==null){
       root=new LinearLayout(c);root.setOrientation(LinearLayout.VERTICAL);root.setContentDescription("Виджет радара");
       root.setOnClickListener(v->open(false));root.setOnLongClickListener(v->{open(true);return true;});
-      price=new PriceText(c);root.addView(price,new LinearLayout.LayoutParams(-2,-2));installGestures();
+      price=new PriceText(c);root.addView(price,new LinearLayout.LayoutParams(-2,-2));
+      updated=new TextView(c);updated.setContentDescription("Время обновления виджета");updated.setTextColor(0x80FFFFFF);updated.setIncludeFontPadding(false);updated.setSingleLine(true);updated.setGravity(Gravity.START);
+      root.addView(updated,new LinearLayout.LayoutParams(-2,-2));installGestures();
       lp=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
           WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.graphics.PixelFormat.TRANSLUCENT);
       lp.gravity=Gravity.TOP|Gravity.START;lp.x=s.prefs.getInt("ox",dp(20));lp.y=s.prefs.getInt("oy",dp(100));
-      try{wm.addView(root,lp);}catch(RuntimeException unavailable){root=null;price=null;return;}
+      try{wm.addView(root,lp);}catch(RuntimeException unavailable){root=null;price=null;updated=null;return;}
       if(!screenRegistered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
         androidx.core.content.ContextCompat.registerReceiver(c,screen,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);screenRegistered=true;}
     }
@@ -43,8 +48,16 @@ final class Overlay {
     float available=c.getResources().getDisplayMetrics().widthPixels-dp(12)-2*padding-2*glow;
     float wanted=android.text.Layout.getDesiredWidth(price.getText(),price.getPaint());
     if(wanted>available)price.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,price.getTextSize()*available/wanted*.98f);
+    updated.setTextSize(9*scale);updated.setPadding(dp(10*scale),0,dp(6*scale),dp(5*scale));updateAge();
     price.requestLayout();root.requestLayout();
     root.post(()->{if(root!=null)position(lp.x,lp.y);});
+  }
+  private void updateAge(){
+    ageHandler.removeCallbacks(ageTick);if(root==null||updated==null)return;
+    boolean enabled=s.prefs.getBoolean("widgetUpdateTime",false);updated.setVisibility(enabled?View.VISIBLE:View.GONE);
+    if(!enabled)return;updated.setText(ReadingAge.label(s.lastSuccessfulReading("me"),System.currentTimeMillis()));
+    android.os.PowerManager power=c.getSystemService(android.os.PowerManager.class);
+    if(power!=null&&power.isInteractive())ageHandler.postDelayed(ageTick,1000);
   }
   private void position(int x,int y){
     if(root==null)return;
@@ -72,8 +85,8 @@ final class Overlay {
       default:return true;
     }}
   });}
-  void close(){touching=false;framePending=false;
+  void close(){touching=false;framePending=false;ageHandler.removeCallbacks(ageTick);
     if(screenRegistered){try{c.unregisterReceiver(screen);}catch(IllegalArgumentException ignored){}screenRegistered=false;}
-    if(root!=null){try{wm.removeView(root);}catch(RuntimeException ignored){}root=null;price=null;}
+    if(root!=null){try{wm.removeView(root);}catch(RuntimeException ignored){}root=null;price=null;updated=null;}
   }
 }

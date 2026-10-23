@@ -695,6 +695,7 @@ public final class MainActivity extends Activity {
         .setMessage("Надбавки Эконома на карте и в компактном виджете. Сохраняйте удобные точки и следите за изменениями рядом.\n\nНадбавки расчётные — сверяйте с Яндекс Про.\n© OpenStreetMap contributors")
         .setPositiveButton("Понятно",null).show());
     LinearLayout widget=group(body,"Виджет");
+    switchRow(widget,"Время обновления",store.prefs.getBoolean("widgetUpdateTime",false),0,enabled->store.prefs.edit().putBoolean("widgetUpdateTime",enabled).apply());
     LinearLayout controls=column();controls.setVisibility(View.GONE);
     settingAction(widget,"Размер и прозрачность",()->{controls.setVisibility(controls.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);});
     widget.addView(controls);sizeSlider(controls,"Размер виджета","scale",60,160);

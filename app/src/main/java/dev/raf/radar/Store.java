@@ -108,6 +108,8 @@ public final class Store {
   }
 
   public void readings(String id, List<Reading> a) {
+    long successful=lastSuccessfulReading(id);
+    for(Reading r:a)if("econom".equals(r.tariff)&&r.rub!=null&&r.time>0)successful=Math.max(successful,r.time);
     JSONArray j = new JSONArray();
     try {
       for (Reading r : a)
@@ -120,7 +122,13 @@ public final class Store {
                 .put("status", r.status));
     } catch (Exception ignored) {
     }
-    prefs.edit().putString("read:" + id, j.toString()).apply();
+    prefs.edit().putString("read:" + id, j.toString()).putLong("readSuccess:"+id,successful).apply();
+  }
+
+  public long lastSuccessfulReading(String id) {
+    long time=prefs.getLong("readSuccess:"+id,0);
+    for(Reading r:readings(id))if("econom".equals(r.tariff)&&r.rub!=null&&r.time>0)time=Math.max(time,r.time);
+    return time;
   }
 
   public List<Reading> readings(String id) {
