@@ -17,6 +17,8 @@ jobs:
         api: [35]
     steps:
       - uses: actions/checkout@v4
+      - run: npm ci --ignore-scripts && node --test test/accounts.test.js
+        working-directory: backend
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

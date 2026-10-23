@@ -7,3 +7,5 @@ Final integration review found two related data issues:
 Focused validation: PollPlanner fairness/budget/backoff tests; native gradual-movement test with real Android Location distances, cache invalidation and zero-ruble success.
 
 - Coalesce simultaneous friend refreshes from map, dialog and background sync into one request; keep only one location publication in flight. This bounds queue growth during slow network responses. Native test verifies three concurrent subscribers receive one network result.
+
+- Whitelist migrated coordinate fields so a legacy installation hash cannot overwrite the private numeric account ID in friend responses. Registration records an initial last-seen timestamp. Verified against a synthetic legacy publication migrated into an account.
