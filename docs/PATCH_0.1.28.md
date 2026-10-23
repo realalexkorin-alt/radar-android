@@ -1,8 +1,9 @@
 # 0.1.28-alpha — confirmed private friends
 
-- Friends: plus/add by ID, incoming accept/reject, outgoing cancel, long-press removal. Prevent self/duplicate requests; mutations checked by server. Request badge counts pending incoming requests.
-- Only accepted friends appear on map/list. Accounts with no coordinates stay in list; centering waits for a real coordinate. Names refresh from server.
-- Last shared position persists indefinitely on server and device while friendship remains. Sharing off/monitoring off does not delete it. Settings includes explicit last-position deletion. Removing friend revokes server read access and clears coordinates from successful client state.
-- Manual refresh progress, cached data on connection failure, background sync while app/monitoring runs.
-- Local request notifications on sync open Friends on map. Actual push delivery with application fully closed still requires Huawei Push Kit application setup/credentials; polling notifications are not represented as server push.
-- Validation: backend auth/friend ACL/live lifecycle checks, native two-account private position exchange and Friends UI/badge test on API 35.
+Plus/add by ID, incoming accept/reject, outgoing cancel, long-press removal. Server validates both parties and prevents self/duplicate edges. Pending-request badge. Only accepted friends appear on map/list; accounts without a saved coordinate stay in list without a fabricated marker.
+
+Last position retained indefinitely for private accounts, including sharing/monitoring off. Explicit delete-last-position in settings. Removing a friend revokes API read access and removes coordinates from successful client state. Local offline cache and manual refresh retained.
+
+Local request notifications on successful app/service sync open Friends. These are not server push: delivery with app fully closed requires Huawei Push Kit app configuration; see docs/HUAWEI_PUSH_SETUP.md.
+
+Validation: workflow 39938404756 passed backend auth tests, release assembly, lint, formatter and API-35 FriendsUiTest plus AccountsNativeTest (two synthetic real Android account clients, request/accept/private position/offline retention/removal/cleanup). Source cd3c79fef194225fbecc0d4cde614a06a81196b9. Earlier compile failure was an ambiguous static test import, corrected without production code changes.
