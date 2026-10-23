@@ -1,5 +1,5 @@
 # 0.1.24-alpha — faster main widget
 
-- Own location surcharge has a 10-second polling target while the widget is enabled or Map/Points are visible. Network duration and other due points can delay a response.
-- Saved points retain the configured interval. Single serialized request queue, deduplication and error/rate-limit backoff remain. Manual refresh cannot bypass the global budget or server pause.
-- Focused validation: PollPlanner tests (including 10-second boundary and 15-minute backoff), assembly and lint. No emulator/full suite required for a scheduling-only change.
+Own GPS surcharge targets 10-second polling while overlay is enabled or Map/Points visible. Network duration/other due points can delay responses. Saved points retain their configured interval. One serialized queue and server/error backoff remain; manual refresh cannot bypass the global budget.
+
+Focused workflow 39934755705 passed: release assembly, lint and PollPlannerTest, including 10-second boundary and 15-minute backoff. Source fcceca5d1e621c60b20ca8ddc89648a881f2b0a3. No emulator/full suite for scheduler-only change.
