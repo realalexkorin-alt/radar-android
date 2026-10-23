@@ -1,10 +1,10 @@
-name: Widget update age
+name: Point update age
 on:
   push:
-    branches: ['codex/widget-age']
+    branches: ['codex/point-age']
   workflow_dispatch:
 concurrency:
-  group: radar-widget-age-${{ github.ref }}
+  group: radar-point-age-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
@@ -47,14 +47,14 @@ jobs:
             adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
             adb shell am force-stop com.android.launcher3 || true
-            adb shell am instrument -w -r -e class dev.raf.radar.WidgetAgeTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee logo-smoke.txt
+            adb shell am instrument -w -r -e class dev.raf.radar.PointAgeTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee logo-smoke.txt
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
             grep -q 'OK (1 test)' logo-smoke.txt
       - run: cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: widget-age-${{ matrix.api }}
+          name: point-age-${{ matrix.api }}
           path: |
             app/build/outputs/apk/release/*.apk
             logo-smoke.txt

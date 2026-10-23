@@ -206,6 +206,7 @@ public final class MainActivity extends Activity {
       View dot=new View(this);dot.setBackground(shape(p.dynamic?0xFF69AEFF:RadarUi.tariffColor(p.tariffs.isEmpty()?"econom":p.tariffs.get(0)),20));LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(12),dp(12));dotParams.rightMargin=dp(12);line.addView(dot,dotParams);
       LinearLayout labels=column();TextView name=RadarUi.text(this,p.name,15,fg,true);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);labels.addView(name);
       TextView address=text(pointAddress(p),12,muted);address.setMaxLines(1);address.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.topMargin=dp(5);labels.addView(address,ap);
+      TextView age=text(pointAge(p),10,0xB3FFFFFF);age.setPadding(0,dp(4),0,0);labels.addView(age);
       labels.setContentDescription("Настроить точку: "+p.name);labels.setOnClickListener(v->{selected=p.id;editDetails(p);});line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
       if(!p.dynamic){RadarUi.Toggle active=new RadarUi.Toggle(this);active.setContentDescription("Мониторинг: "+p.name);active.setChecked(p.enabled);active.setOnCheckedChangeListener((button,enabled)->{p.enabled=enabled;store.update(p);refreshMarkers();});line.addView(active,new LinearLayout.LayoutParams(dp(56),dp(48)));}
       else{View gear=iconButton("settings","Настроить геопозицию",()->editDetails(p));gear.setBackgroundColor(Color.TRANSPARENT);line.addView(gear,new LinearLayout.LayoutParams(dp(48),dp(48)));}
@@ -257,19 +258,23 @@ public final class MainActivity extends Activity {
     }
     return rows;
   }
+  String pointAge(Point point){return ReadingAge.label(store.lastSuccessfulReading(point.id),System.currentTimeMillis());}
   Bitmap pointIcon(Point point){
     if(point.dynamic)return locationIcon(true,LocationState.fresh(store));
     List<Store.Reading> rows=mapReadings(point);
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
     int width=dp(point.dynamic?114:56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
     for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(RadarUi.value(reading)))+dp(24));
-    Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),header+rows.size()*rowHeight+dp(8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
+    String age=pointAge(point);paint.setTextSize(dp(9));width=Math.max(width,Math.round(paint.measureText(age))+dp(16));paint.setTextSize(dp(12));
+    int ageTop=header+rows.size()*rowHeight;
+    Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),ageTop+dp(22)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
     if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
     for(int i=0;i<rows.size();i++){
       Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
       int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
       paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(RadarUi.value(reading),width/2f,top+dp(20),paint);
     }
+    paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(age,width/2f,ageTop+dp(13),paint);
     return bitmap;
   }
   Bitmap locationIcon(boolean own,boolean fresh){
