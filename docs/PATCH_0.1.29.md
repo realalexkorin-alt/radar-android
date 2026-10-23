@@ -5,3 +5,5 @@ Final integration review found two related data issues:
 - Gradual movement could carry an old fare over many small GPS steps. Bind own-location fare to the coordinates used for its request, invalidate after accumulated movement beyond 250 m, expedite a new fetch. Keep last-success timestamp for the optional age caption. No invented surcharge when data is unavailable.
 
 Focused validation: PollPlanner fairness/budget/backoff tests; native gradual-movement test with real Android Location distances, cache invalidation and zero-ruble success.
+
+- Coalesce simultaneous friend refreshes from map, dialog and background sync into one request; keep only one location publication in flight. This bounds queue growth during slow network responses. Native test verifies three concurrent subscribers receive one network result.

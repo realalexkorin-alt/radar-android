@@ -20,7 +20,7 @@ final class PresenceClient {
   private static volatile long nextPublish;
   private static volatile boolean screenVisible;
   private static volatile long nextDirectorySync;
-  private static volatile boolean syncing;
+  private static volatile boolean syncing,accountPublishing;
   private static final Handler main=new Handler(Looper.getMainLooper());
   static synchronized void start(Context c){
     if(publishing!=null)return;
@@ -47,12 +47,12 @@ final class PresenceClient {
     if(s.prefs.getBoolean("presenceDeletePending",false)){if(now>=nextPublish){nextPublish=now+30000;withdraw(c);}return;}
     if((!MonitorService.running&&!screenVisible) || !s.prefs.getBoolean("shareLocation",false) || !Access.location(c) || !LocationState.fresh(s))return;
     if(s.prefs.getString("profileName","").isEmpty())return;
-    if(now<nextPublish)return;nextPublish=now+30000;
+    if(now<nextPublish||accountPublishing)return;nextPublish=now+30000;
     try{
       JSONObject body=new JSONObject().put("revision",revision(s)).put("lat",Double.longBitsToDouble(s.prefs.getLong("lat",0)))
           .put("lon",Double.longBitsToDouble(s.prefs.getLong("lon",0))).put("accuracy",s.prefs.getFloat("accuracy",500))
           .put("observedAt",s.prefs.getLong("gpsAt",0)).put("name",s.prefs.getString("profileName",""));
-      if(AccountClient.active(s)){body.put("action","position");AccountClient.call(c,body,(data,error)->{});return;}
+      if(AccountClient.active(s)){body.put("action","position");accountPublishing=true;AccountClient.call(c,body,(data,error)->accountPublishing=false);return;}
       request("PUT",ENDPOINT,body,token(s));
       s.prefs.edit().putBoolean("presencePublished",true).apply();
     }catch(Exception ignored){ /* Presence failure never blocks taxi data or the service. */ }
