@@ -32,7 +32,7 @@ public final class MainActivity extends Activity {
   SenseLogo senseLogo;LinearLayout classicBrand,mapTitle;TextView mapLoading;int senseHeight;
   boolean senseStartPending,senseCommandPending,senseDesired;int senseClickRevision;
   RadarUi.Toggle monitorToggle,overlayToggle;
-  final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){refreshCards();}};
+  final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if("dev.raf.radar.PEERS".equals(i.getAction())){friends=PresenceClient.cached(store);peers=new ArrayList<>(friends);renderFriends();}refreshCards();}};
   int fg,bg,surface,muted,currentTab;
   LinearLayout root,cards,mapPanel,pointsPanel,settingsPanel,navigation;
   FrameLayout pages,mapFrame;
@@ -762,14 +762,16 @@ public final class MainActivity extends Activity {
   protected void onStart() {
     super.onStart();
     mapView.onStart();
-    androidx.core.content.ContextCompat.registerReceiver(this,monitorState,new IntentFilter("dev.raf.radar.REFRESH"),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+    androidx.core.content.ContextCompat.registerReceiver(this,monitorState,peerRefreshFilter(),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
   }
+
+  IntentFilter peerRefreshFilter(){IntentFilter filter=new IntentFilter("dev.raf.radar.REFRESH");filter.addAction("dev.raf.radar.PEERS");return filter;}
 
   @Override
   protected void onResume() {
     super.onResume();
     mapView.onResume();
-    resumed = true;syncBrandLogo();syncScreenAwake();PresenceClient.reconcile(this);
+    resumed = true;syncBrandLogo();syncScreenAwake();PresenceClient.reconcile(this);PresenceClient.screen(this,true);
     if(store.prefs.getString("profileName","").isEmpty())handler.post(()->editName(true));
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
@@ -785,7 +787,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     resumed = false;syncBrandLogo();syncScreenAwake();
-    presenceEpoch++;mapGps.stop();
+    presenceEpoch++;mapGps.stop();PresenceClient.screen(this,false);
     store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);
     mapView.onPause();
