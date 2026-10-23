@@ -22,7 +22,7 @@ public final class MainActivity extends Activity {
   MapGps mapGps;
   List<PresenceClient.Peer> peers=new ArrayList<>();
   Bitmap peerBitmap, nearbyPeerBitmap, offlinePeerBitmap;
-  AlertDialog nameDialog,friendsDialog,accountDialog;LinearLayout friendsRows;List<PresenceClient.Peer> friends=new ArrayList<>();boolean directoryError;long nextDirectory;boolean directoryPending;
+  AlertDialog nameDialog,friendsDialog,accountDialog;LinearLayout friendsRows;List<PresenceClient.Peer> friends=new ArrayList<>();RadarUi.RefreshIcon friendsRefreshIcon;boolean directoryError;long nextDirectory;boolean directoryPending;
   long nextPresenceQuery;int presenceEpoch;boolean presenceQuery;
 
   final StartupSound startupSound = new StartupSound();
@@ -324,7 +324,7 @@ public final class MainActivity extends Activity {
   }
   void showFriends(){
     friendsRows=column();ScrollView scroll=new ScrollView(this);scroll.addView(friendsRows);
-    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setNeutralButton("Обновить",null).setPositiveButton("Закрыть",null).create();friendsDialog.show();friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->refreshFriends(true));renderFriends();refreshFriends(true);
+    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setNeutralButton("Обновить",null).setPositiveButton("Закрыть",null).create();friendsDialog.show();friendsRefreshIcon=new RadarUi.RefreshIcon(this);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawables(friendsRefreshIcon,null,null,null);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawablePadding(dp(8));friendsDialog.setOnDismissListener(d->{if(friendsRefreshIcon!=null)friendsRefreshIcon.loading(false);});friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->refreshFriends(true));renderFriends();refreshFriends(true);
   }
   void refreshFriends(boolean force){
     if(!resumed||friendsDialog==null||!friendsDialog.isShowing()||directoryPending)return;
@@ -332,7 +332,7 @@ public final class MainActivity extends Activity {
     PresenceClient.directory(this,result->{directoryPending=false;if(!isDestroyed()){directoryError=result==null;if(result!=null){friends=result;PresenceClient.cache(store,result);peers=new ArrayList<>(result);pointOverlay.invalidate();}renderFriends();}});
   }
   void renderFriends(){
-    if(friendsRows==null)return;if(friendsDialog!=null&&friendsDialog.isShowing()){android.widget.Button refresh=friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL);refresh.setEnabled(!directoryPending);refresh.setText(directoryPending?"↻ Обновление…":"↻ Обновить");}friendsRows.removeAllViews();FriendUi.controls(this);FriendUi.badge(this);String own=PresenceClient.ownId(store);int count=0;
+    if(friendsRows==null)return;if(friendsDialog!=null&&friendsDialog.isShowing()){android.widget.Button refresh=friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL);refresh.setEnabled(!directoryPending);refresh.setText(directoryPending?"Обновление…":"Обновить");if(friendsRefreshIcon!=null)friendsRefreshIcon.loading(directoryPending);}friendsRows.removeAllViews();FriendUi.controls(this);FriendUi.badge(this);String own=PresenceClient.ownId(store);int count=0;
     for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name+" · ID "+p.id,14,fg));details.addView(text(p.status(),11,muted));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnLongClickListener(v->{FriendUi.remove(this,p);return true;});line.setOnClickListener(v->{if(!p.hasLocation){toast("Пользователь ещё не передавал координаты");return;}if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
     if(count>0){TextView hint=text("Удерживайте друга в списке, чтобы удалить",10,muted);pad(hint,20,8);friendsRows.addView(hint);}
     if(directoryError){TextView retry=text("Не удалось обновить · повторить",12,muted);pad(retry,20,12);retry.setOnClickListener(v->refreshFriends(true));friendsRows.addView(retry);}
@@ -691,9 +691,9 @@ public final class MainActivity extends Activity {
   LinearLayout settingsContents(){
     LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
     LinearLayout profile=group(body,"Профиль");
-    settingAction(profile,"Имя: "+store.prefs.getString("profileName","Не указано"),()->editName(false));
-    TextView identity=text("ID: "+(AccountClient.active(store)?PresenceClient.ownId(store):"Требуется регистрация"),12,muted);identity.setTextIsSelectable(true);profile.addView(identity);
-    if(AccountClient.active(store)){settingAction(profile,"Изменить пароль",()->AccountUi.password(this));settingAction(profile,"Удалить последнюю геопозицию",()->new AlertDialog.Builder(this).setTitle("Удалить сохранённую геопозицию?").setMessage("Передача будет выключена. Друзья останутся в списке.").setNegativeButton("Отмена",null).setPositiveButton("Удалить",(d,w)->{store.prefs.edit().putBoolean("shareLocation",false).apply();PresenceClient.sharingChanged(this);AccountClient.call(this,AccountClient.action("clear-position"),(data,error)->{if(error!=null)toast(error);else{toast("Последняя геопозиция удалена");rebuildSettings();}});}).show());settingAction(profile,"Выйти из аккаунта",()->new AlertDialog.Builder(this).setTitle("Выйти?").setMessage("Для возврата потребуются ID и пароль. Сохранённые точки останутся на телефоне.").setNegativeButton("Отмена",null).setPositiveButton("Выйти",(d,w)->{stopMonitor();AccountClient.call(this,AccountClient.action("logout"),(data,error)->{AccountClient.clear(store);friends.clear();peers.clear();rebuildSettings();AccountUi.choose(this);});}).show());}
+    LinearLayout identityRow=row();identityRow.setMinimumHeight(dp(50));TextView profileName=text("Имя: "+store.prefs.getString("profileName","Не указано"),13,fg);profileName.setSingleLine(true);profileName.setEllipsize(android.text.TextUtils.TruncateAt.END);profileName.setContentDescription("Изменить имя");profileName.setOnClickListener(v->editName(false));profileName.setFocusable(true);identityRow.addView(profileName,new LinearLayout.LayoutParams(0,-2,1));
+    TextView identity=text("ID: "+(AccountClient.active(store)?PresenceClient.ownId(store):"—"),13,muted);identity.setPadding(dp(12),0,0,0);identity.setTextIsSelectable(true);identityRow.addView(identity);profile.addView(identityRow);
+    if(AccountClient.active(store)){settingAction(profile,"Изменить пароль",()->AccountUi.password(this));settingAction(profile,"Выйти из аккаунта",()->new AlertDialog.Builder(this).setTitle("Выйти?").setMessage("Для возврата потребуются ID и пароль. Сохранённые точки останутся на телефоне.").setNegativeButton("Отмена",null).setPositiveButton("Выйти",(d,w)->{stopMonitor();AccountClient.call(this,AccountClient.action("logout"),(data,error)->{AccountClient.clear(store);friends.clear();peers.clear();rebuildSettings();AccountUi.choose(this);});}).show());}
     else settingAction(profile,"Регистрация или вход",()->AccountUi.choose(this));
     LinearLayout work=group(body,"Работа приложения");
     monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
@@ -713,14 +713,11 @@ public final class MainActivity extends Activity {
     sizeSlider(controls,"Прозрачность","opacity",20,100);
     LinearLayout more=group(body,"Дополнительно");
     switchRow(more,"Время обновления точек",store.prefs.getBoolean("mapPointUpdateTime",false),0,enabled->{store.prefs.edit().putBoolean("mapPointUpdateTime",enabled).apply();refreshCards();});
-    settingAction(more,"Диагностика",()->Diagnostics.ui(this));
     switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{
       store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);
     });
-    TextView sharing=text("Передавать геопозицию подтверждённым друзьям. После потери связи или выключения передачи последняя точка остаётся серой. Удалить её можно в профиле при наличии связи.",11,muted);
-    sharing.setPadding(0,0,0,dp(10));more.addView(sharing);
     switchRow(more,"Не выключать экран",store.prefs.getBoolean("keepScreenOn",false),0,enabled->{store.prefs.edit().putBoolean("keepScreenOn",enabled).apply();syncScreenAwake();});
-    switchRow(more,"Звуки",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
+    switchRow(more,"Звук",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
@@ -753,7 +750,7 @@ public final class MainActivity extends Activity {
       public void onStartTrackingTouch(SeekBar b){} public void onStopTrackingTouch(SeekBar b){}
     });
   }
-  void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));line.addView(RadarUi.icon(this,"right",muted,14));line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
+  void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));if(title.equals("Размер и прозрачность")){ImageView arrow=RadarUi.icon(this,"right",muted,14);line.addView(arrow);line.setOnClickListener(v->{arrow.animate().rotation(arrow.getRotation()<45?90:0).setDuration(160).start();action.run();});}else line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
   void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}
   void mapLayers(){
     List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;

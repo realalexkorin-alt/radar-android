@@ -1,10 +1,14 @@
 <resources>
  <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+  <item name="android:alertDialogTheme">@style/RadarDialogLight</item>
   <item name="android:fontFamily">sans</item><item name="android:colorAccent">#F7CE46</item>
   <item name="android:windowLightStatusBar">false</item><item name="android:windowActionModeOverlay">true</item>
  </style>
  <style name="AppThemeDark" parent="android:style/Theme.Material.NoActionBar">
+  <item name="android:alertDialogTheme">@style/RadarDialogDark</item>
   <item name="android:fontFamily">sans</item><item name="android:colorAccent">#F7CE46</item>
   <item name="android:windowLightStatusBar">false</item><item name="android:windowActionModeOverlay">true</item>
  </style>
+ <style name="RadarDialogDark" parent="android:style/Theme.Material.Dialog.Alert"><item name="android:windowBackground">@drawable/dialog_dark</item><item name="android:colorAccent">#F7CE46</item><item name="android:windowMinWidthMajor">90%</item><item name="android:windowMinWidthMinor">90%</item></style>
+ <style name="RadarDialogLight" parent="android:style/Theme.Material.Light.Dialog.Alert"><item name="android:windowBackground">@drawable/dialog_light</item><item name="android:colorAccent">#9B7700</item><item name="android:windowMinWidthMajor">90%</item><item name="android:windowMinWidthMinor">90%</item></style>
 </resources>

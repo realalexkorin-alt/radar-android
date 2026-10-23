@@ -37,6 +37,13 @@ final class RadarUi {
     ImageView image = new ImageView(c); image.setImageDrawable(new Icon(name,color));
     image.setLayoutParams(new LinearLayout.LayoutParams(dp(c,size),dp(c,size))); return image;
   }
+  static final class RefreshIcon extends Drawable {
+    final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);android.animation.ValueAnimator spin;float angle;
+    RefreshIcon(Context c){setBounds(0,0,dp(c,22),dp(c,22));paint.setColor(YELLOW);paint.setStrokeWidth(2);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);}
+    void loading(boolean active){if(active){if(spin!=null&&spin.isRunning())return;spin=android.animation.ValueAnimator.ofFloat(0,360);spin.setDuration(1000);spin.setRepeatCount(-1);spin.setInterpolator(new android.view.animation.LinearInterpolator());spin.addUpdateListener(v->{angle=(float)v.getAnimatedValue();invalidateSelf();});spin.start();}else{if(spin!=null){spin.cancel();spin=null;}angle=0;invalidateSelf();}}
+    public void draw(Canvas c){Rect b=getBounds();c.save();c.translate(b.left,b.top);c.scale(b.width()/24f,b.height()/24f);c.rotate(angle,12,12);paint.setStyle(Paint.Style.STROKE);c.drawArc(4,4,20,20,45,285,false,paint);Path arrow=new Path();arrow.moveTo(15.5f,4.5f);arrow.lineTo(19,8);arrow.lineTo(20,3);c.drawPath(arrow,paint);c.restore();}
+    public void setAlpha(int a){paint.setAlpha(a);}public void setColorFilter(ColorFilter f){paint.setColorFilter(f);}public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+  }
   static final class Toggle extends CompoundButton {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     Toggle(Context c) { super(c); setButtonDrawable(null); setClickable(true); setFocusable(true); }
