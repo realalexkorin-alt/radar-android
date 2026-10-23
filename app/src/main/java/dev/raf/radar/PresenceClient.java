@@ -55,7 +55,7 @@ final class PresenceClient {
       if(AccountClient.active(s)){body.put("action","position");accountPublishing=true;AccountClient.call(c,body,(data,error)->accountPublishing=false);return;}
       request("PUT",ENDPOINT,body,token(s));
       s.prefs.edit().putBoolean("presencePublished",true).apply();
-    }catch(Exception ignored){ /* Presence failure never blocks taxi data or the service. */ }
+    }catch(Exception e){Diagnostics.error("presence","sync_failed",e,0,-1,-1,null); }
   }
   static void withdraw(Context c){
     if(AccountClient.active(new Store(c))){offline(c);return;}
@@ -63,7 +63,7 @@ final class PresenceClient {
       Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
       try{request("DELETE",ENDPOINT,new JSONObject().put("revision",revision(s)),secret);
         s.prefs.edit().putBoolean("presencePublished",false).putBoolean("presenceDeletePending",false).apply();
-      }catch(Exception ignored){ /* Server retention bounds a failed withdrawal while offline. */ }
+      }catch(Exception e){Diagnostics.error("presence","withdraw_failed",e,0,-1,-1,null); }
     });
   }
   static void reconcile(Context c){}
@@ -124,7 +124,7 @@ final class PresenceClient {
         for(int i=0;i<Math.min(200,points.length());i++){
           try{Peer p=new Peer(points.getJSONObject(i));if(p.retained()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);}catch(JSONException ignored){ /* A bad record must not discard every user. */ }
         }
-      }catch(Exception ignored){main.post(()->callback.ready(null));return;}
+      }catch(Exception e){Diagnostics.error("friends","refresh_failed",e,0,-1,-1,null);main.post(()->callback.ready(null));return;}
       main.post(()->callback.ready(peers));
     });
   }

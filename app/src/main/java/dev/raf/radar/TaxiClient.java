@@ -64,7 +64,7 @@ public final class TaxiClient {
             .putLong(key + ":lon", Double.doubleToLongBits(p.lon)).apply();
       }
     } catch (ApiException e) { throw e; }
-      catch (Exception ignored) { /* Multipliers still work if zone lookup fails. */ }
+      catch (Exception e) {Diagnostics.error("taxi","zone_lookup_failed",e,0,-1,-1,null);}
     JSONObject table;
     try (InputStream in = context.getAssets().open("tariffs.json")) {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -76,6 +76,7 @@ public final class TaxiClient {
   }
 
   private JSONObject post(String endpoint, JSONObject body, String cookie) throws Exception {
+    long started=android.os.SystemClock.elapsedRealtime();String stage=endpoint.equals(ENDPOINT)?"routestats":"nearestzone";
     HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
     c.setConnectTimeout(15000);
     c.setReadTimeout(15000);
@@ -91,6 +92,7 @@ public final class TaxiClient {
         o.write(body.toString().getBytes(StandardCharsets.UTF_8));
       }
       int status = c.getResponseCode();
+      Diagnostics.record("taxi",stage,status==200?"info":"error",null,status,android.os.SystemClock.elapsedRealtime()-started,-1,null);
       if (status != 200) throw new ApiException(status);
       try (InputStream in = c.getInputStream()) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -103,7 +105,7 @@ public final class TaxiClient {
         }
         return new JSONObject(out.toString("UTF-8"));
       }
-    } finally {
+    } catch(Exception e){if(!(e instanceof ApiException))Diagnostics.error("taxi",stage+"_failed",e,0,android.os.SystemClock.elapsedRealtime()-started,-1,null);throw e;} finally {
       c.disconnect();
     }
   }

@@ -39,7 +39,7 @@ final class Updates {
               .setPositiveButton("Загрузить", (d, w) -> download(a, asset))
               .setNegativeButton("Позже", null).show();
         });
-      } catch (Exception e) { if (!silent) failed(a, "Проверка обновлений не завершена", e); }
+      } catch (Exception e) { Diagnostics.error("updates","check_failed",e,0,-1,-1,null);if (!silent) failed(a, "Проверка обновлений не завершена", e); }
       finally { busy = false; }
     }, "radar-updates").start();
   }
@@ -102,6 +102,7 @@ final class Updates {
         store.prefs.edit().putString("pendingUpdateDigest", digest).apply();
         a.runOnUiThread(() -> { if (alive(a)) {AppSounds.play(a,AppSounds.Event.INSTALL);offerInstall(a);} });
       } catch (Exception e) {
+        Diagnostics.error("updates","operation_failed",e,0,-1,-1,null);
         file.delete(); store.prefs.edit().remove("pendingUpdateDigest").apply();
         failed(a, "Не удалось подготовить обновление", e);
       } finally {
@@ -148,6 +149,7 @@ final class Updates {
         verify(a, file(a), digest);
         a.runOnUiThread(() -> { if (alive(a)) offerInstall(a); });
       } catch (Exception e) {
+        Diagnostics.error("updates","operation_failed",e,0,-1,-1,null);
         store.prefs.edit().remove("pendingUpdateDigest").apply(); file(a).delete();
         failed(a, "Не удалось продолжить установку", e);
         a.runOnUiThread(() -> { if (alive(a) && a instanceof MainActivity) ((MainActivity) a).access.onResume(); });

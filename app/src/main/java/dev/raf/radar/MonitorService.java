@@ -40,7 +40,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onCreate() {
     super.onCreate();
-    if (!Access.monitorReady(this)) { stopSelf(); return; }
+    if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
     store = new Store(this);
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
@@ -65,6 +65,8 @@ public final class MonitorService extends Service implements LocationListener {
             .build();
     startForeground(1, n);
     running = true;
+    store.prefs.edit().putBoolean("diagMonitorExpected",true).putLong("diagMonitorSince",System.currentTimeMillis()).putLong("diagTickAt",System.currentTimeMillis()).apply();
+    Diagnostics.info("monitor","started");
     PresenceClient.start(this);
     IntentFilter requests = new IntentFilter("dev.raf.radar.MANUAL");
     requests.addAction("dev.raf.radar.VIEWING");
@@ -82,7 +84,7 @@ public final class MonitorService extends Service implements LocationListener {
           if (last != null) onLocationChanged(last);
           locations.requestLocationUpdates(provider, 15000, 0, this);
         }
-      } catch (SecurityException ignored) {
+      } catch (SecurityException e) {Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);
       }
     }
     overlay = new Overlay(this, store);
@@ -96,7 +98,7 @@ public final class MonitorService extends Service implements LocationListener {
     if (store == null || !Access.monitorReady(this)) { stopSelf(); return START_NOT_STICKY; }
     if (i != null && "stop".equals(i.getAction())) {
       // A newer queued start wins over an earlier stop from rapid button presses.
-      stopping=true;AppSounds.stopMonitor();stopSelf(id);
+      stopping=true;store.prefs.edit().putBoolean("diagMonitorExpected",false).apply();Diagnostics.info("monitor","user_stop");AppSounds.stopMonitor();stopSelf(id);
       return START_NOT_STICKY;
     }
     stopping=false;
@@ -108,8 +110,9 @@ public final class MonitorService extends Service implements LocationListener {
 
   private void tick() {
     try {
-      if (!Access.monitorReady(this)) { stopSelf(); return; }
+      if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
       long now = System.currentTimeMillis();
+      store.prefs.edit().putLong("diagTickAt",now).apply();
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();
       boolean browsing = store.prefs.getLong("viewingUntil", 0) > now;
@@ -119,7 +122,7 @@ public final class MonitorService extends Service implements LocationListener {
         if (!PollPlanner.needed(q, browsing, widgetPoint)) continue;
         if (q.dynamic) {
           long age = now - store.prefs.getLong("gpsAt", 0);
-          if (age < 0 || age > 120000) continue;
+          if (age < 0 || age > 120000) {Diagnostics.once("gps","own_point_waiting_fix",false);continue;}
           q.lat = Double.longBitsToDouble(store.prefs.getLong("lat", 0));
           q.lon = Double.longBitsToDouble(store.prefs.getLong("lon", 0));
         }
@@ -127,7 +130,7 @@ public final class MonitorService extends Service implements LocationListener {
       }
       long interval=store.prefs.getInt("interval",120)*1000L;
       String id = planner.next(eligible, now, interval, "me", browsing||!widgetPoint.isEmpty()?10000L:interval);
-      if (id == null) return;
+      if (id == null) {Diagnostics.once("monitor","queue_wait",false);return;}
       Point p = null;
       for (Point q : a)
         if (q.id.equals(id)) {
@@ -137,6 +140,8 @@ public final class MonitorService extends Service implements LocationListener {
       if (p == null) return;
       Point request=Point.from(p.json());
       request.tariffs=TariffSelection.requested(p,store.widgetTariffs(),p.id.equals(widgetPoint));
+      store.prefs.edit().putLong("diagAttemptAt",now).apply();
+      Diagnostics.record("taxi","request","info",null,0,-1,-1,p.dynamic?"own":"saved");
       List<Store.Reading> readings = new TaxiClient(this).fetch(request);
       if (p.dynamic) {
         float[] distance = new float[1];
@@ -147,6 +152,7 @@ public final class MonitorService extends Service implements LocationListener {
             Double.longBitsToDouble(store.prefs.getLong("lon", 0)),
             distance);
         if (distance[0] > 250) {
+          Diagnostics.info("taxi","result_discarded_moved");
           planner.expedite("me");
           return;
         }
@@ -164,16 +170,24 @@ public final class MonitorService extends Service implements LocationListener {
       Store.Reading best = null;
       for (Store.Reading r : readings)
         if (current.tariffs.contains(r.tariff) && r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
+      boolean valid=false;for(Store.Reading r:readings)if(r.rub!=null&&r.fresh())valid=true;
+      if(valid){store.prefs.edit().putLong("diagSuccessAt",System.currentTimeMillis()).putLong("diagPauseUntil",0).apply();Diagnostics.info("taxi","surcharge_updated");}
+      else Diagnostics.error("taxi","missing_ruble_surcharge",null,0,-1,-1,p.dynamic?"own":"saved");
       if (best != null) alert(p, best);
       broadcast();
     } catch (TaxiClient.ApiException e) {
       long pause = e.status == 401 || e.status == 403 || e.status == 429 ? 15 * 60_000L : 60_000L;
       planner.backoff(System.currentTimeMillis(), pause);
+      store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
+      Diagnostics.error("taxi","http_backoff",e,e.status,-1,pause/1000,null);
       store.prefs.edit().putString("status", e.getMessage()).apply();
       broadcast();
     } catch (Exception e) {
       failures = Math.min(failures + 1, 5);
-      planner.backoff(System.currentTimeMillis(), Math.min(900000, 30000L * (1L << failures)));
+      long pause=Math.min(900000,30000L*(1L<<failures));
+      planner.backoff(System.currentTimeMillis(),pause);
+      store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
+      Diagnostics.error("taxi","request_failed",e,0,-1,pause/1000,null);
       store.prefs.edit().putString("status", "Нет обновления · повтор позже").apply();
       broadcast();
     }
@@ -224,6 +238,7 @@ public final class MonitorService extends Service implements LocationListener {
   @Override
   public void onLocationChanged(Location l) {
     if (LocationState.accept(store,l)) {
+      Diagnostics.once("gps","fix_accepted",false);
       if (store.readings("me").isEmpty()) planner.expedite("me");
       broadcast();
     }
@@ -233,13 +248,15 @@ public final class MonitorService extends Service implements LocationListener {
   public void onProviderEnabled(String p) {}
 
   @Override
-  public void onProviderDisabled(String p) {}
+  public void onProviderDisabled(String p) {Diagnostics.once("gps","provider_disabled",true);}
 
   @Override
   public void onStatusChanged(String p, int s, Bundle b) {}
 
   @Override
   public void onDestroy() {
+    if(store!=null&&store.prefs.getBoolean("diagMonitorExpected",false))Diagnostics.error("monitor","unexpected_stop",null,0,-1,-1,null);
+    else Diagnostics.info("monitor","stopped");
     running = false;cueHandler.removeCallbacksAndMessages(null);AppSounds.stopMonitor();
     PresenceClient.stop(this);
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
