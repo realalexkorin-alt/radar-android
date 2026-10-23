@@ -28,7 +28,7 @@ public final class Store {
   }
 
   public Reading widgetReading() {
-    if (!LocationState.fresh(this)) return null;
+    if (!LocationState.fresh(this)||!LocationState.readingCurrent(this)) return null;
     for (Reading r : readings("me")) if ("econom".equals(r.tariff) && r.rub != null && r.fresh()) return r;
     return null;
   }
@@ -122,7 +122,9 @@ public final class Store {
                 .put("status", r.status));
     } catch (Exception ignored) {
     }
-    prefs.edit().putString("read:" + id, j.toString()).putLong("readSuccess:"+id,successful).apply();
+    android.content.SharedPreferences.Editor edit=prefs.edit().putString("read:" + id, j.toString()).putLong("readSuccess:"+id,successful);
+    if("me".equals(id)&&a.stream().anyMatch(r->"econom".equals(r.tariff)&&r.rub!=null&&r.time>0))edit.putLong("readQueryLat",prefs.getLong("lat",0)).putLong("readQueryLon",prefs.getLong("lon",0));
+    edit.apply();
   }
 
   public long lastSuccessfulReading(String id) {

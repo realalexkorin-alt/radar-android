@@ -7,6 +7,7 @@ public final class PollPlanner {
   private final Map<String, Long> due = new HashMap<>();
   private long nextGlobal = 0;
   private int cursor = 0;
+  private boolean lastWasPriority;
 
   public synchronized String next(List<String> eligible, long now, long interval) {
     return next(eligible, now, interval, null);
@@ -19,18 +20,19 @@ public final class PollPlanner {
   public synchronized String next(List<String> eligible,long now,long interval,String priority,long priorityInterval) {
     if (now < nextGlobal || eligible.isEmpty()) return null;
     long gap=priorityInterval<30000?10000:15000;
-    if (priority != null && eligible.contains(priority)
+    boolean otherDue=false;for(String id:eligible)if(!id.equals(priority)&&now>=due.getOrDefault(id,0L)){otherDue=true;break;}
+    if ((!lastWasPriority||!otherDue) && priority != null && eligible.contains(priority)
         && now >= due.getOrDefault(priority, 0L)) {
       due.put(priority, now + Math.max(10000, priorityInterval));
       nextGlobal = now + gap;
-      return priority;
+      lastWasPriority=true;return priority;
     }
     for (int n = 0; n < eligible.size(); n++) {
       String id = eligible.get(Math.floorMod(cursor++, eligible.size()));
-      if (now >= due.getOrDefault(id, 0L)) {
+      if (now >= due.getOrDefault(id, 0L) && !(otherDue&&lastWasPriority&&id.equals(priority))) {
         due.put(id, now + Math.max(30000, interval));
         nextGlobal = now + gap;
-        return id;
+        lastWasPriority=id.equals(priority);return id;
       }
     }
     return null;

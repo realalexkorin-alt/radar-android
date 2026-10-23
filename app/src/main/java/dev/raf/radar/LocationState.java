@@ -10,6 +10,11 @@ final class LocationState {
     long age=System.currentTimeMillis()-s.prefs.getLong("gpsAt",0);
     return s.prefs.getLong("gpsAt",0)>0 && age>=0 && age<120000;
   }
+  static boolean readingCurrent(Store s){
+    if(!s.prefs.contains("readQueryLat"))return false;float[] distance=new float[1];
+    Location.distanceBetween(Double.longBitsToDouble(s.prefs.getLong("readQueryLat",0)),Double.longBitsToDouble(s.prefs.getLong("readQueryLon",0)),Double.longBitsToDouble(s.prefs.getLong("lat",0)),Double.longBitsToDouble(s.prefs.getLong("lon",0)),distance);
+    return distance[0]<=250;
+  }
   static synchronized boolean accept(Store s, Location l) {
     long nanos=SystemClock.elapsedRealtimeNanos()-l.getElapsedRealtimeNanos();
     if(nanos<0 || nanos>=120_000_000_000L || !l.hasAccuracy() || l.getAccuracy()>500 || l.getAccuracy()<0
@@ -29,6 +34,7 @@ final class LocationState {
     }
     s.prefs.edit().putLong("lat",Double.doubleToLongBits(l.getLatitude()))
         .putLong("lon",Double.doubleToLongBits(l.getLongitude())).putLong("gpsAt",at).putFloat("accuracy",l.getAccuracy()).apply();
+    if(s.prefs.contains("readQueryLat")&&!readingCurrent(s)&&!s.readings("me").isEmpty())s.readings("me",Collections.emptyList());
     return true;
   }
 }

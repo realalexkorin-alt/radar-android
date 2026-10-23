@@ -6,6 +6,8 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+  @Test public void fastMainDoesNotStarveSavedPoints(){PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","a","b");assertEquals("me",p.next(ids,100000,120000,"me",10000));assertEquals("a",p.next(ids,110000,120000,"me",10000));assertEquals("me",p.next(ids,120000,120000,"me",10000));assertEquals("b",p.next(ids,130000,120000,"me",10000));assertEquals("me",p.next(ids,140000,120000,"me",10000));}
+
   @Test public void mainWidgetTenSecondTargetPreservesBackoffAndSavedInterval(){
     PollPlanner p=new PollPlanner();List<String> main=Collections.singletonList("me");
     assertEquals("me",p.next(main,100000,120000,"me",10000));
