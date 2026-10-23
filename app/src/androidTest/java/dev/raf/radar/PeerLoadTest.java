@@ -7,7 +7,7 @@ public class PeerLoadTest {
   PresenceClient.Peer p=new PresenceClient.Peer(new JSONObject().put("id","fixture-peer").put("name","Друг").put("lat",55.16).put("lon",61.4).put("observedAt",System.currentTimeMillis()-3600000).put("lastSeen",System.currentTimeMillis()-180000).put("offline",true));
   PresenceClient.cache(s,Collections.singletonList(p));assertEquals(1,PresenceClient.cached(new Store(c)).size());ScreenTest.grantAccess();
   try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
-   scenario.onActivity(a->{if(a.nameDialog!=null)a.nameDialog.dismiss();assertEquals("Друг",a.friends.get(0).name);a.directoryPending=true;a.showFriends();a.directoryError=true;a.directoryPending=false;a.renderFriends();assertEquals(2,a.friendsRows.getChildCount());assertTrue(a.friends.get(0).locationAge().contains("1 ч"));assertTrue(a.friendsDialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).isEnabled());});
+   scenario.onActivity(a->{if(a.nameDialog!=null)a.nameDialog.dismiss();assertEquals("Друг",a.friends.get(0).name);a.directoryPending=true;a.showFriends();a.directoryError=true;a.directoryPending=false;a.nextDirectory=Long.MAX_VALUE;a.renderFriends();assertEquals(2,a.friendsRows.getChildCount());assertTrue(a.friends.get(0).locationAge().contains("1 ч"));assertTrue(a.friendsDialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).isEnabled());});
    ScreenTest.capture("friends-cached-offline-refresh");scenario.recreate();scenario.onActivity(a->assertEquals("Друг",a.friends.get(0).name));
   }
  }
