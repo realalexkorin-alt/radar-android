@@ -1,0 +1,64 @@
+name: Accounts registration
+on:
+  push:
+    branches: ['codex/accounts']
+  workflow_dispatch:
+concurrency:
+  group: radar-accounts-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  logo:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci --ignore-scripts && node --test test/accounts.test.js
+        working-directory: backend
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew && ./gradlew :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest --tests dev.raf.radar.ReadingAgeTest
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          profile: pixel_7
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell pm grant dev.raf.radar android.permission.ACCESS_COARSE_LOCATION
+            adb shell pm grant dev.raf.radar android.permission.ACCESS_FINE_LOCATION
+            if [ ${{ matrix.api }} -ge 33 ]; then adb shell pm grant dev.raf.radar android.permission.POST_NOTIFICATIONS; fi
+            adb shell appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow
+            adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
+            adb shell am force-stop com.android.launcher3 || true
+            adb shell am instrument -w -r -e class dev.raf.radar.AccountsLoginTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee logo-smoke.txt
+            adb pull /sdcard/Pictures/RadarSmoke ./screens || true
+            grep -q 'OK (2 tests)' logo-smoke.txt
+      - run: cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accounts-${{ matrix.api }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            logo-smoke.txt
+            screens/
+            apksigner.jar

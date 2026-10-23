@@ -30,7 +30,7 @@ final class PresenceClient {
   private static void syncDirectory(Context c){
     long now=SystemClock.elapsedRealtime();if(syncing||now<nextDirectorySync)return;
     syncing=true;nextDirectorySync=now+30000;
-    directory(result->{syncing=false;if(result!=null){cache(new Store(c),result);c.sendBroadcast(new Intent("dev.raf.radar.PEERS").setPackage(c.getPackageName()));}});
+    directory(c,result->{syncing=false;if(result!=null){cache(new Store(c),result);c.sendBroadcast(new Intent("dev.raf.radar.PEERS").setPackage(c.getPackageName()));}});
   }
   static void screen(Context c,boolean visible){screenVisible=visible;if(visible)start(c);else if(!MonitorService.running)stop(c);}
   static synchronized void stop(Context c){
@@ -43,7 +43,7 @@ final class PresenceClient {
     else{new Store(c).prefs.edit().putBoolean("presenceDeletePending",false).apply();nextPublish=0;worker.execute(()->publish(c.getApplicationContext()));}
   }
   private static void publish(Context c){
-    Store s=new Store(c);long now=SystemClock.elapsedRealtime();
+    Store s=new Store(c);if(!AccountClient.active(s))return;long now=SystemClock.elapsedRealtime();
     if(s.prefs.getBoolean("presenceDeletePending",false)){if(now>=nextPublish){nextPublish=now+30000;withdraw(c);}return;}
     if((!MonitorService.running&&!screenVisible) || !s.prefs.getBoolean("shareLocation",false) || !Access.location(c) || !LocationState.fresh(s))return;
     if(s.prefs.getString("profileName","").isEmpty())return;
@@ -52,11 +52,13 @@ final class PresenceClient {
       JSONObject body=new JSONObject().put("revision",revision(s)).put("lat",Double.longBitsToDouble(s.prefs.getLong("lat",0)))
           .put("lon",Double.longBitsToDouble(s.prefs.getLong("lon",0))).put("accuracy",s.prefs.getFloat("accuracy",500))
           .put("observedAt",s.prefs.getLong("gpsAt",0)).put("name",s.prefs.getString("profileName",""));
+      if(AccountClient.active(s)){body.put("action","position");AccountClient.call(c,body,(data,error)->{});return;}
       request("PUT",ENDPOINT,body,token(s));
       s.prefs.edit().putBoolean("presencePublished",true).apply();
     }catch(Exception ignored){ /* Presence failure never blocks taxi data or the service. */ }
   }
   static void withdraw(Context c){
+    if(AccountClient.active(new Store(c))){offline(c);return;}
     Context app=c.getApplicationContext();new Store(app).prefs.edit().putBoolean("presenceDeletePending",true).apply();worker.execute(()->{
       Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
       try{request("DELETE",ENDPOINT,new JSONObject().put("revision",revision(s)),secret);
@@ -64,22 +66,18 @@ final class PresenceClient {
       }catch(Exception ignored){ /* Server retention bounds a failed withdrawal while offline. */ }
     });
   }
-  static void reconcile(Context c){
-    Store s=new Store(c);
-    if(!s.prefs.getBoolean("shareLocation",false))withdraw(c);
-    token(s);if(!s.prefs.getString("profileName","").isEmpty())profileChanged(c);
-    if(!s.prefs.getBoolean("membersV2",false)){worker.execute(()->{try{request("DELETE",LEGACY,new JSONObject().put("revision",revision(s)),token(s));s.prefs.edit().putBoolean("membersV2",true).apply();}catch(Exception ignored){}});}
-  }
+  static void reconcile(Context c){}
   static void profileChanged(Context c){
     Context app=c.getApplicationContext();worker.execute(()->{Store s=new Store(app);try{request("POST",ENDPOINT,new JSONObject().put("revision",revision(s)).put("name",s.prefs.getString("profileName","")),token(s));}catch(Exception ignored){}});
     nextPublish=0;
   }
   static void offline(Context c){
+    if(AccountClient.active(new Store(c))){AccountClient.call(c,AccountClient.action("offline"),(data,error)->{});return;}
     Context app=c.getApplicationContext();worker.execute(()->{Store s=new Store(app);String secret=s.prefs.getString("presenceToken",null);if(secret==null)return;
       try{request("POST",ENDPOINT,new JSONObject().put("revision",revision(s)).put("offline",true),secret);}catch(Exception ignored){}
     });
   }
-  static void directory(Result callback){queryUrl(ENDPOINT+"?directory=1",callback);}
+  static void directory(Context c,Result callback){if(AccountClient.active(new Store(c))){AccountClient.refresh(c,callback);return;}callback.ready(Collections.emptyList());}
   private static long revision(Store s){
     long revision=Math.max(System.currentTimeMillis(),s.prefs.getLong("presenceRevision",0)+1);
     s.prefs.edit().putLong("presenceRevision",revision).commit();return revision;
@@ -91,17 +89,18 @@ final class PresenceClient {
     s.prefs.edit().putString("presenceToken",token).commit();return token;
   }
   static String ownId(Store s){
+    if(AccountClient.active(s))return String.valueOf(s.prefs.getInt("accountId",0));
     String token=token(s);
     try{StringBuilder result=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)))result.append(String.format(Locale.US,"%02x",b&255));return result.toString();}
     catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}
   }
   static final class Peer {
-    final String id,name;final double lat,lon;final long observedAt,lastSeen;final boolean offline;
-    Peer(JSONObject p)throws JSONException{id=p.getString("id");lat=p.getDouble("lat");lon=p.getDouble("lon");observedAt=p.getLong("observedAt");name=p.optString("name","Пользователь "+id.substring(0,6));lastSeen=p.optLong("lastSeen",observedAt);offline=p.optBoolean("offline",false);}
+    final String id,name;final double lat,lon;final long observedAt,lastSeen;final boolean offline,hasLocation,privateAccount;
+    Peer(JSONObject p)throws JSONException{id=p.getString("id");hasLocation=p.optBoolean("hasLocation",p.has("lat")&&p.has("lon"));privateAccount=p.optBoolean("private",false);lat=p.optDouble("lat",0);lon=p.optDouble("lon",0);observedAt=p.optLong("observedAt",0);name=p.optString("name","Пользователь "+id.substring(0,Math.min(6,id.length())));lastSeen=p.optLong("lastSeen",observedAt);offline=p.optBoolean("offline",false);}
     boolean fresh(){long age=System.currentTimeMillis()-lastSeen;return !offline&&age>=-5000&&age<120000;}
-    boolean retained(){long age=System.currentTimeMillis()-lastSeen;return age>=-5000&&age<7L*86400000;}
+    boolean retained(){if(privateAccount)return true;long age=System.currentTimeMillis()-lastSeen;return age>=-5000&&age<7L*86400000;}
     String locationAge(){return ReadingAge.label(observedAt,System.currentTimeMillis());}
-    JSONObject json()throws JSONException{return new JSONObject().put("id",id).put("name",name).put("lat",lat).put("lon",lon).put("observedAt",observedAt).put("lastSeen",lastSeen).put("offline",offline);}
+    JSONObject json()throws JSONException{return new JSONObject().put("id",id).put("name",name).put("lat",lat).put("lon",lon).put("observedAt",observedAt).put("lastSeen",lastSeen).put("offline",offline).put("hasLocation",hasLocation).put("private",privateAccount);}
     String status(){if(fresh())return "В сети";long age=Math.max(0,(System.currentTimeMillis()-lastSeen)/1000);String unit="с";if(age>=86400){age/=86400;unit="д";}else if(age>=3600){age/=3600;unit="ч";}else if(age>=60){age/=60;unit="м";}return "Был в сети "+age+" "+unit+" назад";}
   }
   static void cache(Store s,List<Peer> peers){
@@ -114,8 +113,9 @@ final class PresenceClient {
     }catch(JSONException ignored){}return peers;
   }
   interface Result{void ready(List<Peer> peers);}
-  static void query(double west,double south,double east,double north,Result callback){
-    queryUrl(ENDPOINT+String.format(Locale.US,"?west=%.6f&south=%.6f&east=%.6f&north=%.6f",west,south,east,north),callback);
+  static void query(Context c,double west,double south,double east,double north,Result callback){
+    if(AccountClient.active(new Store(c))){AccountClient.refresh(c,callback);return;}
+    callback.ready(Collections.emptyList());
   }
   private static void queryUrl(String url,Result callback){
     readers.execute(()->{List<Peer> peers=new ArrayList<>();

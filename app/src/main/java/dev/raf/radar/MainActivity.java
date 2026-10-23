@@ -22,7 +22,7 @@ public final class MainActivity extends Activity {
   MapGps mapGps;
   List<PresenceClient.Peer> peers=new ArrayList<>();
   Bitmap peerBitmap, nearbyPeerBitmap, offlinePeerBitmap;
-  AlertDialog nameDialog,friendsDialog;LinearLayout friendsRows;List<PresenceClient.Peer> friends=new ArrayList<>();boolean directoryError;long nextDirectory;boolean directoryPending;
+  AlertDialog nameDialog,friendsDialog,accountDialog;LinearLayout friendsRows;List<PresenceClient.Peer> friends=new ArrayList<>();boolean directoryError;long nextDirectory;boolean directoryPending;
   long nextPresenceQuery;int presenceEpoch;boolean presenceQuery;
 
   final StartupSound startupSound = new StartupSound();
@@ -104,7 +104,7 @@ public final class MainActivity extends Activity {
       LatLng ownLocation=pointLocation(store.widgetPoint());
       PointF ownScreen=ownLocation==null?null:map.getProjection().toScreenLocation(ownLocation);
       for(PresenceClient.Peer peer:peers){
-        if(!peer.retained()||peer.id.equals(own))continue;
+        if(!peer.hasLocation||!peer.retained()||peer.id.equals(own))continue;
         PointF xy=map.getProjection().toScreenLocation(new LatLng(peer.lat,peer.lon));
         // Keep the true coordinate; a wider purple ring remains visible around our gold dot.
         Bitmap peerIcon=!peer.fresh()?offlinePeerBitmap:ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
@@ -297,7 +297,7 @@ public final class MainActivity extends Activity {
     if(!resumed||currentTab!=0||map==null||presenceQuery||SystemClock.elapsedRealtime()<nextPresenceQuery)return;
     nextPresenceQuery=SystemClock.elapsedRealtime()+30000;presenceQuery=true;int epoch=presenceEpoch;
     org.maplibre.android.geometry.LatLngBounds b=map.getProjection().getVisibleRegion().latLngBounds;
-    PresenceClient.query(b.getLonWest(),b.getLatSouth(),b.getLonEast(),b.getLatNorth(),result->{
+    PresenceClient.query(this,b.getLonWest(),b.getLatSouth(),b.getLonEast(),b.getLatNorth(),result->{
       presenceQuery=false;if(resumed&&currentTab==0&&presenceEpoch==epoch){if(result!=null)peers=result;pointOverlay.invalidate();}
     });
   }
@@ -314,6 +314,7 @@ public final class MainActivity extends Activity {
     nameDialog=builder.create();nameDialog.setOnShowListener(v->nameDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(b->{
       String name=input.getText().toString().replaceAll("[\\p{Cc}\\p{Cf}]","").trim().replaceAll("\\s+"," ");
       if(name.isEmpty()){input.setError("Введите имя");return;}
+      if(AccountClient.active(store)){org.json.JSONObject body=AccountClient.action("name");try{body.put("name",name);}catch(org.json.JSONException e){throw new IllegalStateException(e);}nameDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);AccountClient.call(this,body,(data,error)->{if(isDestroyed())return;nameDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);if(error!=null){input.setError(error);return;}pointOverlay.invalidate();nameDialog.dismiss();rebuildSettings();});return;}
       store.prefs.edit().putString("profileName",name).apply();PresenceClient.profileChanged(this);pointOverlay.invalidate();nameDialog.dismiss();if(currentTab==2)rebuildSettings();
     }));nameDialog.show();
   }
@@ -328,11 +329,11 @@ public final class MainActivity extends Activity {
   void refreshFriends(boolean force){
     if(!resumed||friendsDialog==null||!friendsDialog.isShowing()||directoryPending)return;
     renderFriends();if(!force&&SystemClock.elapsedRealtime()<nextDirectory)return;nextDirectory=SystemClock.elapsedRealtime()+30000;directoryPending=true;renderFriends();
-    PresenceClient.directory(result->{directoryPending=false;if(!isDestroyed()){directoryError=result==null;if(result!=null){friends=result;PresenceClient.cache(store,result);peers=new ArrayList<>(result);pointOverlay.invalidate();}renderFriends();}});
+    PresenceClient.directory(this,result->{directoryPending=false;if(!isDestroyed()){directoryError=result==null;if(result!=null){friends=result;PresenceClient.cache(store,result);peers=new ArrayList<>(result);pointOverlay.invalidate();}renderFriends();}});
   }
   void renderFriends(){
     if(friendsRows==null)return;if(friendsDialog!=null&&friendsDialog.isShowing()){android.widget.Button refresh=friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL);refresh.setEnabled(!directoryPending);refresh.setText(directoryPending?"↻ Обновление…":"↻ Обновить");}friendsRows.removeAllViews();String own=PresenceClient.ownId(store);int count=0;
-    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name,14,fg));details.addView(text(p.status(),11,muted));details.addView(text(p.locationAge(),10,0xB3FFFFFF));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnClickListener(v->{if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
+    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name,14,fg));details.addView(text(p.status(),11,muted));details.addView(text(p.locationAge(),10,0xB3FFFFFF));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnClickListener(v->{if(!p.hasLocation){toast("Пользователь ещё не передавал координаты");return;}if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
     if(directoryError){TextView retry=text("Не удалось обновить · повторить",12,muted);pad(retry,20,12);retry.setOnClickListener(v->refreshFriends(true));friendsRows.addView(retry);}
     if(count==0&&!directoryError){TextView empty=text(directoryPending?"Загрузка…":"Пока нет пользователей с открытым местоположением",13,muted);pad(empty,20,20);friendsRows.addView(empty);}
   }
@@ -690,7 +691,9 @@ public final class MainActivity extends Activity {
     LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
     LinearLayout profile=group(body,"Профиль");
     settingAction(profile,"Имя: "+store.prefs.getString("profileName","Не указано"),()->editName(false));
-    TextView identity=text("ID: "+PresenceClient.ownId(store),10,muted);identity.setTextIsSelectable(true);profile.addView(identity);
+    TextView identity=text("ID: "+(AccountClient.active(store)?PresenceClient.ownId(store):"Требуется регистрация"),12,muted);identity.setTextIsSelectable(true);profile.addView(identity);
+    if(AccountClient.active(store)){settingAction(profile,"Изменить пароль",()->AccountUi.password(this));settingAction(profile,"Выйти из аккаунта",()->new AlertDialog.Builder(this).setTitle("Выйти?").setMessage("Для возврата потребуются ID и пароль. Сохранённые точки останутся на телефоне.").setNegativeButton("Отмена",null).setPositiveButton("Выйти",(d,w)->{stopMonitor();AccountClient.call(this,AccountClient.action("logout"),(data,error)->{AccountClient.clear(store);friends.clear();peers.clear();rebuildSettings();AccountUi.choose(this);});}).show());}
+    else settingAction(profile,"Регистрация или вход",()->AccountUi.choose(this));
     LinearLayout work=group(body,"Работа приложения");
     monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
     overlayToggle=switchRow(work,"Виджет поверх приложений",store.prefs.getBoolean("overlay",false)&&Settings.canDrawOverlays(this),0,enabled->{
@@ -772,7 +775,7 @@ public final class MainActivity extends Activity {
     super.onResume();
     mapView.onResume();
     resumed = true;syncBrandLogo();syncScreenAwake();PresenceClient.reconcile(this);PresenceClient.screen(this,true);
-    if(store.prefs.getString("profileName","").isEmpty())handler.post(()->editName(true));
+    if(!AccountClient.active(store))handler.post(()->AccountUi.choose(this));else if(store.prefs.getString("profileName","").isEmpty())handler.post(()->editName(true));
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
       startupSoundPending = false;
