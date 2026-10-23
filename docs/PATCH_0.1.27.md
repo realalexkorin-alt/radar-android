@@ -1,10 +1,7 @@
-# 0.1.27-alpha — accounts
+# 0.1.27-alpha — accounts and private account storage
 
-- Explicit Register / Login forms. Immutable chosen free ID 1–999 or random free three-digit ID, password and changeable nickname. Server serializes ID allocation.
-- Salted scrypt passwords, random opaque sessions hashed on server; session encrypted with Android Keystore on device. Passwords are not saved on device.
-- One-time 16-digit recovery code displayed for copying/screenshot. Recovery rotates the code and revokes old sessions; password changes require the old password and confirmation, revoke other sessions.
-- Auth rate limiting by source and ID; server-side ownership/friendship checks. No database secrets in APK.
-- Existing local saved points/preferences preserved. Prove old installation capability to migrate last shared point into private account; remove migrated public coordinate.
-- Account positions are private, retained indefinitely, and readable only by accepted friends. Public legacy clients remain on their old endpoint/retention policy.
-- Friend management UI follows in a separate patch; new accounts start with an empty friend list.
-- Focused validation: auth contract tests, native login/recovery form and encrypted session tests; live API account lifecycle verification before release.
+Explicit registration/login: chosen free ID 1–999 or random free three-digit ID. Immutable ID, changeable name, 8–128 character password. Salted scrypt password/recovery hashes, server rate limits by IP/ID, opaque hashed expiring sessions encrypted with Android Keystore on device. No stored passwords or DB secrets in APK.
+
+16-digit one-time recovery code shown for copying/screenshot; recovery rotates it and revokes old sessions. Password change requires old/new/confirmation and revokes other sessions. Local points/preferences preserved. Old installation capability migrates last shared point to private account and removes migrated public coordinates. Private positions persist indefinitely; only accepted friends can read. Friend management UI follows in next patch.
+
+Validation: 3 backend auth contract tests passed; live production API verified allocation/collision/login, recipient-only friendship acceptance, private/offline coordinate retention, password session revocation, one-time recovery rotation and friend removal; synthetic accounts deleted afterward. Focused workflow 39937641934 passed assembly/lint and 2 API-35 tests for encrypted session persistence and explicit registration/login/recovery UI. Source 3da3229f9c3b3bf4db3911d5c299966febfcaf0b. Server deployment dpl_GZX3y7DaPxTpaGMwbX8jjcFj61E2 READY, additive endpoint only; legacy API unchanged.
