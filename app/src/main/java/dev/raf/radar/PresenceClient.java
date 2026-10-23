@@ -15,6 +15,7 @@ final class PresenceClient {
   static final String LEGACY="https://radar-presence.vercel.app/api/presence";
   static final String ENDPOINT="https://radar-presence.vercel.app/api/members";
   private static final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
+  private static final ExecutorService readers=Executors.newSingleThreadExecutor();
   private static ScheduledFuture<?> publishing;
   private static volatile long nextPublish;
   private static final Handler main=new Handler(Looper.getMainLooper());
@@ -89,18 +90,29 @@ final class PresenceClient {
     Peer(JSONObject p)throws JSONException{id=p.getString("id");lat=p.getDouble("lat");lon=p.getDouble("lon");observedAt=p.getLong("observedAt");name=p.optString("name","Пользователь "+id.substring(0,6));lastSeen=p.optLong("lastSeen",observedAt);offline=p.optBoolean("offline",false);}
     boolean fresh(){long age=System.currentTimeMillis()-lastSeen;return !offline&&age>=-5000&&age<120000;}
     boolean retained(){long age=System.currentTimeMillis()-lastSeen;return age>=-5000&&age<7L*86400000;}
+    String locationAge(){return ReadingAge.label(observedAt,System.currentTimeMillis());}
+    JSONObject json()throws JSONException{return new JSONObject().put("id",id).put("name",name).put("lat",lat).put("lon",lon).put("observedAt",observedAt).put("lastSeen",lastSeen).put("offline",offline);}
     String status(){if(fresh())return "В сети";long age=Math.max(0,(System.currentTimeMillis()-lastSeen)/1000);String unit="с";if(age>=86400){age/=86400;unit="д";}else if(age>=3600){age/=3600;unit="ч";}else if(age>=60){age/=60;unit="м";}return "Был в сети "+age+" "+unit+" назад";}
+  }
+  static void cache(Store s,List<Peer> peers){
+    JSONArray array=new JSONArray();for(Peer p:peers)try{array.put(p.json());}catch(JSONException ignored){}
+    s.prefs.edit().putString("peerCache",array.toString()).apply();
+  }
+  static List<Peer> cached(Store s){
+    List<Peer> peers=new ArrayList<>();try{JSONArray array=new JSONArray(s.prefs.getString("peerCache","[]"));
+      for(int i=0;i<Math.min(200,array.length());i++)try{Peer p=new Peer(array.getJSONObject(i));if(p.retained())peers.add(p);}catch(JSONException ignored){}
+    }catch(JSONException ignored){}return peers;
   }
   interface Result{void ready(List<Peer> peers);}
   static void query(double west,double south,double east,double north,Result callback){
     queryUrl(ENDPOINT+String.format(Locale.US,"?west=%.6f&south=%.6f&east=%.6f&north=%.6f",west,south,east,north),callback);
   }
   private static void queryUrl(String url,Result callback){
-    worker.execute(()->{List<Peer> peers=new ArrayList<>();
+    readers.execute(()->{List<Peer> peers=new ArrayList<>();
       try{
         JSONArray points=new JSONObject(request("GET",url,null,null)).getJSONArray("points");
         for(int i=0;i<Math.min(200,points.length());i++){
-          Peer p=new Peer(points.getJSONObject(i));if(p.retained()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);
+          try{Peer p=new Peer(points.getJSONObject(i));if(p.retained()&&Double.isFinite(p.lat)&&Double.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180)peers.add(p);}catch(JSONException ignored){ /* A bad record must not discard every user. */ }
         }
       }catch(Exception ignored){main.post(()->callback.ready(null));return;}
       main.post(()->callback.ready(peers));
@@ -108,7 +120,7 @@ final class PresenceClient {
   }
   static String request(String method,String url,JSONObject body,String secret)throws Exception{
     HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
-    connection.setConnectTimeout(8000);connection.setReadTimeout(8000);connection.setInstanceFollowRedirects(false);connection.setRequestMethod(method);
+    connection.setConnectTimeout(15000);connection.setReadTimeout(25000);connection.setInstanceFollowRedirects(false);connection.setRequestMethod(method);
     try{
       if(secret!=null)connection.setRequestProperty("Authorization","Bearer "+secret);
       if(body!=null){connection.setRequestProperty("Content-Type","application/json");connection.setDoOutput(true);

@@ -49,7 +49,7 @@ public final class MainActivity extends Activity {
   @Override public void onCreate(Bundle saved) {
     setTheme(R.style.AppThemeDark);
     super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
-    mapGps=new MapGps(this,store,this::refreshMarkers);
+    mapGps=new MapGps(this,store,this::refreshMarkers);friends=PresenceClient.cached(store);peers=new ArrayList<>(friends);
     startupSoundPending = saved == null;
     if(saved!=null){startAfterAccess=saved.getBoolean("startAfterAccess");pendingOverlay=saved.getBoolean("pendingOverlay");}
     currentTab=saved==null?0:saved.getInt("tab",0);
@@ -109,7 +109,7 @@ public final class MainActivity extends Activity {
         // Keep the true coordinate; a wider purple ring remains visible around our gold dot.
         Bitmap peerIcon=!peer.fresh()?offlinePeerBitmap:ownScreen!=null&&Math.hypot(xy.x-ownScreen.x,xy.y-ownScreen.y)<dp(18)?nearbyPeerBitmap:peerBitmap;
         c.drawBitmap(peerIcon,xy.x-peerIcon.getWidth()/2f,xy.y-peerIcon.getHeight()/2f,null);
-        drawPersonLabel(c,xy,peer.name,peer.fresh()?null:peer.status());
+        drawPersonLabel(c,xy,peer.name,(peer.fresh()?"":peer.status()+" · ")+peer.locationAge());
       }
       for(Point p:store.points()){
         LatLng location=pointLocation(p);if(location==null)continue;
@@ -323,16 +323,16 @@ public final class MainActivity extends Activity {
   }
   void showFriends(){
     friendsRows=column();ScrollView scroll=new ScrollView(this);scroll.addView(friendsRows);
-    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setPositiveButton("Закрыть",null).create();friendsDialog.show();renderFriends();refreshFriends(true);
+    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setNeutralButton("Обновить",null).setPositiveButton("Закрыть",null).create();friendsDialog.show();friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->refreshFriends(true));renderFriends();refreshFriends(true);
   }
   void refreshFriends(boolean force){
     if(!resumed||friendsDialog==null||!friendsDialog.isShowing()||directoryPending)return;
-    renderFriends();if(!force&&SystemClock.elapsedRealtime()<nextDirectory)return;nextDirectory=SystemClock.elapsedRealtime()+30000;directoryPending=true;
-    PresenceClient.directory(result->{directoryPending=false;if(!isDestroyed()){directoryError=result==null;if(result!=null)friends=result;renderFriends();}});
+    renderFriends();if(!force&&SystemClock.elapsedRealtime()<nextDirectory)return;nextDirectory=SystemClock.elapsedRealtime()+30000;directoryPending=true;renderFriends();
+    PresenceClient.directory(result->{directoryPending=false;if(!isDestroyed()){directoryError=result==null;if(result!=null){friends=result;PresenceClient.cache(store,result);peers=new ArrayList<>(result);pointOverlay.invalidate();}renderFriends();}});
   }
   void renderFriends(){
-    if(friendsRows==null)return;friendsRows.removeAllViews();String own=PresenceClient.ownId(store);int count=0;
-    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name,14,fg));details.addView(text(p.status(),11,muted));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnClickListener(v->{if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
+    if(friendsRows==null)return;if(friendsDialog!=null&&friendsDialog.isShowing()){android.widget.Button refresh=friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL);refresh.setEnabled(!directoryPending);refresh.setText(directoryPending?"↻ Обновление…":"↻ Обновить");}friendsRows.removeAllViews();String own=PresenceClient.ownId(store);int count=0;
+    for(PresenceClient.Peer p:friends){if(p.id.equals(own)||!p.retained())continue;count++;LinearLayout line=row();line.setPadding(dp(20),dp(12),dp(20),dp(12));LinearLayout details=column();details.addView(text(p.name,14,fg));details.addView(text(p.status(),11,muted));details.addView(text(p.locationAge(),10,0xB3FFFFFF));line.addView(details,new LinearLayout.LayoutParams(0,-2,1));View dot=new View(this);dot.setBackground(shape(p.fresh()?0xFFAB45FF:0xFF92969F,12));line.addView(dot,new LinearLayout.LayoutParams(dp(10),dp(10)));line.setContentDescription(p.name+", "+p.status());line.setFocusable(true);line.setOnClickListener(v->{if(map!=null){showTab(0);map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(p.lat,p.lon),15));peers=new ArrayList<>(friends);pointOverlay.invalidate();}friendsDialog.dismiss();});friendsRows.addView(line);}
     if(directoryError){TextView retry=text("Не удалось обновить · повторить",12,muted);pad(retry,20,12);retry.setOnClickListener(v->refreshFriends(true));friendsRows.addView(retry);}
     if(count==0&&!directoryError){TextView empty=text(directoryPending?"Загрузка…":"Пока нет пользователей с открытым местоположением",13,muted);pad(empty,20,20);friendsRows.addView(empty);}
   }
@@ -785,7 +785,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     resumed = false;syncBrandLogo();syncScreenAwake();
-    presenceEpoch++;mapGps.stop();peers.clear();
+    presenceEpoch++;mapGps.stop();
     store.prefs.edit().putLong("viewingUntil", 0).apply();
     handler.removeCallbacks(refreshLoop);
     mapView.onPause();
