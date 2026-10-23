@@ -12,7 +12,7 @@ final class AccountClient {
  static synchronized void save(Store s,JSONObject data)throws Exception{
   JSONObject u=data.optJSONObject("user");if(u==null)return;SharedPreferences.Editor edit=s.prefs.edit();int id=u.getInt("id");if(id!=s.prefs.getInt("accountId",0))edit.remove("peerCache").remove("accountState");
   if(data.has("session")){Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,key());String encrypted=Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP)+":"+Base64.encodeToString(cipher.doFinal(data.getString("session").getBytes(StandardCharsets.UTF_8)),Base64.NO_WRAP);edit.putString("accountSession",encrypted);}
-  edit.putInt("accountId",id).putString("profileName",u.optString("name","")).apply();if(data.has("friends")){s.prefs.edit().putString("accountState",data.toString()).apply();PresenceClient.cache(s,peers(data));}
+  edit.putBoolean("presenceDeletePending",false).putInt("accountId",id).putString("profileName",u.optString("name","")).apply();if(data.has("friends")){s.prefs.edit().putString("accountState",data.toString()).apply();PresenceClient.cache(s,peers(data));}
  }
  static void call(Context c,JSONObject body,Result callback){Context app=c.getApplicationContext();String token=session(new Store(app));worker.execute(()->{JSONObject data=null;String error=null;try{data=request(body,token);save(new Store(app),data);}catch(Exception e){error=e.getMessage();}JSONObject result=data;String message=error;main.post(()->callback.ready(result,message));});}
  static JSONObject request(JSONObject body,String token)throws Exception{
