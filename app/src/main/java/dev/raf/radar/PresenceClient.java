@@ -18,13 +18,23 @@ final class PresenceClient {
   private static final ExecutorService readers=Executors.newSingleThreadExecutor();
   private static ScheduledFuture<?> publishing;
   private static volatile long nextPublish;
+  private static volatile boolean screenVisible;
+  private static volatile long nextDirectorySync;
+  private static volatile boolean syncing;
   private static final Handler main=new Handler(Looper.getMainLooper());
   static synchronized void start(Context c){
     if(publishing!=null)return;
     Context app=c.getApplicationContext();nextPublish=0;
-    publishing=worker.scheduleWithFixedDelay(()->publish(app),0,5,TimeUnit.SECONDS);
+    publishing=worker.scheduleWithFixedDelay(()->{publish(app);syncDirectory(app);},0,5,TimeUnit.SECONDS);
   }
+  private static void syncDirectory(Context c){
+    long now=SystemClock.elapsedRealtime();if(syncing||now<nextDirectorySync)return;
+    syncing=true;nextDirectorySync=now+30000;
+    directory(result->{syncing=false;if(result!=null){cache(new Store(c),result);c.sendBroadcast(new Intent("dev.raf.radar.PEERS").setPackage(c.getPackageName()));}});
+  }
+  static void screen(Context c,boolean visible){screenVisible=visible;if(visible)start(c);else if(!MonitorService.running)stop(c);}
   static synchronized void stop(Context c){
+    if(screenVisible)return;
     if(publishing!=null){publishing.cancel(false);publishing=null;}
     if(new Store(c).prefs.getBoolean("shareLocation",false))offline(c);else withdraw(c);
   }
@@ -35,7 +45,7 @@ final class PresenceClient {
   private static void publish(Context c){
     Store s=new Store(c);long now=SystemClock.elapsedRealtime();
     if(s.prefs.getBoolean("presenceDeletePending",false)){if(now>=nextPublish){nextPublish=now+30000;withdraw(c);}return;}
-    if(!MonitorService.running || !s.prefs.getBoolean("shareLocation",false) || !Access.monitorReady(c) || !LocationState.fresh(s))return;
+    if((!MonitorService.running&&!screenVisible) || !s.prefs.getBoolean("shareLocation",false) || !Access.location(c) || !LocationState.fresh(s))return;
     if(s.prefs.getString("profileName","").isEmpty())return;
     if(now<nextPublish)return;nextPublish=now+30000;
     try{

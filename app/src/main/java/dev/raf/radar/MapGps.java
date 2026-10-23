@@ -14,7 +14,7 @@ final class MapGps implements LocationListener {
     manager=context.getSystemService(LocationManager.class);
     try{listening=true;for(String provider:manager.getProviders(true)){
       Location last=manager.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);
-      manager.requestLocationUpdates(provider,15000,0,this);
+      manager.requestLocationUpdates(provider,LocationManager.GPS_PROVIDER.equals(provider)?3000:5000,0,this);
     }}catch(SecurityException e){stop();}
   }
   void stop(){if(manager!=null)manager.removeUpdates(this);listening=false;}
