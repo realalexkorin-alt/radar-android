@@ -9,8 +9,8 @@ public class FriendsUiTest {
   AccountClient.save(s,state);ScreenTest.grantAccess();
   try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
    scenario.onActivity(a->{assertEquals("2",a.friendBadge.getText().toString());a.directoryPending=true;a.showFriends();a.nextDirectory=Long.MAX_VALUE;});
-   onView(withContentDescription("Вас хочет добавить в друзья Никита · ID 222")).perform(click());onView(withText("Принять")).check(matches(isDisplayed()));pressBack();
-   onView(withText("＋ Добавить друга по ID")).perform(click());onView(withHint("ID 1–999")).perform(typeText("111"));onView(withText("Отправить запрос")).perform(click());onView(withHint("ID 1–999")).check(matches(hasErrorText("Нельзя добавить себя")));pressBack();ScreenTest.capture("friends-requests-badge");
+   onView(withContentDescription("Вас хочет добавить в друзья Никита · ID 222")).perform(click());onView(withText("Принять")).check(matches(isDisplayed()));androidx.test.espresso.Espresso.pressBack();
+   onView(withText("＋ Добавить друга по ID")).perform(click());onView(withHint("ID 1–999")).perform(typeText("111"));onView(withText("Отправить запрос")).perform(click());onView(withHint("ID 1–999")).check(matches(hasErrorText("Нельзя добавить себя")));androidx.test.espresso.Espresso.pressBack();ScreenTest.capture("friends-requests-badge");
   }finally{AccountClient.clear(s);}
  }
 }
