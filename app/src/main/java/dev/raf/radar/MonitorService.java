@@ -172,7 +172,7 @@ public final class MonitorService extends Service implements LocationListener {
         if (current.tariffs.contains(r.tariff) && r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
       boolean valid=false;for(Store.Reading r:readings)if(r.rub!=null&&r.fresh())valid=true;
       if(valid){store.prefs.edit().putLong("diagSuccessAt",System.currentTimeMillis()).putLong("diagPauseUntil",0).apply();Diagnostics.info("taxi","surcharge_updated");}
-      else Diagnostics.error("taxi","missing_ruble_surcharge",null,0,-1,-1,p.dynamic?"own":"saved");
+      else {String reason="missing_ruble_surcharge";for(Store.Reading r:readings){if(r.status!=null&&r.status.startsWith("Нет базовой цены"))reason="missing_base_price";}Diagnostics.error("taxi",reason,null,0,-1,-1,p.dynamic?"own":"saved");}
       if (best != null) alert(p, best);
       broadcast();
     } catch (TaxiClient.ApiException e) {
