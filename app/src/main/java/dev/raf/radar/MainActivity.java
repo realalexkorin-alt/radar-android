@@ -40,6 +40,7 @@ public final class MainActivity extends Activity {
   TextView state,friendBadge;boolean socialPending;
   View pointSheet, pointDismiss, pointOverlay;
   final Map<String,Bitmap> pointBitmaps=new HashMap<>();
+  Point draggingLabel;float labelStartX,labelStartY,labelBaseX,labelBaseY,labelCurrentX,labelCurrentY;boolean labelMoved;
   Point preview;
   String selected="me";
   Handler handler=new Handler();
@@ -97,6 +98,7 @@ public final class MainActivity extends Activity {
     mapView=new MapView(this);mapView.onCreate(saved);mapFrame.addView(mapView,new FrameLayout.LayoutParams(-1,-1));
     pointOverlay=new View(this){@Override protected void onDraw(Canvas c){
       if(map==null)return;
+      if(store.prefs.getBoolean("forecast",false)){List<Point> areas=new ArrayList<>();for(Point p:store.points()){if(p.dynamic||!p.enabled)continue;boolean duplicate=false;for(Point center:areas){float[] d=new float[1];android.location.Location.distanceBetween(p.lat,p.lon,center.lat,center.lon,d);if(d[0]<=1000){duplicate=true;break;}}if(!duplicate){areas.add(p);drawStatArea(c,p);}}}
       String own=PresenceClient.ownId(store);
       if(peerBitmap==null)peerBitmap=locationIcon(false,true);
       if(offlinePeerBitmap==null)offlinePeerBitmap=locationIcon(false,false);
@@ -114,10 +116,11 @@ public final class MainActivity extends Activity {
       for(Point p:store.points()){
         LatLng location=pointLocation(p);if(location==null)continue;
         PointF xy=map.getProjection().toScreenLocation(location);Bitmap icon=pointBitmaps.get(p.id);
-        if(icon!=null)c.drawBitmap(icon,xy.x-icon.getWidth()/2f,xy.y-icon.getHeight()/2f,null);
+        if(icon!=null){PointF label=labelPosition(p,xy,icon);if(!p.dynamic){Paint pin=new Paint(Paint.ANTI_ALIAS_FLAG);pin.setColor(0xB3FFFFFF);pin.setStrokeWidth(dp(1));float edgeY=label.y+(xy.y>=label.y?1:-1)*icon.getHeight()/2f;c.drawLine(xy.x,xy.y,label.x,edgeY,pin);c.drawCircle(xy.x,xy.y,dp(3),pin);}c.drawBitmap(icon,label.x-icon.getWidth()/2f,label.y-icon.getHeight()/2f,null);}
         if(p.dynamic)drawPersonLabel(c,xy,store.prefs.getString("profileName",""),null);
       }
     }};pointOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    installLabelDragging();
     mapFrame.addView(pointOverlay,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout title=column();mapTitle=title;LinearLayout brand=row();
     int logoWidth=Math.min(190,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-170);
@@ -246,9 +249,12 @@ public final class MainActivity extends Activity {
   }
   Point pointAt(PointF hit){
     java.util.List<Point> points=store.points();for(int i=points.size()-1;i>=0;i--){Point p=points.get(i);LatLng loc=pointLocation(p);if(loc==null)continue;
-      PointF xy=map.getProjection().toScreenLocation(loc);Bitmap icon=pointBitmaps.get(p.id);if(icon!=null&&Math.abs(hit.x-xy.x)<=icon.getWidth()/2f+dp(4)&&Math.abs(hit.y-xy.y)<=icon.getHeight()/2f+dp(4))return p;
+      PointF xy=map.getProjection().toScreenLocation(loc);Bitmap icon=pointBitmaps.get(p.id);if(icon!=null)xy=labelPosition(p,xy,icon);if(icon!=null&&Math.abs(hit.x-xy.x)<=icon.getWidth()/2f+dp(4)&&Math.abs(hit.y-xy.y)<=icon.getHeight()/2f+dp(4))return p;
     }return null;
   }
+  PointF labelPosition(Point p,PointF anchor,Bitmap icon){if(p.dynamic)return anchor;boolean active=draggingLabel!=null&&draggingLabel.id.equals(p.id);return new PointF(anchor.x+dp(active?labelCurrentX:store.prefs.getFloat("labelX:"+p.id,0)),anchor.y+dp(active?labelCurrentY:store.prefs.getFloat("labelY:"+p.id,-icon.getHeight()/getResources().getDisplayMetrics().density/2f-10)));}
+  void installLabelDragging(){pointOverlay.setOnTouchListener((v,event)->{if(map==null)return false;int action=event.getActionMasked();if(action==android.view.MotionEvent.ACTION_DOWN){Point hit=pointAt(new PointF(event.getX(),event.getY()));if(hit==null||hit.dynamic)return false;draggingLabel=hit;labelStartX=event.getX();labelStartY=event.getY();labelBaseX=store.prefs.getFloat("labelX:"+hit.id,0);Bitmap icon=pointBitmaps.get(hit.id);labelBaseY=store.prefs.getFloat("labelY:"+hit.id,-icon.getHeight()/getResources().getDisplayMetrics().density/2f-10);labelCurrentX=labelBaseX;labelCurrentY=labelBaseY;labelMoved=false;return true;}if(draggingLabel==null)return false;if(action==android.view.MotionEvent.ACTION_MOVE){float dx=event.getX()-labelStartX,dy=event.getY()-labelStartY;if(Math.hypot(dx,dy)>android.view.ViewConfiguration.get(this).getScaledTouchSlop())labelMoved=true;if(labelMoved){float density=getResources().getDisplayMetrics().density;labelCurrentX=Math.max(-180,Math.min(180,labelBaseX+dx/density));labelCurrentY=Math.max(-180,Math.min(180,labelBaseY+dy/density));pointOverlay.invalidate();}return true;}if(action==android.view.MotionEvent.ACTION_UP||action==android.view.MotionEvent.ACTION_CANCEL){Point hit=draggingLabel;draggingLabel=null;if(action==android.view.MotionEvent.ACTION_UP){if(labelMoved)store.prefs.edit().putFloat("labelX:"+hit.id,labelCurrentX).putFloat("labelY:"+hit.id,labelCurrentY).apply();else edit(hit);}pointOverlay.invalidate();return true;}return true;});}
+  void drawStatArea(Canvas canvas,Point p){Path path=new Path();for(int i=0;i<=48;i++){double[] edge=MapRegion.edge(p.lat,p.lon,i*360.0/48);PointF xy=map.getProjection().toScreenLocation(new LatLng(edge[0],edge[1]));if(i==0)path.moveTo(xy.x,xy.y);else path.lineTo(xy.x,xy.y);}path.close();PointF center=map.getProjection().toScreenLocation(new LatLng(p.lat,p.lon));double[] east=MapRegion.edge(p.lat,p.lon,90);PointF boundary=map.getProjection().toScreenLocation(new LatLng(east[0],east[1]));float radius=(float)Math.hypot(boundary.x-center.x,boundary.y-center.y);if(radius<1)return;int direction=store.prefs.getInt("trend:"+p.id,0);int rgb=direction>0?0x0062E69D:direction<0?0x00FF6878:0x009399A2;Paint glow=new Paint(Paint.ANTI_ALIAS_FLAG);glow.setShader(new RadialGradient(center.x,center.y,radius,new int[]{0x18000000|rgb,0x4D000000|rgb,0x00000000|rgb},new float[]{0,.72f,1},Shader.TileMode.CLAMP));canvas.drawPath(path,glow);}
   List<Store.Reading> mapReadings(Point point){
     List<Store.Reading> rows=new ArrayList<>();
     List<Store.Reading> cached=store.readings(point.id);

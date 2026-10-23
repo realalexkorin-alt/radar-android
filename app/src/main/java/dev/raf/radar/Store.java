@@ -67,6 +67,7 @@ public final class Store {
     List<Point> a = points();
     for (int i = 0; i < a.size(); i++)
       if (a.get(i).id.equals(p.id)) {
+        Point previous=a.get(i);if(!p.dynamic&&(previous.lat!=p.lat||previous.lon!=p.lon))prefs.edit().remove("read:"+p.id).remove("readSuccess:"+p.id).remove("trend:"+p.id).remove("trendValue:"+p.id).remove("trendAt:"+p.id).apply();
         a.set(i, p);
         save(a);
         return;
