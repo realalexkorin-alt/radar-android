@@ -128,7 +128,7 @@ public final class MonitorService extends Service implements LocationListener {
         }
         eligible.add(q.id);
       }
-      long interval=store.prefs.getInt("interval",120)*1000L;
+      long interval=Math.min(store.prefs.getInt("interval",120)*1000L,300000L);
       String id = planner.next(eligible, now, interval, "me", browsing||!widgetPoint.isEmpty()?10000L:interval);
       if (id == null) {Diagnostics.once("monitor","queue_wait",false);return;}
       Point p = null;
@@ -164,6 +164,7 @@ public final class MonitorService extends Service implements LocationListener {
       if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);
+      Statistics.capture(this,request,readings);
       if(p.dynamic)store.prefs.edit().putLong("readQueryLat",Double.doubleToLongBits(request.lat)).putLong("readQueryLon",Double.doubleToLongBits(request.lon)).apply();
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
       failures = 0;
