@@ -31,3 +31,17 @@ The live schema has no movement-history table. Neon infrastructure point-in-time
 ## Resource budget
 
 Reuse the existing Free Neon project; no new subscription. Android sends/polls presence every 30 seconds, only reads peers on the visible map, and only publishes with PRO + explicit consent + fresh GPS. SQL cleanup runs every 10 seconds only while coordinates exist and removes its schedule when empty; compute scale-to-zero stays at five minutes. API responses are capped at 200 points and queries inspect at most 1000 active installations. The pre-existing surcharge request queue and backoff remain in force. Re-run the real SQL/expiry test only after storage or scheduler changes; interface and Android upgrade checks are required when Android behavior changes.
+
+## Observation history retention
+
+Observation history is retained indefinitely (no age-based expiry). The hourly
+`radar_presence.cleanup_statistics()` task deletes only expired weather-cache
+entries and unused region records; it never deletes observations. Weather already
+stored with an observation stays with that observation. The statistics API returns
+`retentionDays: null` to indicate no time limit.
+
+On deployment, call the authenticated statistics read endpoint to initialize the
+updated cleanup function in the database, then verify the live retention policy.
+This changes observation retention only; diagnostic logs and presence TTLs keep
+their existing policies. Explicit account deletion still follows the existing
+foreign-key cascade.
