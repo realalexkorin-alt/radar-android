@@ -14,7 +14,8 @@ public class AppearanceTest {
     prepare();Store s=new Store(context());
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       scenario.onActivity(a->{a.showTab(2);a.themes();});ScreenTest.capture("theme-picker-standard");
-      scenario.onActivity(a->{a.selectTheme(Appearance.LINEAGE);assertTrue(Appearance.lineage(a));assertFalse(Appearance.sounds(a));assertTrue(s.prefs.getBoolean("sounds",false));assertFalse(SettingsPolishTest.contains(a.settingsContents(),"Звук"));assertNotNull(a.lineageLogo);});
+      scenario.onActivity(a->{a.selectTheme(Appearance.LINEAGE);assertTrue(Appearance.lineage(a));assertFalse(Appearance.sounds(a));assertTrue(s.prefs.getBoolean("sounds",false));assertFalse(SettingsPolishTest.contains(a.settingsContents(),"Звук"));assertNotNull(a.lineageLogo);
+        a.lineageLogo.state(true,true);a.lineageLogo.advance();if(!android.animation.ValueAnimator.areAnimatorsEnabled())assertEquals(1f,a.lineageLogo.power,0f);a.lineageLogo.state(false,false);assertFalse(a.lineageLogo.animationRunning());});
       // Dismiss the picker via the platform back action, leaving the selected settings visible.
       InstrumentationRegistry.getInstrumentation().getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
       ScreenTest.capture("lineage-settings");

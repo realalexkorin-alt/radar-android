@@ -40,7 +40,7 @@ final class LineageLogo extends View {
     if(active!=running){advance();active=running;transitionFrom=power;transitionTo=running?1:0;transitionStart=SystemClock.elapsedRealtime();}
     visible=shown;setSelected(running);setContentDescription(running?"S: выключить мониторинг":"S: включить мониторинг");schedule();invalidate();
   }
-  void advance(){long now=SystemClock.elapsedRealtime();float t=Math.min(1,(now-transitionStart)/900f);power=transitionFrom+(transitionTo-transitionFrom)*(t*t*(3-2*t));if(last>0)phase=(phase+Math.min(100,now-last)*.025f)%360;last=now;}
+  void advance(){if(!android.animation.ValueAnimator.areAnimatorsEnabled()){power=transitionTo;last=0;return;}long now=SystemClock.elapsedRealtime();float t=Math.min(1,(now-transitionStart)/900f);power=transitionFrom+(transitionTo-transitionFrom)*(t*t*(3-2*t));if(last>0)phase=(phase+Math.min(100,now-last)*.025f)%360;last=now;}
   boolean animationRunning(){return posted;}
   boolean animateAllowed(){return visible&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE&&android.animation.ValueAnimator.areAnimatorsEnabled();}
   void failure(){failureUntil=SystemClock.elapsedRealtime()+600;invalidate();schedule();}
