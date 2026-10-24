@@ -1,4 +1,4 @@
-name: Lineage 2 audio release
+name: Lineage 2 audio verification
 on:
   push:
     branches: ['codex/lineage-audio']
@@ -7,10 +7,9 @@ concurrency:
   group: radar-lineage-audio-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   logo:
-    environment: release
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -27,18 +26,7 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - name: Restore signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.RADAR_KEYSTORE_B64 }}
-        run: |
-          test -n "$KEYSTORE_B64"
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/radar-release.p12"
-      - env:
-          RADAR_KEYSTORE: ${{ runner.temp }}/radar-release.p12
-          RADAR_STORE_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
-          RADAR_KEY_ALIAS: radar
-          RADAR_KEY_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
-        run: chmod +x gradlew && ./gradlew :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+      - run: chmod +x gradlew && ./gradlew :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -72,13 +60,3 @@ jobs:
             logo-smoke.txt
             screens/
             apksigner.jar
-      - name: Publish verified patch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk radar.apk
-          sha256sum radar.apk > SHA256SUMS
-          gh release create v0.1.40-alpha radar.apk SHA256SUMS --target "$GITHUB_SHA" --title "0.1.40-alpha" --notes "Lineage 2: звуки запуска, мониторинга, вкладок, меню и обновления. Отдельный выключатель звука; стандартная тема сохраняет прежние звуки."
-      - name: Remove signing material
-        if: always()
-        run: rm -f "$RUNNER_TEMP/radar-release.p12"
