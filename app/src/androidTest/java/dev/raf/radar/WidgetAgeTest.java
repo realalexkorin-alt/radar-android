@@ -1,24 +1,13 @@
 package dev.raf.radar;
-import android.content.Context;import android.os.SystemClock;import android.view.*;import android.widget.*;
+import android.content.*;import android.graphics.drawable.GradientDrawable;import android.os.SystemClock;import android.view.*;import android.widget.*;
 import androidx.test.platform.app.InstrumentationRegistry;import org.junit.Test;import static org.junit.Assert.*;import java.util.*;
 public class WidgetAgeTest {
- @Test public void optionalBottomLeftAgeSurvivesFailedReadingAndRecreation() throws Exception {
-  Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();Store s=new Store(c);
-  s.prefs.edit().clear().putBoolean("overlay",true).putLong("gpsAt",System.currentTimeMillis()).commit();
-  ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");
-  Overlay[] overlay={null};String[] initial={null};long success=System.currentTimeMillis()-12000;
-  s.readings("me",Collections.singletonList(new Store.Reading("econom",260,null,success,"fixture")));
-  try{
-   main(()->{overlay[0]=new Overlay(c,s);overlay[0].refresh();assertEquals(View.GONE,label(overlay[0]).getVisibility());s.prefs.edit().putBoolean("widgetUpdateTime",true).commit();overlay[0].refresh();assertEquals(View.VISIBLE,label(overlay[0]).getVisibility());assertTrue(label(overlay[0]).getText().toString().startsWith("Обновлено "));initial[0]=label(overlay[0]).getText().toString();assertEquals(0x80FFFFFF,label(overlay[0]).getCurrentTextColor());});
-   InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-   main(()->{LinearLayout root=root(overlay[0]);assertTrue(label(overlay[0]).getTop()>=root.getChildAt(0).getBottom());assertEquals(Gravity.START,label(overlay[0]).getGravity()&Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK);});
-   ScreenTest.capture("widget-update-age-bottom-left");
-   SystemClock.sleep(1100);main(()->assertNotEquals(initial[0],label(overlay[0]).getText().toString()));
-   s.readings("me",Collections.singletonList(new Store.Reading("econom",null,null,System.currentTimeMillis(),"Ошибка сети")));assertEquals(success,s.lastSuccessfulReading("me"));
-   main(()->{overlay[0].close();overlay[0]=new Overlay(c,new Store(c));overlay[0].refresh();assertEquals(View.VISIBLE,label(overlay[0]).getVisibility());assertTrue(label(overlay[0]).getText().toString().startsWith("Обновлено "));s.prefs.edit().putBoolean("widgetUpdateTime",false).commit();overlay[0].refresh();assertEquals(View.GONE,label(overlay[0]).getVisibility());});
-  }finally{main(()->{if(overlay[0]!=null)overlay[0].close();});}
- }
- static void main(Runnable r){InstrumentationRegistry.getInstrumentation().runOnMainSync(r);}
- static LinearLayout root(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("root");f.setAccessible(true);return (LinearLayout)f.get(o);}catch(Exception e){throw new AssertionError(e);}}
- static TextView label(Overlay o){return (TextView)root(o).getChildAt(1);}
+ @Test public void circleFitsThreeDigitsAndAgeNeverChangesBounds()throws Exception{Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();Store s=new Store(c);s.prefs.edit().clear().putBoolean("overlay",true).putBoolean("widgetUpdateTime",true).putLong("gpsAt",System.currentTimeMillis()).commit();ScreenTest.shell("appops set dev.raf.radar SYSTEM_ALERT_WINDOW allow");Overlay[] overlay={null};int[] bounds=new int[2];long success=System.currentTimeMillis()-12000;s.readings("me",Collections.singletonList(new Store.Reading("econom",999,null,success,"fixture")));
+ try{main(()->{overlay[0]=new Overlay(c,s);overlay[0].refresh();});InstrumentationRegistry.getInstrumentation().waitForIdleSync();main(()->{LinearLayout root=root(overlay[0]);bounds[0]=root.getWidth();bounds[1]=root.getHeight();assertTrue(bounds[0]>0);assertEquals(bounds[0],bounds[1]);assertEquals(GradientDrawable.OVAL,((GradientDrawable)root.getBackground()).getShape());PriceText price=(PriceText)root.getChildAt(0);assertEquals("+999",price.getText().toString());assertEquals(root.getHeight()/2f,(price.getTop()+price.getBottom())/2f,1);assertTrue(price.getPaint().measureText("+999")<=price.getWidth()-price.getPaddingLeft()-price.getPaddingRight()+1);assertTrue(label(overlay[0]).getText().toString().matches("[0-9]+"));assertEquals(Gravity.CENTER,label(overlay[0]).getGravity());assertEquals(0x80FFFFFF,label(overlay[0]).getCurrentTextColor());});ScreenTest.capture("round-widget-999");
+ for(int rub:new int[]{0,9,50,999,1250}){s.readings("me",Collections.singletonList(new Store.Reading("econom",rub,null,success,"fixture")));main(()->overlay[0].refresh());InstrumentationRegistry.getInstrumentation().waitForIdleSync();main(()->{assertEquals(bounds[0],root(overlay[0]).getWidth());assertEquals(bounds[1],root(overlay[0]).getHeight());TextView p=(TextView)root(overlay[0]).getChildAt(0);assertTrue(p.getPaint().measureText(p.getText().toString())<=p.getWidth()-p.getPaddingLeft()-p.getPaddingRight()+1);});}
+ main(()->{s.prefs.edit().putBoolean("widgetUpdateTime",false).commit();overlay[0].refresh();});InstrumentationRegistry.getInstrumentation().waitForIdleSync();main(()->{assertEquals(View.GONE,label(overlay[0]).getVisibility());assertEquals(bounds[0],root(overlay[0]).getWidth());assertEquals(bounds[1],root(overlay[0]).getHeight());});
+ main(()->{s.prefs.edit().putBoolean("widgetUpdateTime",true).putInt("scale",160).putInt("textScale",150).commit();overlay[0].refresh();});InstrumentationRegistry.getInstrumentation().waitForIdleSync();main(()->{assertTrue(root(overlay[0]).getWidth()>bounds[0]);assertEquals(root(overlay[0]).getWidth(),root(overlay[0]).getHeight());});
+ s.readings("me",Collections.singletonList(new Store.Reading("econom",null,null,System.currentTimeMillis(),"fixture")));assertEquals(success,s.lastSuccessfulReading("me"));main(()->{s.prefs.edit().putInt("scale",100).putInt("textScale",100).commit();overlay[0].close();overlay[0]=new Overlay(c,new Store(c));overlay[0].refresh();});InstrumentationRegistry.getInstrumentation().waitForIdleSync();main(()->{assertEquals(bounds[0],root(overlay[0]).getWidth());assertTrue(label(overlay[0]).getText().toString().matches("[0-9]+"));});
+ }finally{main(()->{if(overlay[0]!=null)overlay[0].close();});}}
+ static void main(Runnable r){InstrumentationRegistry.getInstrumentation().runOnMainSync(r);}static LinearLayout root(Overlay o){try{java.lang.reflect.Field f=Overlay.class.getDeclaredField("root");f.setAccessible(true);return (LinearLayout)f.get(o);}catch(Exception e){throw new AssertionError(e);}}static TextView label(Overlay o){return (TextView)root(o).getChildAt(1);}
 }

@@ -27,12 +27,12 @@ final class Overlay {
     if(!s.prefs.getBoolean("overlay",false)||!Settings.canDrawOverlays(c)){close();return;}
     if(touching)return;
     if(root==null){
-      root=new LinearLayout(c);root.setOrientation(LinearLayout.VERTICAL);root.setContentDescription("Виджет радара");
+      root=new LinearLayout(c);root.setOrientation(LinearLayout.VERTICAL);root.setClipToOutline(true);root.setContentDescription("Виджет радара");
       root.setOnClickListener(v->open(false));root.setOnLongClickListener(v->{open(true);return true;});
-      price=new PriceText(c);root.addView(price,new LinearLayout.LayoutParams(-2,-2));
-      updated=new TextView(c);updated.setContentDescription("Время обновления виджета");updated.setTextColor(0x80FFFFFF);updated.setIncludeFontPadding(false);updated.setSingleLine(true);updated.setGravity(Gravity.START);
-      root.addView(updated,new LinearLayout.LayoutParams(-2,-2));installGestures();
-      lp=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+      price=new PriceText(c);price.setGravity(Gravity.CENTER);price.setFontFeatureSettings("tnum");root.addView(price,new LinearLayout.LayoutParams(-1,dp(36)));
+      updated=new TextView(c);updated.setContentDescription("Время обновления виджета");updated.setTextColor(0x80FFFFFF);updated.setIncludeFontPadding(false);updated.setSingleLine(true);updated.setGravity(Gravity.CENTER);updated.setFontFeatureSettings("tnum");
+      root.addView(updated,new LinearLayout.LayoutParams(-1,dp(12)));installGestures();
+      lp=new WindowManager.LayoutParams(dp(88),dp(88),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
           WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.graphics.PixelFormat.TRANSLUCENT);
       lp.gravity=Gravity.TOP|Gravity.START;lp.x=s.prefs.getInt("ox",dp(20));lp.y=s.prefs.getInt("oy",dp(100));
       try{wm.addView(root,lp);}catch(RuntimeException unavailable){root=null;price=null;updated=null;return;}
@@ -42,27 +42,36 @@ final class Overlay {
     Store.Reading reading=s.widgetReading();
     price.reading(reading);
     float scale=s.prefs.getInt("scale",100)/100f,textScale=s.prefs.getInt("textScale",100)/100f;
-    int padding=dp(2+2*scale),glow=dp(10);root.setPadding(padding,padding,padding,padding);price.setPadding(glow,glow,glow,glow);
-    root.setBackground(RadarUi.shape(c,Color.argb(s.prefs.getInt("opacity",70)*255/100,12,13,15),16,0));
-    price.setTextSize(28*scale*textScale);
-    float available=c.getResources().getDisplayMetrics().widthPixels-dp(12)-2*padding-2*glow;
-    float wanted=android.text.Layout.getDesiredWidth(price.getText(),price.getPaint());
-    if(wanted>available)price.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,price.getTextSize()*available/wanted*.98f);
-    updated.setTextSize(9*scale);updated.setPadding(dp(10*scale),0,dp(6*scale),dp(5*scale));updateAge();
+    root.setPadding(0,0,0,0);int side=dp(10*scale),gap=dp(2*scale);
+    price.setPadding(side,0,side,0);price.setTextSize(28*scale*textScale);updated.setTextSize(9*scale);updated.setPadding(0,0,0,0);
+    float reference=android.text.Layout.getDesiredWidth("+999",price.getPaint());
+    android.graphics.Paint.FontMetrics fm=price.getPaint().getFontMetrics(),ageMetrics=updated.getPaint().getFontMetrics();
+    int ageHeight=(int)Math.ceil(ageMetrics.descent-ageMetrics.ascent)+dp(2*scale);
+    int diameter=Math.max(dp(88*scale),Math.max((int)Math.ceil(reference)+side*2,(int)Math.ceil(fm.descent-fm.ascent)+2*(ageHeight+gap+dp(4*scale))));
+    int screen=Math.min(c.getResources().getDisplayMetrics().widthPixels,c.getResources().getDisplayMetrics().heightPixels)-dp(12);
+    diameter=Math.min(diameter,screen);float actual=android.text.Layout.getDesiredWidth(price.getText(),price.getPaint());
+    float widthFactor=(diameter-2f*side)/Math.max(reference,actual),heightFactor=(diameter-2f*(ageHeight+gap+dp(4*scale)))/(fm.descent-fm.ascent);
+    float fit=Math.min(1f,Math.min(widthFactor,heightFactor));if(fit<1)price.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,price.getTextSize()*Math.max(.1f,fit));
+    fm=price.getPaint().getFontMetrics();int priceHeight=(int)Math.ceil(fm.descent-fm.ascent)+dp(2*scale);
+    LinearLayout.LayoutParams priceParams=new LinearLayout.LayoutParams(diameter,priceHeight);priceParams.topMargin=(diameter-priceHeight)/2;price.setLayoutParams(priceParams);
+    LinearLayout.LayoutParams ageParams=new LinearLayout.LayoutParams(diameter,ageHeight);ageParams.topMargin=gap;updated.setLayoutParams(ageParams);
+    android.graphics.drawable.GradientDrawable circle=new android.graphics.drawable.GradientDrawable();circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);circle.setColor(Color.argb(s.prefs.getInt("opacity",70)*255/100,12,13,15));root.setBackground(circle);
+    lp.width=diameter;lp.height=diameter;wm.updateViewLayout(root,lp);updateAge();
     price.requestLayout();root.requestLayout();
     root.post(()->{if(root!=null)position(lp.x,lp.y);});
   }
   private void updateAge(){
     ageHandler.removeCallbacks(ageTick);if(root==null||updated==null)return;
     boolean enabled=s.prefs.getBoolean("widgetUpdateTime",false);updated.setVisibility(enabled?View.VISIBLE:View.GONE);
-    if(!enabled)return;updated.setText(ReadingAge.label(s.lastSuccessfulReading("me"),System.currentTimeMillis()));
+    if(!enabled)return;long success=s.lastSuccessfulReading("me"),now=System.currentTimeMillis();
+    updated.setText(success>0?Long.toString(Math.max(0,(now-success)/1000)):"—");updated.setContentDescription("Время обновления виджета: "+ReadingAge.label(success,now));
     android.os.PowerManager power=c.getSystemService(android.os.PowerManager.class);
     if(power!=null&&power.isInteractive())ageHandler.postDelayed(ageTick,1000);
   }
   private void position(int x,int y){
     if(root==null)return;
-    lp.x=Math.max(0,Math.min(x,c.getResources().getDisplayMetrics().widthPixels-root.getWidth()));
-    lp.y=Math.max(0,Math.min(y,c.getResources().getDisplayMetrics().heightPixels-root.getHeight()));
+    lp.x=Math.max(0,Math.min(x,c.getResources().getDisplayMetrics().widthPixels-lp.width));
+    lp.y=Math.max(0,Math.min(y,c.getResources().getDisplayMetrics().heightPixels-lp.height));
     wm.updateViewLayout(root,lp);
   }
   private void moveOnFrame(int x,int y){

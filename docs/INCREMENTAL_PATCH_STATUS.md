@@ -18,7 +18,6 @@ GitHub is the source of truth. Each release is signed with the existing certific
 | 0.1.32 | Optional surcharge direction with placeholder0%, single online/offline caption |
 | 0.1.33 | Five-minute fixed-point observations, durable account-scoped queue, server weather and private history |
 | 0.1.34 | Geographic anchors, local label dragging and kilometer-area glow |
-| 0.1.35 | Remove forecast radius glow and label dragging; ignore previous visual offsets |
 
 ## Remaining external dependency
 Actual push when app is fully closed: no Huawei Push Kit app configuration is available. SDK/provider transport is not implemented or advertised as complete. See HUAWEI_PUSH_SETUP.md. Local notifications require app/foreground monitoring to sync.
@@ -43,5 +42,3 @@ Production /api/diagnostics accepts authenticated uploads; read requires a separ
 Install0.1.33 or newer on both phones, enable monitoring and5–10 fixed points per phone. Forecast toggle affects display only; it does not enable/disable collection. Actual capture follows successful fresh replies at a target minimum interval5min per point; API pauses and process stops create real gaps. No moving GPS trace is collected. Weather is hourly model data from Open-Meteo, rounded-coordinate cache30min, explicit units and timestamp. Server history90d; weather failure preserves surcharge with NULL weather. Access via scripts/read-statistics.py and the same protected reader derivation as diagnostics. Synthetic tests on production passed auth, zero, dedup, one-kilometer region assignment, weather/time/units and deletion; fixture data removed. Summary is initially empty until phones install the new APK. First-day analysis measures coverage and sampling quality; predictive accuracy is not established.
 
 Release/test/signature details for the completed series: PATCH_SERIES_0.1.31-34.md. Latest versionCode35; the latest APK contains all four incremental changes.
-
-0.1.35 removes only radius visualization and dragging; server statistics/radius grouping remain. Saved points are local; friend point copying is a proposal for a separate catalog/permission/import feature, not shipped.
