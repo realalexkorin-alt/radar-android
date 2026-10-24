@@ -33,7 +33,7 @@ final class Overlay {
       updated=new TextView(c);updated.setContentDescription("Время обновления виджета");updated.setTextColor(0x80FFFFFF);updated.setIncludeFontPadding(false);updated.setSingleLine(true);updated.setGravity(Gravity.CENTER);updated.setFontFeatureSettings("tnum");
       root.addView(updated,new LinearLayout.LayoutParams(-1,dp(12)));installGestures();
       lp=new WindowManager.LayoutParams(dp(88),dp(88),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.graphics.PixelFormat.TRANSLUCENT);
+          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,android.graphics.PixelFormat.TRANSLUCENT);
       lp.gravity=Gravity.TOP|Gravity.START;lp.x=s.prefs.getInt("ox",dp(20));lp.y=s.prefs.getInt("oy",dp(100));
       try{wm.addView(root,lp);}catch(RuntimeException unavailable){root=null;price=null;updated=null;return;}
       if(!screenRegistered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
