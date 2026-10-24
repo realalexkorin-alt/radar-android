@@ -737,7 +737,15 @@ public final class MainActivity extends Activity {
     rebuildSettings();themeMapCaption();peerBitmap=null;nearbyPeerBitmap=null;offlinePeerBitmap=null;refreshCards();applyMapStyle();
     toast(after?"Тема Lineage 2 включена":"Стандартная тема включена");
   }
-  void themeMapCaption(){if(state==null)return;if(Appearance.lineage(this)){state.setBackground(Appearance.frame(this,false));state.setPadding(dp(9),dp(7),dp(9),dp(7));}else{state.setBackground(null);state.setPadding(0,dp(8),dp(4),dp(10));}}
+  void themeMapCaption(){
+    if(state==null)return;
+    boolean fantasy=Appearance.lineage(this);
+    // Center both children on the same axis, even when the status is wider than the emblem.
+    if(mapTitle!=null)mapTitle.setGravity(fantasy?Gravity.CENTER_HORIZONTAL:Gravity.START);
+    state.setGravity(fantasy?Gravity.CENTER:Gravity.START|Gravity.CENTER_VERTICAL);
+    if(fantasy){state.setBackground(Appearance.frame(this,false));state.setPadding(dp(9),dp(7),dp(9),dp(7));}
+    else{state.setBackground(null);state.setPadding(0,dp(8),dp(4),dp(10));}
+  }
   LinearLayout settingsContents(){
     LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
     LinearLayout profile=group(body,"Профиль");
