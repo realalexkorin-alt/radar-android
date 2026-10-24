@@ -40,14 +40,16 @@ final class Overlay {
         androidx.core.content.ContextCompat.registerReceiver(c,screen,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);screenRegistered=true;}
     }
     Store.Reading reading=s.widgetReading();
-    price.reading(reading);
+    // Keep the optional prefix supported without adding another settings row.
+    boolean showPlus=s.prefs.getBoolean("widgetShowPlus",false);
+    price.reading(reading,showPlus);
     float scale=s.prefs.getInt("scale",100)/100f,textScale=s.prefs.getInt("textScale",100)/100f;
     root.setPadding(0,0,0,0);int side=dp(10*scale),gap=dp(2*scale);
     price.setPadding(side,0,side,0);price.setTextSize(28*scale*textScale);updated.setTextSize(9*scale);updated.setPadding(0,0,0,0);
-    float reference=android.text.Layout.getDesiredWidth("+999",price.getPaint());
+    float reference=android.text.Layout.getDesiredWidth(showPlus?"+999":"999",price.getPaint());
     android.graphics.Paint.FontMetrics fm=price.getPaint().getFontMetrics(),ageMetrics=updated.getPaint().getFontMetrics();
     int ageHeight=(int)Math.ceil(ageMetrics.descent-ageMetrics.ascent)+dp(2*scale);
-    int diameter=Math.max(dp(88*scale),Math.max((int)Math.ceil(reference)+side*2,(int)Math.ceil(fm.descent-fm.ascent)+2*(ageHeight+gap+dp(4*scale))));
+    int diameter=Math.max(dp((showPlus?88:80)*scale),Math.max((int)Math.ceil(reference)+side*2,(int)Math.ceil(fm.descent-fm.ascent)+2*(ageHeight+gap+dp(4*scale))));
     int screen=Math.min(c.getResources().getDisplayMetrics().widthPixels,c.getResources().getDisplayMetrics().heightPixels)-dp(12);
     diameter=Math.min(diameter,screen);float actual=android.text.Layout.getDesiredWidth(price.getText(),price.getPaint());
     float widthFactor=(diameter-2f*side)/Math.max(reference,actual),heightFactor=(diameter-2f*(ageHeight+gap+dp(4*scale)))/(fm.descent-fm.ascent);

@@ -17,7 +17,8 @@ final class PriceText extends TextView {
     setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));setSingleLine(true);
     setLayerType(View.LAYER_TYPE_SOFTWARE,null);
   }
-  void reading(Store.Reading value){reading=value;setText(RadarUi.value(value));
+  void reading(Store.Reading value){reading(value,true);}
+  void reading(Store.Reading value,boolean showPlus){reading=value;String text=RadarUi.value(value);setText(!showPlus&&text.startsWith("+")?text.substring(1):text);
     setTextColor(PriceLevel.color(value==null?null:value.rub));
     setContentDescription("Эконом: "+getText()+", "+PriceLevel.label(value==null?null:value.rub)
         +(value!=null&&!value.fresh()?", данные устарели":""));invalidate();}
