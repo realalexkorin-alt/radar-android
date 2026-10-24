@@ -48,3 +48,5 @@ Release/test/signature details for the completed series: PATCH_SERIES_0.1.31-34.
 0.1.35 removes only radius visualization and dragging; server statistics/radius grouping remain. Saved points are local; friend point copying is a proposal for a separate catalog/permission/import feature, not shipped.
 
 0.1.36 changes only overlay rendering and its targeted check. Both user scaling controls and opacity remain; numeric age does not affect diameter or price center. Final real-screen rendering check passed onAPI35.
+
+0.1.37 hides the optional plus only in the overlay and compacts its fixed three-digit circle. Scaling controls retained; API35 rendering check/release/lint passed. Latest versionCode38.
