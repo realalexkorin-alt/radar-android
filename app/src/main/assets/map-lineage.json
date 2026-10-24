@@ -204,7 +204,7 @@
         "text-size": 15,
         "symbol-placement": "point",
         "text-max-width": 10,
-        "visibility": "visible"
+        "visibility": "none"
       },
       "paint": {
         "text-color": "#393D30",
