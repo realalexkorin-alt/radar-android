@@ -52,3 +52,5 @@ Release/test/signature details for the completed series: PATCH_SERIES_0.1.31-34.
 0.1.37 hides the optional plus only in the overlay and compacts its fixed three-digit circle. Scaling controls retained; API35 rendering check/release/lint passed. Latest versionCode38.
 
 0.1.38 replaces runtime point polling with one earliest-deadline minute queue for every saved point, including background/legacy disabled points. Per-point switches replaced by settings; global stop retained. Cadence simulation5/10 points with2s responses and1s idle meets60s; statistics still300000ms minimum. HTTP/network backoff preserved; provider/Doze/capacity limits remain. Targeted unit tests, release and lint passed, no full emulator suite. Latest versionCode39.
+
+0.1.39 adds selectable Standard/Lineage 2 appearances, a layered native vector emblem, parchment map styling, metallic UI and themed overlay. In-place selection retains MapView/camera and service state. Lineage 2 is silent; Standard keeps its existing sound preference and notification channels. Targeted appearance checks only, no backend/schema changes. VersionCode40. See PATCH_0.1.39.md for verification/signing evidence.
