@@ -735,7 +735,7 @@ public final class MainActivity extends Activity {
     Appearance.recolor(root,before,after);updateNavigation();
     pages.removeView(pointsPanel);buildPoints();pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);
     rebuildSettings();themeMapCaption();peerBitmap=null;nearbyPeerBitmap=null;offlinePeerBitmap=null;refreshCards();applyMapStyle();
-    toast(after?"Тема Lineage 2 включена · без звука":"Стандартная тема включена");
+    toast(after?"Тема Lineage 2 включена":"Стандартная тема включена");
   }
   void themeMapCaption(){if(state==null)return;if(Appearance.lineage(this)){state.setBackground(Appearance.frame(this,false));state.setPadding(dp(9),dp(7),dp(9),dp(7));}else{state.setBackground(null);state.setPadding(0,dp(8),dp(4),dp(10));}}
   LinearLayout settingsContents(){
