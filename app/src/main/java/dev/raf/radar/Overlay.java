@@ -29,7 +29,7 @@ final class Overlay {
     if(root==null){
       root=new LinearLayout(c);root.setOrientation(LinearLayout.VERTICAL);root.setClipToOutline(true);root.setContentDescription("Виджет радара");
       root.setOnClickListener(v->open(false));root.setOnLongClickListener(v->{open(true);return true;});
-      price=new PriceText(c);price.setGravity(Gravity.CENTER);price.setFontFeatureSettings("tnum");root.addView(price,new LinearLayout.LayoutParams(-1,dp(36)));
+      price=new PriceText(c);price.setLayerType(View.LAYER_TYPE_NONE,null);price.setGravity(Gravity.CENTER);price.setFontFeatureSettings("tnum");root.addView(price,new LinearLayout.LayoutParams(-1,dp(36)));
       updated=new TextView(c);updated.setContentDescription("Время обновления виджета");updated.setTextColor(0x80FFFFFF);updated.setIncludeFontPadding(false);updated.setSingleLine(true);updated.setGravity(Gravity.CENTER);updated.setFontFeatureSettings("tnum");
       root.addView(updated,new LinearLayout.LayoutParams(-1,dp(12)));installGestures();
       lp=new WindowManager.LayoutParams(dp(88),dp(88),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
