@@ -6,6 +6,43 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+  @Test public void fiveAndTenSavedPointsMeetMinuteCadenceWithTwoSecondResponses(){
+    for(int count:new int[]{5,10}){
+      PollPlanner p=new PollPlanner();List<String> ids=new ArrayList<>();ids.add("me");
+      for(int i=0;i<count;i++)ids.add("saved"+i);
+      Map<String,Long> last=new HashMap<>();Map<String,Integer> calls=new HashMap<>();
+      for(long now=100000;now<3700000;){
+        String id=p.nextMinute(ids,now,"me");
+        if(id==null){now+=1000;continue;}
+        if(!id.equals("me")&&last.containsKey(id)){
+          long gap=now-last.get(id);assertTrue(id+" delayed "+gap,gap<=60000);assertTrue(gap>=45000);
+        }
+        last.put(id,now);calls.put(id,calls.getOrDefault(id,0)+1);
+        assertNull(p.nextMinute(ids,now,"me"));
+        now+=3000; // a two-second response plus the service's one-second idle delay
+      }
+      for(String id:ids)assertTrue(id+" starved",calls.getOrDefault(id,0)>50);
+    }
+  }
+  @Test public void minuteCycleKeepsBackoffAndResumesWithoutBurst(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","a","b");
+    assertEquals("me",p.nextMinute(ids,100000,"me"));p.backoff(100000,900000);p.expedite("me");
+    assertNull(p.nextMinute(ids,999999,"me"));assertNotNull(p.nextMinute(ids,1000000,"me"));
+    assertNull(p.nextMinute(ids,1000001,"me"));
+  }
+  @Test public void addingRemovingPointsAndLosingGpsDoNotResetOtherDeadlines(){
+    PollPlanner p=new PollPlanner();assertEquals("me",p.nextMinute(Arrays.asList("me","a"),100000,"me"));
+    assertEquals("a",p.nextMinute(Arrays.asList("a"),110000,"me"));
+    assertEquals("b",p.nextMinute(Arrays.asList("a","b"),120000,"me"));
+    assertNull(p.nextMinute(Arrays.asList("a","b"),130000,"me"));
+    assertNull(p.nextMinute(Collections.emptyList(),140000,"me"));
+  }
+  @Test public void fixedPointMigrationIgnoresOldDisableFlag()throws Exception{
+    Point fixed=new Point("a","a",55,61,false);fixed.enabled=false;
+    assertTrue(Point.from(fixed.json()).enabled);
+    fixed.dynamic=true;assertFalse(Point.from(fixed.json()).enabled);
+  }
+
   @Test public void fastMainDoesNotStarveSavedPoints(){PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","a","b");assertEquals("me",p.next(ids,100000,120000,"me",10000));assertEquals("a",p.next(ids,110000,120000,"me",10000));assertEquals("me",p.next(ids,120000,120000,"me",10000));assertEquals("b",p.next(ids,130000,120000,"me",10000));assertEquals("me",p.next(ids,140000,120000,"me",10000));}
 
   @Test public void mainWidgetTenSecondTargetPreservesBackoffAndSavedInterval(){
@@ -35,19 +72,19 @@ public class PollPlannerTest {
     p.backoff(100000, 900000); p.expedite("me");
     assertNull(p.next(ids, 999999, 120000, "me"));
   }
-  @Test public void savedPointsOnlyWhenNeeded() {
+  @Test public void savedPointsIncludedInBackground() {
     Point saved = new Point("saved", "saved", 55, 61, false);
-    assertFalse(PollPlanner.needed(saved, false, ""));
+    assertTrue(PollPlanner.needed(saved, false, ""));
     assertTrue(PollPlanner.needed(saved, true, ""));
     assertTrue(PollPlanner.needed(saved, false, "saved"));
-    assertFalse(PollPlanner.needed(saved, false, "other"));
+    assertTrue(PollPlanner.needed(saved, false, "other"));
     saved.notify = true; assertTrue(PollPlanner.needed(saved, false, ""));
     saved.tariffs.clear(); assertFalse(PollPlanner.needed(saved, true, "saved"));
   }
-  @Test public void disabledPointCannotPollEvenWithNotificationOrWidget() {
+  @Test public void legacyDisabledSavedPointStillJoinsMinuteCycle() {
     Point point = new Point("saved", "saved", 55, 61, false);
     point.notify = true; point.enabled = false;
-    assertFalse(PollPlanner.needed(point, true, "saved"));
+    assertTrue(PollPlanner.needed(point, true, "saved"));
   }
   @Test public void dynamicAlwaysNeeded() {
     assertTrue(PollPlanner.needed(new Point("me", "me", 0, 0, true), false, ""));

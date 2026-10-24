@@ -20,7 +20,7 @@ public final class MonitorService extends Service implements LocationListener {
     if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","widgetUpdateTime","showTariff","dark","overlay","points","overlayPoint","widgetTariffs").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
-      queue.execute(()->{planner.refresh();tick();});
+      queue.execute(()->{tick();});
   };
   private int failures = 0;
   private boolean announced,stopping;
@@ -31,7 +31,6 @@ public final class MonitorService extends Service implements LocationListener {
           if (queue != null)
             queue.execute(
                 () -> {
-                  planner.refresh();
                   tick();
                 });
         }
@@ -90,7 +89,7 @@ public final class MonitorService extends Service implements LocationListener {
     overlay = new Overlay(this, store);
     store.prefs.registerOnSharedPreferenceChangeListener(appearanceListener);
     queue = Executors.newSingleThreadScheduledExecutor();
-    queue.scheduleWithFixedDelay(this::tick, 1, 5, TimeUnit.SECONDS);
+    queue.scheduleWithFixedDelay(this::tick, 1, 1, TimeUnit.SECONDS);
   }
 
   @Override
@@ -128,8 +127,7 @@ public final class MonitorService extends Service implements LocationListener {
         }
         eligible.add(q.id);
       }
-      long interval=Math.min(store.prefs.getInt("interval",120)*1000L,300000L);
-      String id = planner.next(eligible, now, interval, "me", browsing||!widgetPoint.isEmpty()?10000L:interval);
+      String id = planner.nextMinute(eligible, android.os.SystemClock.elapsedRealtime(), "me");
       if (id == null) {Diagnostics.once("monitor","queue_wait",false);return;}
       Point p = null;
       for (Point q : a)
@@ -159,7 +157,7 @@ public final class MonitorService extends Service implements LocationListener {
       }
       Point current = null;
       for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
-      if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
+      if (current == null || (current.dynamic && !current.enabled) || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
       List<String> stillNeeded=TariffSelection.requested(current,store.widgetTariffs(),store.prefs.getBoolean("overlay",false)&&current.id.equals(store.widgetPoint().id));
       if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
@@ -178,7 +176,7 @@ public final class MonitorService extends Service implements LocationListener {
       broadcast();
     } catch (TaxiClient.ApiException e) {
       long pause = e.status == 401 || e.status == 403 || e.status == 429 ? 15 * 60_000L : 60_000L;
-      planner.backoff(System.currentTimeMillis(), pause);
+      planner.backoff(android.os.SystemClock.elapsedRealtime(), pause);
       store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
       Diagnostics.error("taxi","http_backoff",e,e.status,-1,pause/1000,null);
       store.prefs.edit().putString("status", e.getMessage()).apply();
@@ -186,7 +184,7 @@ public final class MonitorService extends Service implements LocationListener {
     } catch (Exception e) {
       failures = Math.min(failures + 1, 5);
       long pause=Math.min(900000,30000L*(1L<<failures));
-      planner.backoff(System.currentTimeMillis(),pause);
+      planner.backoff(android.os.SystemClock.elapsedRealtime(),pause);
       store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
       Diagnostics.error("taxi","request_failed",e,0,-1,pause/1000,null);
       store.prefs.edit().putString("status", "Нет обновления · повтор позже").apply();

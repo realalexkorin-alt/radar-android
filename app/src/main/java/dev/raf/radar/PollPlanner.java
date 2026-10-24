@@ -38,9 +38,31 @@ public final class PollPlanner {
     return null;
   }
 
+  public static final long POINT_INTERVAL_MS=60000L;
+  public static final long OWN_INTERVAL_MS=10000L;
+
+  /** One request at a time. Earliest deadline wins; a small lead absorbs timer/IO jitter. */
+  public synchronized String nextMinute(List<String> eligible,long now,String own) {
+    due.keySet().retainAll(eligible);
+    if(now<nextGlobal||eligible.isEmpty())return null;
+    int saved=eligible.size()-(eligible.contains(own)?1:0);
+    int slots=saved+(eligible.contains(own)?6:0);
+    long gap=Math.max(1000,Math.min(10000,(50000L/Math.max(1,slots)/1000)*1000));
+    String selected=null;long earliest=Long.MAX_VALUE;
+    for(String id:eligible){
+      long deadline=due.getOrDefault(id,0L);
+      long lead=id.equals(own)?0:15000;
+      if(deadline>now+lead)continue;
+      if(deadline<earliest||(deadline==earliest&&id.equals(own))){selected=id;earliest=deadline;}
+    }
+    if(selected==null)return null;
+    due.put(selected,now+(selected.equals(own)?OWN_INTERVAL_MS:POINT_INTERVAL_MS));
+    nextGlobal=now+gap;
+    return selected;
+  }
+
   public static boolean needed(Point p, boolean browsing, String overlayPoint) {
-    return p.enabled && !p.tariffs.isEmpty()
-        && (p.dynamic || p.notify || browsing || p.id.equals(overlayPoint));
+    return !p.tariffs.isEmpty() && (!p.dynamic || p.enabled);
   }
 
   public synchronized void expedite(String id) {

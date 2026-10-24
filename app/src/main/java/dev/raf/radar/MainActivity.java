@@ -208,8 +208,7 @@ public final class MainActivity extends Activity {
       TextView address=text(pointAddress(p),12,muted);address.setMaxLines(1);address.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.topMargin=dp(5);labels.addView(address,ap);
       TextView age=text(pointAge(p),10,0xB3FFFFFF);age.setPadding(0,dp(4),0,0);labels.addView(age);
       labels.setContentDescription("Настроить точку: "+p.name);labels.setOnClickListener(v->{selected=p.id;editDetails(p);});line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
-      if(!p.dynamic){RadarUi.Toggle active=new RadarUi.Toggle(this);active.setContentDescription("Мониторинг: "+p.name);active.setChecked(p.enabled);active.setOnCheckedChangeListener((button,enabled)->{p.enabled=enabled;store.update(p);refreshMarkers();});line.addView(active,new LinearLayout.LayoutParams(dp(56),dp(48)));}
-      else{View gear=iconButton("settings","Настроить геопозицию",()->editDetails(p));gear.setBackgroundColor(Color.TRANSPARENT);line.addView(gear,new LinearLayout.LayoutParams(dp(48),dp(48)));}
+      View gear=iconButton("settings","Настроить точку: "+p.name,()->editDetails(p));gear.setBackgroundColor(Color.TRANSPARENT);line.addView(gear,new LinearLayout.LayoutParams(dp(48),dp(48)));
       cards.addView(line);View divider=new View(this);divider.setBackgroundColor(dark?0xFF23252A:0xFFE0E2E6);cards.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
     }
     refreshMarkers();if(preview!=null)updatePreviewValue();
@@ -220,7 +219,7 @@ public final class MainActivity extends Activity {
     for(Point p:store.points()){
       double lat=p.lat,lon=p.lon;if(p.dynamic){if(store.prefs.getLong("gpsAt",0)==0)continue;lat=Double.longBitsToDouble(store.prefs.getLong("lat",0));lon=Double.longBitsToDouble(store.prefs.getLong("lon",0));}
       Store.Reading reading=displayReading(p);
-      if(!p.dynamic&&p.enabled&&reading!=null&&reading.fresh()){
+      if(!p.dynamic&&reading!=null&&reading.fresh()){
         org.maplibre.geojson.Feature feature=org.maplibre.geojson.Feature.fromGeometry(org.maplibre.geojson.Point.fromLngLat(lon,lat));
         feature.addStringProperty("color",String.format(Locale.US,"#%06X",PriceLevel.color(reading.rub)&0xFFFFFF));glowPoints.add(feature);
       }
