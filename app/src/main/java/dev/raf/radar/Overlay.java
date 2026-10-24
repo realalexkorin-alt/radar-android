@@ -53,7 +53,7 @@ final class Overlay {
     int diameter=Math.max(dp((showPlus?88:80)*scale),Math.max((int)Math.ceil(reference)+side*2,(int)Math.ceil(fm.descent-fm.ascent)+2*(ageHeight+gap+dp(4*scale))));
     int screen=Math.min(c.getResources().getDisplayMetrics().widthPixels,c.getResources().getDisplayMetrics().heightPixels)-dp(12);
     diameter=Math.min(diameter,screen);float actual=Math.max(android.text.Layout.getDesiredWidth(price.getText(),price.getPaint()),price.getPaint().measureText(price.getText().toString()));
-    float widthFactor=(diameter-2f*side)/Math.max(reference,actual),heightFactor=(diameter-2f*(ageHeight+gap+dp(4*scale)))/(fm.descent-fm.ascent);
+    float widthFactor=(diameter-2f*side-dp(2))/Math.max(reference,actual),heightFactor=(diameter-2f*(ageHeight+gap+dp(4*scale)))/(fm.descent-fm.ascent);
     float fit=Math.min(1f,Math.min(widthFactor,heightFactor));if(fit<1)price.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,price.getTextSize()*Math.max(.1f,fit));
     fm=price.getPaint().getFontMetrics();int priceHeight=(int)Math.ceil(fm.descent-fm.ascent)+dp(2*scale);
     LinearLayout.LayoutParams priceParams=new LinearLayout.LayoutParams(diameter,priceHeight);priceParams.topMargin=(diameter-priceHeight)/2;price.setLayoutParams(priceParams);
