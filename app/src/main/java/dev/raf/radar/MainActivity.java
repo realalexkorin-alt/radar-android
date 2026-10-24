@@ -367,7 +367,7 @@ public final class MainActivity extends Activity {
       catch(Exception e){senseCommandPending=false;toast("Не удалось выключить: "+e.getMessage());}
       handler.postDelayed(this::refreshCards,200);
     }
-    handler.postDelayed(()->{if(revision==senseClickRevision&&!MonitorService.running&&!startAfterAccess){senseStartPending=false;senseCommandPending=false;}},1500);
+    handler.postDelayed(()->{if(revision==senseClickRevision&&!MonitorService.running&&!startAfterAccess){if(senseDesired&&Appearance.lineage(this))lineageLogo.failure();senseStartPending=false;senseCommandPending=false;}},1500);
   }
   void toggleMonitor(){
     if(MonitorService.running||startAfterAccess)stopMonitor();else{pendingOverlay=true;startMonitor();}

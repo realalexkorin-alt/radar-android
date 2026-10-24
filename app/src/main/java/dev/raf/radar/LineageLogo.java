@@ -11,15 +11,24 @@ final class LineageLogo extends View {
   final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
   final Path letter=new Path(),wordSense=new Path(),wordPro=new Path(),wing=new Path(),crest=new Path();
   final Shader gold=new LinearGradient(0,20,120,360,new int[]{0xFF73502C,0xFFFFEDB8,0xFFD3A34F,0xFF65421F,0xFFFFE8A7},null,Shader.TileMode.CLAMP);
-  final Shader silver=new LinearGradient(140,80,250,290,new int[]{0xFF42535C,0xFFFFFFFF,0xFFBFCBD0,0xFF5B6D78,0xFFF8FBF3},null,Shader.TileMode.CLAMP);
+  final Shader silver=new LinearGradient(140,70,250,300,new int[]{0xFF41505C,0xFFF3F8F6,0xFFBAC8CD,0xFF71858D,0xFFE7EFEA,0xFF536B79,0xFFF4F3DE},new float[]{0,.18f,.30f,.47f,.60f,.78f,1},Shader.TileMode.CLAMP);
   final Shader sapphire=new RadialGradient(CX,CY,INNER,new int[]{0xFF12598B,0xFF073450,0xFF051D35},null,Shader.TileMode.CLAMP);
   final Shader energy=new SweepGradient(CX,CY,new int[]{0x002CDFFF,0x002CDFFF,0x1837CCFF,0xC67DEBFF,0x002CDFFF},new float[]{0,.5f,.85f,.96f,1});
   final Shader crystal=new LinearGradient(-10,-20,10,20,new int[]{0xFFE6FFFF,0xFF39DFFF,0xFF005481},null,Shader.TileMode.CLAMP);
+  final Shader halo=new RadialGradient(CX,CY,178,new int[]{0x002ACFFF,0x002ACFFF,0x772ACFFF,0x002ACFFF},new float[]{0,.75f,.86f,1},Shader.TileMode.CLAMP);
   boolean active,visible,posted,tracking;float power,phase;long last,transitionStart;float transitionFrom,transitionTo;
+  long failureUntil;
   final Runnable frame=()->{posted=false;advance();invalidate();schedule();};
   LineageLogo(Context c){
     super(c);setFocusable(true);setClickable(true);
-    p.setTypeface(Typeface.create("serif",Typeface.BOLD));p.setTextSize(274);p.getTextPath("S",0,1,0,0,letter);RectF bounds=new RectF();letter.computeBounds(bounds,true);Matrix m=new Matrix();m.setTranslate(CX-bounds.centerX(),CY-bounds.centerY()+3);letter.transform(m);
+    // A curved metal ribbon follows the reference silhouette; it is not a system-font S.
+    letter.moveTo(279,73);letter.cubicTo(249,91,211,61,174,76);letter.cubicTo(127,88,112,120,122,151);
+    letter.cubicTo(132,181,176,192,218,211);letter.cubicTo(244,222,254,237,243,254);
+    letter.cubicTo(226,278,182,273,156,253);letter.lineTo(138,235);letter.lineTo(119,289);
+    letter.cubicTo(151,286,177,309,215,296);letter.cubicTo(264,281,285,245,268,214);
+    letter.cubicTo(253,187,207,175,168,156);letter.cubicTo(145,145,143,126,160,112);
+    letter.cubicTo(183,93,222,101,248,119);letter.lineTo(267,136);letter.close();Matrix m=new Matrix();
+    p.setTypeface(Typeface.create("serif",Typeface.BOLD));
     p.setTextSize(49);p.getTextPath("Sense",0,5,0,0,wordSense);p.setTextSize(49);p.getTextPath("Pro",0,3,0,0,wordPro);
     RectF a=new RectF(),b=new RectF();wordSense.computeBounds(a,true);wordPro.computeBounds(b,true);float left=(WIDTH-a.width()-b.width()-5)/2;
     m.setTranslate(left-a.left,404);wordSense.transform(m);m.setTranslate(left+a.width()+5-b.left,404);wordPro.transform(m);
@@ -34,7 +43,8 @@ final class LineageLogo extends View {
   void advance(){long now=SystemClock.elapsedRealtime();float t=Math.min(1,(now-transitionStart)/900f);power=transitionFrom+(transitionTo-transitionFrom)*(t*t*(3-2*t));if(last>0)phase=(phase+Math.min(100,now-last)*.025f)%360;last=now;}
   boolean animationRunning(){return posted;}
   boolean animateAllowed(){return visible&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE&&android.animation.ValueAnimator.areAnimatorsEnabled();}
-  void schedule(){if(animateAllowed()&&(active||Math.abs(power-transitionTo)>.001f)){if(!posted){posted=true;postDelayed(frame,33);}}else{removeCallbacks(frame);posted=false;last=0;if(!android.animation.ValueAnimator.areAnimatorsEnabled())power=transitionTo;}}
+  void failure(){failureUntil=SystemClock.elapsedRealtime()+600;invalidate();schedule();}
+  void schedule(){if(animateAllowed()&&(active||Math.abs(power-transitionTo)>.001f||SystemClock.elapsedRealtime()<failureUntil)){if(!posted){posted=true;postDelayed(frame,33);}}else{removeCallbacks(frame);posted=false;last=0;if(!android.animation.ValueAnimator.areAnimatorsEnabled())power=transitionTo;}}
   @Override protected void onAttachedToWindow(){super.onAttachedToWindow();schedule();}
   @Override protected void onDetachedFromWindow(){removeCallbacks(frame);posted=false;last=0;super.onDetachedFromWindow();}
   @Override public void onVisibilityAggregated(boolean shown){super.onVisibilityAggregated(shown);if(p!=null)schedule();}
@@ -51,11 +61,21 @@ final class LineageLogo extends View {
   void fill(Canvas c,Path path,Shader shader,int color){p.setStyle(Paint.Style.FILL);p.setShader(shader);p.setColor(color);p.setAlpha(255);c.drawPath(path,p);p.setShader(null);}
   void stroke(Canvas c,Path path,float width,int color){p.setShader(null);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(width);p.setColor(color);c.drawPath(path,p);p.setStyle(Paint.Style.FILL);}
   void gem(Canvas c,float x,float y,float size){int save=c.save();c.translate(x,y);c.scale(size,size);Path d=new Path();d.moveTo(0,-19);d.lineTo(10,0);d.lineTo(0,19);d.lineTo(-10,0);d.close();fill(c,d,crystal,Color.WHITE);stroke(c,d,1.1f,0xFFFFE8A4);p.setColor(0xDDE1FFFF);p.setStrokeWidth(.8f);c.drawLine(0,-18,0,18,p);c.drawLine(-9,0,9,0,p);if(power>0){p.setColor(Color.argb((int)(power*(95+45*Math.sin(Math.toRadians(phase*2)))),140,240,255));c.drawCircle(0,0,4,p);}c.restoreToCount(save);}
+  void wing(Canvas c){
+    fill(c,wing,gold,Color.WHITE);stroke(c,wing,1.6f,0xFFF1D190);
+    for(int i=0;i<3;i++){Path feather=new Path();float dx=i*7,dy=i*13;
+      feather.moveTo(19+dx,91+dy);feather.cubicTo(19+dx,119+dy,43+dx,120+dy,53+dx,141+dy);feather.cubicTo(40+dx,132+dy,27+dx,135+dy,19+dx,91+dy);feather.close();fill(c,feather,i%2==0?silver:gold,Color.WHITE);stroke(c,feather,.8f,0xFF66502B);
+    }
+    Path scroll=new Path();scroll.moveTo(46,160);scroll.cubicTo(22,176,24,198,44,204);scroll.cubicTo(65,210,61,183,47,188);scroll.cubicTo(39,190,42,199,48,196);
+    stroke(c,scroll,7,0xFF4F391D);stroke(c,scroll,4,0xFFCEA65D);stroke(c,scroll,1,0xFFFFE9AF);
+    Path tail=new Path();tail.moveTo(51,206);tail.cubicTo(65,225,37,241,46,263);tail.cubicTo(29,241,47,221,31,213);tail.cubicTo(42,218,49,216,51,206);tail.close();fill(c,tail,gold,Color.WHITE);stroke(c,tail,1,0xFFEFD090);
+  }
   @Override protected void onDraw(Canvas c){advance();drawScene(c,power,phase);}
   void drawScene(Canvas c,float strength,float angle){
     float s=Math.min(getWidth()/WIDTH,getHeight()/HEIGHT);int scene=c.save();c.translate((getWidth()-WIDTH*s)/2,(getHeight()-HEIGHT*s)/2);c.scale(s,s);if(isPressed())c.scale(.976f,.976f,CX,CY);
     p.setShader(null);p.setStyle(Paint.Style.FILL);p.setColor(0x66000000);c.drawCircle(CX,CY+4,159,p);
-    fill(c,wing,gold,Color.WHITE);stroke(c,wing,1.6f,0xFFF1D190);int mirror=c.save();c.scale(-1,1,CX,CY);fill(c,wing,gold,Color.WHITE);stroke(c,wing,1.6f,0xFFF1D190);c.restoreToCount(mirror);
+    p.setShader(halo);p.setAlpha((int)(strength*(150+60*Math.sin(Math.toRadians(angle*2)))));c.drawCircle(CX,CY,178,p);p.setShader(null);p.setAlpha(255);
+    wing(c);int mirror=c.save();c.scale(-1,1,CX,CY);wing(c);c.restoreToCount(mirror);
     p.setShader(gold);c.drawCircle(CX,CY,154,p);p.setShader(null);p.setColor(0xFF1B2A31);c.drawCircle(CX,CY,146,p);p.setShader(gold);c.drawCircle(CX,CY,139,p);p.setShader(sapphire);c.drawCircle(CX,CY,132,p);p.setShader(null);
     p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.4f);p.setColor(0xFFEDDA9A);c.drawCircle(CX,CY,151,p);p.setColor(0xFF917343);c.drawCircle(CX,CY,143,p);
     // Fixed filigree follows the circular frame, separate from the rotating light.
@@ -64,12 +84,13 @@ final class LineageLogo extends View {
     c.rotate(angle,CX,CY);p.setShader(energy);p.setAlpha((int)(40+strength*215));c.drawCircle(CX,CY,131,p);p.setShader(null);p.setAlpha(255);c.restoreToCount(inner);
     p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.2f);p.setColor(Color.argb((int)(50+strength*130),68,212,255));c.drawCircle(CX,CY,125,p);
     for(int i=0;i<8;i++){double a=Math.toRadians(i*45-90);float x=CX+(float)Math.cos(a)*112,y=CY+(float)Math.sin(a)*112;Path rune=new Path();rune.moveTo(x,y-7);rune.lineTo(x+4,y);rune.lineTo(x,y+7);rune.lineTo(x-4,y);rune.close();c.drawPath(rune,p);}
-    p.setStyle(Paint.Style.FILL);int shadow=c.save();c.translate(0,4);fill(c,letter,null,0xDD010C15);c.restoreToCount(shadow);stroke(c,letter,4.5f,0xFF63431D);stroke(c,letter,2.4f,0xFFFFD88C);fill(c,letter,silver,Color.WHITE);
+    p.setStyle(Paint.Style.FILL);int shadow=c.save();c.translate(0,4);fill(c,letter,null,0xDD010C15);stroke(c,letter,5,0xFF031323);c.restoreToCount(shadow);stroke(c,letter,6,0xFF63431D);stroke(c,letter,4,0xFFFFD88C);fill(c,letter,silver,Color.WHITE);stroke(c,letter,.7f,0xFFF5EAD0);
     fill(c,crest,gold,Color.WHITE);stroke(c,crest,1.3f,0xFFFFE4A4);gem(c,200,48,1.25f);gem(c,50,183,.95f);gem(c,350,183,.95f);gem(c,200,331,1.05f);
     Path lower=new Path();lower.moveTo(42,416);lower.lineTo(180,416);lower.lineTo(200,428);lower.lineTo(220,416);lower.lineTo(358,416);stroke(c,lower,2,0xFFB79854);
     stroke(c,wordSense,2.5f,0xFF5B3C20);fill(c,wordSense,silver,Color.WHITE);stroke(c,wordPro,2.5f,0xFF62401D);
     fill(c,wordPro,strength>.5f?null:gold,strength>.5f?0xFF73EEAA:Color.WHITE);
     p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);p.setColor(strength>.5f?0x8873EEAA:0x77FFC56B);c.drawPath(wordPro,p);p.setStyle(Paint.Style.FILL);
+    long failureLeft=failureUntil-SystemClock.elapsedRealtime();if(failureLeft>0){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(4);p.setColor(Color.argb((int)(210*Math.min(1,failureLeft/600f)),255,187,65));c.drawCircle(CX,CY,155,p);p.setStyle(Paint.Style.FILL);}
     c.restoreToCount(scene);
   }
 }
