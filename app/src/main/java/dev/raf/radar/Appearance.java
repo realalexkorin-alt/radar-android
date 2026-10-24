@@ -12,7 +12,7 @@ final class Appearance {
   static final String KEY="appearanceTheme", STANDARD="standard", LINEAGE="lineage2";
   static final int GOLD=0xFFD4B474, INK=0xFF101719, PANEL=0xFF202725, TEXT=0xFFF1E8D3, MUTED=0xFFAEA995;
   static boolean lineage(Context c){return LINEAGE.equals(c.getSharedPreferences("radar",0).getString(KEY,STANDARD));}
-  static boolean sounds(Context c){return !lineage(c)&&c.getSharedPreferences("radar",0).getBoolean("sounds",true);}
+  static boolean sounds(Context c){return c.getSharedPreferences("radar",0).getBoolean(lineage(c)?"lineageSounds":"sounds",true);}
   static int accent(Context c){return lineage(c)?GOLD:RadarUi.YELLOW;}
   static int foreground(Context c){return lineage(c)?TEXT:0xFFF5F5F7;}
   static String notificationChannel(Context c,String normal,String label){

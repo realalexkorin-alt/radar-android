@@ -23,6 +23,7 @@ final class Updates {
     if (resume(a, !silent)) return;
     if (busy) { if (!silent) show(a, "Проверка или загрузка уже выполняется"); return; }
     busy = true;
+    if(!silent)AppSounds.ui(a,AppSounds.Event.UPDATE_CHECK);
     if (!silent) show(a, "Проверяем обновления Радара…");
     new Thread(() -> {
       try {

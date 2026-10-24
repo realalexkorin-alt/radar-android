@@ -14,7 +14,12 @@ public class AppearanceTest {
     prepare();Store s=new Store(context());
     try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
       scenario.onActivity(a->{a.showTab(2);a.themes();});ScreenTest.capture("theme-picker-standard");
-      scenario.onActivity(a->{a.selectTheme(Appearance.LINEAGE);assertTrue(Appearance.lineage(a));assertFalse(Appearance.sounds(a));assertTrue(s.prefs.getBoolean("sounds",false));assertFalse(SettingsPolishTest.contains(a.settingsContents(),"Звук"));assertNotNull(a.lineageLogo);
+      scenario.onActivity(a->{a.selectTheme(Appearance.LINEAGE);assertTrue(Appearance.lineage(a));assertTrue(Appearance.sounds(a));assertTrue(s.prefs.getBoolean("sounds",false));assertTrue(SettingsPolishTest.contains(a.settingsContents(),"Звук"));assertNotNull(a.lineageLogo);
+        a.store.prefs.edit().putBoolean("lineageSounds",false).commit();assertFalse(Appearance.sounds(a));assertTrue(a.store.prefs.getBoolean("sounds",false));a.store.prefs.edit().putBoolean("lineageSounds",true).commit();
+        assertEquals(R.raw.l2_quest_accept_01,AppSounds.lineageResource(AppSounds.Event.MONITOR_READY));
+        for(AppSounds.Event event:new AppSounds.Event[]{AppSounds.Event.MONITOR_READY,AppSounds.Event.UPDATE_CHECK,AppSounds.Event.UPDATE_REPLY,AppSounds.Event.TAB_MAP,AppSounds.Event.TAB_POINTS,AppSounds.Event.MENU_OPEN,AppSounds.Event.MENU_CLOSE,AppSounds.Event.CLICK}){
+          android.content.res.AssetFileDescriptor sound=a.getResources().openRawResourceFd(AppSounds.lineageResource(event));assertNotNull(sound);try{sound.close();}catch(java.io.IOException e){throw new AssertionError(e);}
+        }
         a.lineageLogo.state(true,true);a.lineageLogo.advance();if(!android.animation.ValueAnimator.areAnimatorsEnabled())assertEquals(1f,a.lineageLogo.power,0f);a.lineageLogo.state(false,false);assertFalse(a.lineageLogo.animationRunning());});
       // Dismiss the picker via the platform back action, leaving the selected settings visible.
       InstrumentationRegistry.getInstrumentation().getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
@@ -22,7 +27,7 @@ public class AppearanceTest {
       final org.maplibre.android.maps.MapView[] original={null};final String[] points={null};final boolean[] running={false};
       scenario.onActivity(a->{original[0]=a.mapView;points[0]=a.store.prefs.getString("points","");running[0]=MonitorService.running;a.showTab(0);assertEquals(View.VISIBLE,a.lineageLogo.getVisibility());assertEquals(View.GONE,a.senseLogo.getVisibility());});ScreenTest.capture("lineage-map");
       scenario.onActivity(a->{a.selectTheme(Appearance.STANDARD);assertSame(original[0],a.mapView);assertEquals(points[0],a.store.prefs.getString("points",""));assertEquals(running[0],MonitorService.running);assertTrue(Appearance.sounds(a));assertEquals(View.GONE,a.lineageLogo.getVisibility());assertFalse(a.lineageLogo.animationRunning());});ScreenTest.capture("standard-restored");
-      scenario.onActivity(a->a.selectTheme(Appearance.LINEAGE));scenario.recreate();scenario.onActivity(a->{assertTrue(Appearance.lineage(a));assertFalse(Appearance.sounds(a));a.showTab(2);assertFalse(a.lineageLogo.animationRunning());});
+      scenario.onActivity(a->a.selectTheme(Appearance.LINEAGE));scenario.recreate();scenario.onActivity(a->{assertTrue(Appearance.lineage(a));assertTrue(Appearance.sounds(a));a.showTab(2);assertFalse(a.lineageLogo.animationRunning());});
     }finally{AccountClient.transport=AccountClient::request;AccountClient.clear(s);}
   }
   @Test public void silentChannelsVectorArtworkAndOverlayStayReadable() throws Exception {

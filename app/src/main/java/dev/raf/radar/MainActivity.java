@@ -72,7 +72,7 @@ public final class MainActivity extends Activity {
     ImageView image=RadarUi.icon(this,icon,fg,24);FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER);frame.addView(image,params);
     frame.setContentDescription(description);frame.setFocusable(true);frame.setOnClickListener(v->action.run());return frame;
   }
-  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,Appearance.lineage(this)?Appearance.TEXT:yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
+  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,Appearance.lineage(this)?Appearance.TEXT:yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->{AppSounds.ui(this,AppSounds.Event.CLICK);action.run();});return t;}
 
   void palette(){dark=true;boolean fantasy=Appearance.lineage(this);fg=fantasy?Appearance.TEXT:0xFFF5F5F7;bg=fantasy?Appearance.INK:RadarUi.BACKGROUND;surface=fantasy?Appearance.PANEL:RadarUi.CARD;muted=fantasy?Appearance.MUTED:0xFF92969F;}
 
@@ -175,6 +175,7 @@ public final class MainActivity extends Activity {
     TextView title=heading("Настройки",24);title.setPadding(dp(20),dp(24),dp(20),dp(20));settingsPanel.addView(title);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=settingsContents();scroll.addView(body);settingsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
   void showTab(int tab){
+    if(resumed&&tab!=currentTab)AppSounds.ui(this,tab==0?AppSounds.Event.TAB_MAP:tab==1?AppSounds.Event.TAB_POINTS:AppSounds.Event.MENU_OPEN);
     currentTab=Math.max(0,Math.min(2,tab));mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
     updateNavigation();
     syncBrandLogo();
@@ -339,7 +340,7 @@ public final class MainActivity extends Activity {
   }
   void showFriends(){
     friendsRows=column();ScrollView scroll=new ScrollView(this);scroll.addView(friendsRows);
-    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setNeutralButton("Обновить",null).setPositiveButton("Закрыть",null).create();friendsDialog.show();friendsRefreshIcon=new RadarUi.RefreshIcon(this);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawables(friendsRefreshIcon,null,null,null);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawablePadding(dp(8));friendsDialog.setOnDismissListener(d->{if(friendsRefreshIcon!=null)friendsRefreshIcon.loading(false);});friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->refreshFriends(true));renderFriends();refreshFriends(true);
+    friendsDialog=new AlertDialog.Builder(this).setTitle("Друзья").setView(scroll).setNeutralButton("Обновить",null).setPositiveButton("Закрыть",null).create();AppSounds.ui(this,AppSounds.Event.MENU_OPEN);friendsDialog.show();friendsRefreshIcon=new RadarUi.RefreshIcon(this);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawables(friendsRefreshIcon,null,null,null);friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setCompoundDrawablePadding(dp(8));friendsDialog.setOnDismissListener(d->{AppSounds.ui(this,AppSounds.Event.MENU_CLOSE);if(friendsRefreshIcon!=null)friendsRefreshIcon.loading(false);});friendsDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->refreshFriends(true));renderFriends();refreshFriends(true);
   }
   void refreshFriends(boolean force){
     if(!resumed||friendsDialog==null||!friendsDialog.isShowing()||directoryPending)return;
@@ -701,7 +702,7 @@ public final class MainActivity extends Activity {
   }
 
 
-  Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->run.run());return button;}
+  Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->{AppSounds.ui(this,AppSounds.Event.CLICK);run.run();});return button;}
   void settings(){showTab(2);}
   void updateNavigation(){
     if(navigation==null)return;navigation.setBackgroundColor(bg);String[] icons={"map","list","settings"};
@@ -723,7 +724,7 @@ public final class MainActivity extends Activity {
       // The entire preview is one accessible target; decorative children never intercept taps.
       previewLogo.setOnTouchListener((v,e)->false);previewLogo.setEnabled(false);
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(12);body.addView(card,lp);
-    }dialog.show();
+    }dialog.setOnDismissListener(d->AppSounds.ui(this,AppSounds.Event.MENU_CLOSE));dialog.show();
   }
   void selectTheme(String id){
     boolean before=Appearance.lineage(this),after=Appearance.LINEAGE.equals(id);if(before==after)return;
@@ -768,8 +769,7 @@ public final class MainActivity extends Activity {
       store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);
     });
     switchRow(more,"Не выключать экран",store.prefs.getBoolean("keepScreenOn",false),0,enabled->{store.prefs.edit().putBoolean("keepScreenOn",enabled).apply();syncScreenAwake();});
-    if(Appearance.lineage(this)){TextView silent=text("Звуки Lineage 2 появятся в следующем патче. Сейчас тема без звука.",12,muted);silent.setPadding(0,dp(12),0,dp(12));more.addView(silent);}
-    else switchRow(more,"Звук",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
+    switchRow(more,"Звук",Appearance.sounds(this),0,enabled->{store.prefs.edit().putBoolean(Appearance.lineage(this)?"lineageSounds":"sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
@@ -802,7 +802,7 @@ public final class MainActivity extends Activity {
       public void onStartTrackingTouch(SeekBar b){} public void onStopTrackingTouch(SeekBar b){}
     });
   }
-  void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));if(title.equals("Размер и прозрачность")){ImageView arrow=RadarUi.icon(this,"right",muted,14);line.addView(arrow);line.setOnClickListener(v->{arrow.animate().rotation(arrow.getRotation()<45?90:0).setDuration(160).start();action.run();});}else line.setOnClickListener(v->action.run());line.setFocusable(true);group.addView(line);}
+  void settingAction(LinearLayout group,String title,Runnable action){LinearLayout line=row();line.setContentDescription(title);line.setMinimumHeight(dp(50));line.addView(text(title,13,fg),new LinearLayout.LayoutParams(0,-2,1));if(title.equals("Размер и прозрачность")){ImageView arrow=RadarUi.icon(this,"right",muted,14);line.addView(arrow);line.setOnClickListener(v->{arrow.animate().rotation(arrow.getRotation()<45?90:0).setDuration(160).start();action.run();});}else line.setOnClickListener(v->{if(!title.equals("Проверить обновления"))AppSounds.ui(this,AppSounds.Event.MENU_OPEN);action.run();});line.setFocusable(true);group.addView(line);}
   void numberDialog(String title,String key,int min,int max,int step,String unit){LinearLayout form=form();slider(form,title,min,max,store.prefs.getInt(key,120),step,value->store.prefs.edit().putInt(key,value).apply(),unit);new AlertDialog.Builder(this).setTitle(title).setView(form).setPositiveButton("Готово",null).show();}
   void mapLayers(){
     List<Point> points=store.points();String[] names=new String[points.size()];for(int i=0;i<names.length;i++)names[i]=points.get(i).name;
@@ -834,7 +834,7 @@ public final class MainActivity extends Activity {
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {
       startupSoundPending = false;
-      startupSound.play(this, store.prefs.getBoolean("sounds", true));
+      startupSound.play(this, Appearance.sounds(this));
     }
     updateViewing();
     sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));

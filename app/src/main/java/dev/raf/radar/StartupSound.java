@@ -27,8 +27,9 @@ final class StartupSound {
       if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
         stop(); return;
       }
-      player = MediaPlayer.create(context, R.raw.startup, attributes, 0);
+      player = MediaPlayer.create(context, Appearance.lineage(context)?R.raw.l2_game_start:R.raw.startup, attributes, 0);
       if (player == null) { stop(); return; }
+      if(Appearance.lineage(context))player.setVolume(0.45f,0.45f);
       player.setLooping(false);
       player.setOnCompletionListener(completed -> stop());
       player.setOnErrorListener((failed, what, extra) -> { stop(); return true; });
