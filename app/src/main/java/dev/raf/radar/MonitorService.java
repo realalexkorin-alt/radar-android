@@ -17,7 +17,7 @@ public final class MonitorService extends Service implements LocationListener {
   private Overlay overlay;
   private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
-    if(key!=null&&java.util.Arrays.asList("scale","textScale","opacity","widgetUpdateTime","showTariff","dark","overlay","points","overlayPoint","widgetTariffs").contains(key))
+    if(key!=null&&java.util.Arrays.asList(Appearance.KEY,"scale","textScale","opacity","widgetUpdateTime","showTariff","dark","overlay","points","overlayPoint","widgetTariffs").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
       queue.execute(()->{tick();});
@@ -204,7 +204,7 @@ public final class MonitorService extends Service implements LocationListener {
         store.prefs.getLong("alertAt:" + key, 0),
         store.prefs.getInt("alertRub:" + key, 0))) return;
     Notification n =
-        new Notification.Builder(this, "alerts")
+        new Notification.Builder(this, Appearance.notificationChannel(this,"alerts","Надбавки"))
             .setSmallIcon(R.drawable.ic_radar)
             .setContentTitle(p.name + " · " + Point.label(r.tariff))
             .setContentText("Надбавка " + r.value())

@@ -34,7 +34,7 @@ final class AppSounds {
   static void play(Context context,Event event) {
     Context app=context.getApplicationContext();
     if(Looper.myLooper()!=Looper.getMainLooper()){main.post(()->play(app,event));return;}
-    if(!app.getSharedPreferences("radar",0).getBoolean("sounds",true))return;
+    if(!Appearance.sounds(app))return;
     AudioManager manager=app.getSystemService(AudioManager.class);
     if(manager==null||manager.getRingerMode()!=AudioManager.RINGER_MODE_NORMAL)return;
     stop();audio=manager;current=event;

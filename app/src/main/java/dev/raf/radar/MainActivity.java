@@ -30,6 +30,7 @@ public final class MainActivity extends Activity {
   boolean startAfterAccess, pendingOverlay, resumed, dark;
   RadarLogo pro, brandLogo;
   SenseLogo senseLogo;LinearLayout classicBrand,mapTitle;TextView mapLoading;int senseHeight;
+  LineageLogo lineageLogo;
   boolean senseStartPending,senseCommandPending,senseDesired;int senseClickRevision;
   RadarUi.Toggle monitorToggle,overlayToggle;
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if("dev.raf.radar.PEERS".equals(i.getAction())){friends=PresenceClient.cached(store);peers=new ArrayList<>(friends);renderFriends();}refreshCards();}};
@@ -47,7 +48,7 @@ public final class MainActivity extends Activity {
   final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();refreshFriends(false);handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
-    setTheme(R.style.AppThemeDark);
+    setTheme(Appearance.lineage(this)?R.style.AppThemeLineage:R.style.AppThemeDark);
     super.onCreate(saved);MapLibre.getInstance(this);store=new Store(this);access=new Access(this,store);
     mapGps=new MapGps(this,store,this::refreshMarkers);friends=PresenceClient.cached(store);peers=new ArrayList<>(friends);
     startupSoundPending = saved == null;
@@ -65,17 +66,18 @@ public final class MainActivity extends Activity {
   LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
   LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
   void pad(View v,int horizontal,int vertical){v.setPadding(dp(horizontal),dp(vertical),dp(horizontal),dp(vertical));}
-  TextView heading(String value,int size){TextView t=RadarUi.text(this,value,size,fg,true);return t;}
+  TextView heading(String value,int size){TextView t=RadarUi.text(this,value,size,fg,true);t.setTag(R.id.theme_heading,true);if(Appearance.lineage(this)){t.setTypeface(Typeface.create("serif",Typeface.BOLD));t.setTextColor(Appearance.GOLD);}return t;}
   View iconButton(String icon,String description,Runnable action){
     FrameLayout frame=new FrameLayout(this);RadarUi.touch(frame,surface,15,dark?0xFF303238:0xFFE1E3E7);
     ImageView image=RadarUi.icon(this,icon,fg,24);FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(dp(24),dp(24),Gravity.CENTER);frame.addView(image,params);
     frame.setContentDescription(description);frame.setFocusable(true);frame.setOnClickListener(v->action.run());return frame;
   }
-  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
+  TextView primary(String value,boolean yellow,Runnable action){TextView t=text(value,14,Appearance.lineage(this)?Appearance.TEXT:yellow?Color.BLACK:fg);t.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));t.setGravity(Gravity.CENTER);t.setMinHeight(dp(48));RadarUi.touch(t,yellow?RadarUi.YELLOW:(dark?0xFF383C43:0xFFE1E3E7),14,0);t.setOnClickListener(v->action.run());return t;}
+
+  void palette(){dark=true;boolean fantasy=Appearance.lineage(this);fg=fantasy?Appearance.TEXT:0xFFF5F5F7;bg=fantasy?Appearance.INK:RadarUi.BACKGROUND;surface=fantasy?Appearance.PANEL:RadarUi.CARD;muted=fantasy?Appearance.MUTED:0xFF92969F;}
 
   void build(Bundle saved){
-    dark=true;fg=dark?0xFFF5F5F7:0xFF15171B;bg=dark?RadarUi.BACKGROUND:0xFFF2F3F5;
-    surface=dark?RadarUi.CARD:Color.WHITE;muted=dark?0xFF92969F:0xFF676D76;
+    palette();
     getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
     getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     root=column();root.setBackgroundColor(bg);root.setFitsSystemWindows(true);setContentView(root);
@@ -91,6 +93,7 @@ public final class MainActivity extends Activity {
       item.setOnClickListener(v->showTab(tab));navigation.addView(item,new LinearLayout.LayoutParams(0,dp(66),1));
     }
     root.addView(navigation);showTab(currentTab);refreshCards();
+    themeMapCaption();
   }
   void buildMap(Bundle saved){
     mapPanel=column();mapFrame=new FrameLayout(this);mapPanel.addView(mapFrame,new LinearLayout.LayoutParams(-1,-1));pages.addView(mapPanel,new FrameLayout.LayoutParams(-1,-1));
@@ -132,6 +135,8 @@ public final class MainActivity extends Activity {
     senseLogo.setVisibility(View.VISIBLE);
     classicBrand.setVisibility(View.GONE);
     logoFrame.addView(senseLogo,new FrameLayout.LayoutParams(dp(senseWidth),dp(senseHeight)));title.addView(logoFrame);
+    lineageLogo=new LineageLogo(this);lineageLogo.setOnClickListener(v->toggleSenseMonitor());
+    logoFrame.addView(lineageLogo,new FrameLayout.LayoutParams(dp(senseWidth),dp(senseWidth*LineageLogo.HEIGHT/LineageLogo.WIDTH)));
     state=text("Мониторинг выключен",10,muted);state.setPadding(0,dp(8),dp(4),dp(10));state.setContentDescription("Состояние мониторинга");title.addView(state);
     FrameLayout.LayoutParams tl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);tl.setMargins(dp(20),dp(18),dp(78),0);mapFrame.addView(title,tl);
     LinearLayout tools=column();String[] icons={"search","locate","person"},names={"Поиск точки","Моя геопозиция","Друзья"};Runnable[] actions={this::addPoint,this::locate,this::showFriends};
@@ -155,7 +160,7 @@ public final class MainActivity extends Activity {
   }
   void applyMapStyle(){
     if(map==null)return;
-    try { java.io.InputStream in=getAssets().open(dark?"map-dark.json":"map-light.json");java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)bytes.write(b,0,n);in.close();
+    try { java.io.InputStream in=getAssets().open(Appearance.lineage(this)?"map-lineage.json":dark?"map-dark.json":"map-light.json");java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)bytes.write(b,0,n);in.close();
       String style=bytes.toString("UTF-8").replace("https://vector.openstreetmap.org/shortbread_v1/tilejson.json",store.prefs.getString("vectorTileJson","https://vector.openstreetmap.org/shortbread_v1/tilejson.json"));
       map.setStyle(new Style.Builder().fromJson(style),s->refreshMarkers());
     }catch(Exception e){toast("Не удалось открыть оформление карты");}
@@ -163,7 +168,7 @@ public final class MainActivity extends Activity {
   void buildPoints(){
     pointsPanel=column();pages.addView(pointsPanel,new FrameLayout.LayoutParams(-1,-1));
     LinearLayout header=row();header.setPadding(dp(20),dp(20),dp(16),dp(20));header.addView(heading("Мои точки",24),new LinearLayout.LayoutParams(0,-2,1));
-    View plus=iconButton("plus","Добавить точку",this::addPoint);plus.setBackground(shape(RadarUi.YELLOW,12));((ImageView)((FrameLayout)plus).getChildAt(0)).setImageDrawable(new RadarUi.Icon("plus",Color.BLACK));header.addView(plus,new LinearLayout.LayoutParams(dp(44),dp(44)));pointsPanel.addView(header);
+    View plus=iconButton("plus","Добавить точку",this::addPoint);RadarUi.touch(plus,RadarUi.YELLOW,12,0);((ImageView)((FrameLayout)plus).getChildAt(0)).setImageDrawable(new RadarUi.Icon("plus",Appearance.lineage(this)?Appearance.TEXT:Color.BLACK));header.addView(plus,new LinearLayout.LayoutParams(dp(44),dp(44)));pointsPanel.addView(header);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);cards=column();cards.setPadding(dp(20),0,dp(16),dp(16));scroll.addView(cards);pointsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
   }
   void buildSettings(){settingsPanel=column();pages.addView(settingsPanel,new FrameLayout.LayoutParams(-1,-1));
@@ -171,22 +176,25 @@ public final class MainActivity extends Activity {
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=settingsContents();scroll.addView(body);settingsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
   void showTab(int tab){
     currentTab=Math.max(0,Math.min(2,tab));mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
-    if(navigation!=null){String[] icons={"map","list","settings"};for(int i=0;i<3;i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);item.setSelected(i==currentTab);int color=i==currentTab?RadarUi.YELLOW:muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[i],color));((TextView)item.getChildAt(1)).setTextColor(color);}}
+    updateNavigation();
     syncBrandLogo();
     if(currentTab==2&&resumed)rebuildSettings();
     updateViewing();if(currentTab!=2){sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));refreshCards();}
   }
   void syncBrandLogo(){
     if(brandLogo==null)return;
+    boolean fantasy=Appearance.lineage(this);
     boolean experimental=true;
-    if(experimental&&!senseLogo.available()){experimental=false;store.prefs.edit().putBoolean("experimentalLogo",false).apply();toast("Не удалось загрузить SENSE. Восстановлен обычный логотип.");}
+    if(!fantasy&&experimental&&!senseLogo.available()){experimental=false;store.prefs.edit().putBoolean("experimentalLogo",false).apply();toast("Не удалось загрузить SENSE. Восстановлен обычный логотип.");}
     if(MonitorService.running)senseStartPending=false;
     if(MonitorService.running==senseDesired)senseCommandPending=false;
-    classicBrand.setVisibility(experimental?View.GONE:View.VISIBLE);
-    senseLogo.setVisibility(experimental?View.VISIBLE:View.GONE);
+    classicBrand.setVisibility(fantasy||experimental?View.GONE:View.VISIBLE);
+    senseLogo.setVisibility(!fantasy&&experimental?View.VISIBLE:View.GONE);
+    lineageLogo.setVisibility(fantasy?View.VISIBLE:View.GONE);
+    lineageLogo.state(MonitorService.running,resumed&&currentTab==0&&fantasy);
     brandLogo.experimental(false);brandLogo.active(MonitorService.running);brandLogo.motionAllowed(false);
     if(pro!=null){pro.experimental(false);pro.motionAllowed(false);pro.setEnabled(!experimental);pro.setClickable(!experimental);}
-    senseLogo.state(MonitorService.running,resumed&&currentTab==0&&experimental);
+    senseLogo.state(MonitorService.running,resumed&&currentTab==0&&experimental&&!fantasy);
     if(mapTitle!=null&&mapTitle.getLayoutParams() instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapTitle.getLayoutParams();int left=dp(experimental?8:20),top=dp(experimental?8:18);if(lp.leftMargin!=left||lp.topMargin!=top){lp.leftMargin=left;lp.topMargin=top;mapTitle.setLayoutParams(lp);}}
     if(mapLoading!=null){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapLoading.getLayoutParams();int top=dp(experimental?senseHeight+65:130);if(lp.topMargin!=top){lp.topMargin=top;mapLoading.setLayoutParams(lp);}}
   }
@@ -272,6 +280,7 @@ public final class MainActivity extends Activity {
     for(int i=0;i<rows.size();i++){
       Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
       int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
+      if(Appearance.lineage(this)){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setColor(Appearance.GOLD);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(4),dp(4),paint);paint.setStyle(Paint.Style.FILL);}
       paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);boolean trend=store.prefs.getBoolean("forecast",false);float valueCenter=trend?(width-dp(24))/2f:width/2f;paint.setTextSize(dp(12));
       if(trend){float available=width-dp(30);float measured=paint.measureText(RadarUi.value(reading));if(measured>available)paint.setTextSize(dp(12)*available/measured);}
       canvas.drawText(RadarUi.value(reading),valueCenter,top+dp(20),paint);
@@ -288,7 +297,10 @@ public final class MainActivity extends Activity {
     canvas.drawCircle(center,center,dp(25),paint);paint.setShader(null);
     paint.setColor(0xFF17191F);canvas.drawCircle(center,center,dp(8),paint);
     paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setColor(color);paint.setAlpha(fresh?255:100);canvas.drawCircle(center,center,dp(8),paint);
-    paint.setStyle(Paint.Style.FILL);canvas.drawCircle(center,center,dp(4),paint);return icon;
+    paint.setStyle(Paint.Style.FILL);
+    if(Appearance.lineage(this)){Path gem=new Path();float radius=dp(own?6:5);gem.moveTo(center,center-radius);gem.lineTo(center+radius,center);gem.lineTo(center,center+radius);gem.lineTo(center-radius,center);gem.close();canvas.drawPath(gem,paint);
+      if(own){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));for(int i=0;i<4;i++){double a=i*Math.PI/2;canvas.drawLine(center+(float)Math.cos(a)*dp(11),center+(float)Math.sin(a)*dp(11),center+(float)Math.cos(a)*dp(15),center+(float)Math.sin(a)*dp(15),paint);}paint.setStyle(Paint.Style.FILL);}}
+    else canvas.drawCircle(center,center,dp(4),paint);return icon;
   }
   Bitmap nearbyPeerIcon(){
     Bitmap icon=locationIcon(false,true);Canvas canvas=new Canvas(icon);
@@ -376,7 +388,7 @@ public final class MainActivity extends Activity {
     showTab(0);hidePreview();preview=p;selected=p.id;
     boolean existing=store.points().stream().anyMatch(saved->saved.id.equals(p.id));
     if(!existing)AppSounds.play(this,AppSounds.Event.POINT_CREATE);
-    LinearLayout sheet=column();sheet.setPadding(dp(18),dp(10),dp(18),dp(18));GradientDrawable background=shape(dark?0xFF16181B:Color.WHITE,26);background.setStroke(dp(1),dark?0xFF34373D:0xFFDCDDE0);sheet.setBackground(background);sheet.setElevation(dp(10));
+    LinearLayout sheet=column();sheet.setPadding(dp(18),dp(10),dp(18),dp(18));GradientDrawable background=shape(dark?0xFF16181B:Color.WHITE,26);background.setStroke(dp(1),dark?0xFF34373D:0xFFDCDDE0);sheet.setBackground(Appearance.lineage(this)?Appearance.frame(this,false):background);sheet.setElevation(dp(10));
     View handle=new View(this);handle.setBackground(shape(dark?0xFF666B73:0xFFC0C3C8,4));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(4));hp.gravity=Gravity.CENTER_HORIZONTAL;hp.bottomMargin=dp(18);sheet.addView(handle,hp);
     sheet.addView(text(String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon),12,muted));
     previewValue=heading("Надбавка "+RadarUi.value(displayReading(p)),22);LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=dp(12);vp.bottomMargin=dp(10);sheet.addView(previewValue,vp);
@@ -592,10 +604,10 @@ public final class MainActivity extends Activity {
               } else child.setVisibility(View.GONE);
             }
           }
-          dialog.getButton(-1).setBackground(shape(0xFFF7CE46, 12));
-          dialog.getButton(-1).setTextColor(Color.BLACK);
+          dialog.getButton(-1).setBackground(Appearance.lineage(this)?Appearance.frame(this,true):shape(0xFFF7CE46, 12));
+          dialog.getButton(-1).setTextColor(Appearance.lineage(this)?Appearance.TEXT:Color.BLACK);
           dialog.getButton(-2).setTextColor(fg);
-          dialog.getButton(-2).setBackground(shape(surface, 12));
+          dialog.getButton(-2).setBackground(Appearance.lineage(this)?Appearance.frame(this,true):shape(surface, 12));
             dialog
                 .getButton(-1)
                 .setOnClickListener(
@@ -691,6 +703,40 @@ public final class MainActivity extends Activity {
 
   Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->run.run());return button;}
   void settings(){showTab(2);}
+  void updateNavigation(){
+    if(navigation==null)return;navigation.setBackgroundColor(bg);String[] icons={"map","list","settings"};
+    for(int i=0;i<3;i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);item.setSelected(i==currentTab);int color=i==currentTab?Appearance.accent(this):muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[i],color));((TextView)item.getChildAt(1)).setTextColor(color);}
+    if(Appearance.lineage(this))navigation.setBackground(Appearance.frame(this,false));
+  }
+  void themes(){
+    LinearLayout body=column();body.setPadding(dp(18),dp(8),dp(18),dp(16));
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Темы").setView(body).setNegativeButton("Закрыть",null).create();
+    String[] ids={Appearance.STANDARD,Appearance.LINEAGE},names={"Стандартная","Lineage 2"};
+    for(int i=0;i<ids.length;i++){
+      final String id=ids[i];boolean fantasy=i==1,chosen=Appearance.lineage(this)==fantasy;
+      LinearLayout card=row();card.setPadding(dp(12),dp(10),dp(12),dp(10));card.setMinimumHeight(dp(108));card.setBackground(fantasy?Appearance.frame(this,false):shape(RadarUi.CARD,14));
+      View previewLogo=fantasy?new LineageLogo(this):new SenseLogo(this);previewLogo.setClickable(false);previewLogo.setFocusable(false);previewLogo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+      card.addView(previewLogo,new LinearLayout.LayoutParams(dp(76),dp(84)));LinearLayout labels=column();labels.setPadding(dp(12),0,0,0);
+      TextView title=text(names[i]+(chosen?" · выбрана":""),16,fantasy?Appearance.GOLD:Color.WHITE);labels.addView(title);
+      TextView subtitle=text(fantasy?"Пергамент, металл и кристаллы\nБез звуков в этом патче":"Привычное оформление\nПрежние звуки",12,fantasy?Appearance.MUTED:0xFFB4B8C0);subtitle.setPadding(0,dp(8),0,0);labels.addView(subtitle);
+      card.addView(labels,new LinearLayout.LayoutParams(0,-2,1));card.setContentDescription("Тема "+names[i]+(chosen?", выбрана":""));card.setFocusable(true);card.setOnClickListener(v->{dialog.dismiss();selectTheme(id);});
+      // The entire preview is one accessible target; decorative children never intercept taps.
+      previewLogo.setOnTouchListener((v,e)->false);previewLogo.setEnabled(false);
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(12);body.addView(card,lp);
+    }dialog.show();
+  }
+  void selectTheme(String id){
+    boolean before=Appearance.lineage(this),after=Appearance.LINEAGE.equals(id);if(before==after)return;
+    hidePreview();startupSound.stop();AppSounds.stop();
+    store.prefs.edit().putString(Appearance.KEY,after?Appearance.LINEAGE:Appearance.STANDARD).apply();
+    setTheme(after?R.style.AppThemeLineage:R.style.AppThemeDark);palette();
+    root.setBackgroundColor(bg);getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
+    Appearance.recolor(root,before,after);updateNavigation();
+    pages.removeView(pointsPanel);buildPoints();pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);
+    rebuildSettings();themeMapCaption();peerBitmap=null;nearbyPeerBitmap=null;offlinePeerBitmap=null;refreshCards();applyMapStyle();
+    toast(after?"Тема Lineage 2 включена · без звука":"Стандартная тема включена");
+  }
+  void themeMapCaption(){if(state==null)return;if(Appearance.lineage(this)){state.setBackground(Appearance.frame(this,false));state.setPadding(dp(9),dp(7),dp(9),dp(7));}else{state.setBackground(null);state.setPadding(0,dp(8),dp(4),dp(10));}}
   LinearLayout settingsContents(){
     LinearLayout body=column();body.setPadding(dp(20),0,dp(20),dp(20));
     LinearLayout profile=group(body,"Профиль");
@@ -715,13 +761,15 @@ public final class MainActivity extends Activity {
     sizeSlider(controls,"Размер текста","textScale",60,250);
     sizeSlider(controls,"Прозрачность","opacity",20,100);
     LinearLayout more=group(body,"Дополнительно");
+    settingAction(more,"Темы",this::themes);
     switchRow(more,"Прогнозирование",store.prefs.getBoolean("forecast",false),0,enabled->{store.prefs.edit().putBoolean("forecast",enabled).apply();refreshCards();});
     switchRow(more,"Время обновления точек",store.prefs.getBoolean("mapPointUpdateTime",false),0,enabled->{store.prefs.edit().putBoolean("mapPointUpdateTime",enabled).apply();refreshCards();});
     switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{
       store.prefs.edit().putBoolean("shareLocation",enabled).apply();PresenceClient.sharingChanged(this);
     });
     switchRow(more,"Не выключать экран",store.prefs.getBoolean("keepScreenOn",false),0,enabled->{store.prefs.edit().putBoolean("keepScreenOn",enabled).apply();syncScreenAwake();});
-    switchRow(more,"Звук",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
+    if(Appearance.lineage(this)){TextView silent=text("Звуки Lineage 2 появятся в следующем патче. Сейчас тема без звука.",12,muted);silent.setPadding(0,dp(12),0,dp(12));more.addView(silent);}
+    else switchRow(more,"Звук",store.prefs.getBoolean("sounds",true),0,enabled->{store.prefs.edit().putBoolean("sounds",enabled).apply();if(!enabled){AppSounds.stop();startupSound.stop();}});
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
@@ -729,7 +777,7 @@ public final class MainActivity extends Activity {
   }
   LinearLayout group(LinearLayout body,String title){
     LinearLayout card=column();card.setPadding(dp(14),dp(14),dp(14),dp(4));
-    GradientDrawable background=new GradientDrawable(GradientDrawable.Orientation.TL_BR,dark?new int[]{0xFF202225,0xFF181A1D}:new int[]{Color.WHITE,Color.WHITE});background.setCornerRadius(dp(18));card.setBackground(background);
+    GradientDrawable background=new GradientDrawable(GradientDrawable.Orientation.TL_BR,dark?new int[]{0xFF202225,0xFF181A1D}:new int[]{Color.WHITE,Color.WHITE});background.setCornerRadius(dp(18));card.setBackground(Appearance.lineage(this)?Appearance.frame(this,false):background);
     LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(14);body.addView(card,params);
     TextView heading=heading(title,16);heading.setPadding(0,0,0,dp(8));card.addView(heading);return card;
   }
@@ -747,7 +795,7 @@ public final class MainActivity extends Activity {
     int current=Math.max(min,Math.min(max,store.prefs.getInt(key,"opacity".equals(key)?70:100)));
     TextView value=text(current+"%",12,muted);line.addView(value);group.addView(line);
     SeekBar bar=new SeekBar(this);bar.setMax(max-min);bar.setProgress(current-min);bar.setContentDescription(title);
-    bar.setProgressTintList(ColorStateList.valueOf(RadarUi.YELLOW));bar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));bar.setThumbTintList(ColorStateList.valueOf(Color.WHITE));
+    bar.setProgressTintList(ColorStateList.valueOf(Appearance.accent(this)));bar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF45484E));bar.setThumbTintList(ColorStateList.valueOf(Appearance.lineage(this)?Appearance.GOLD:Color.WHITE));
     group.addView(bar,new LinearLayout.LayoutParams(-1,dp(40)));
     bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
       public void onProgressChanged(SeekBar b,int progress,boolean user){int n=min+progress;value.setText(n+"%");if(user)store.prefs.edit().putInt(key,n).apply();}

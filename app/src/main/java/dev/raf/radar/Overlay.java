@@ -58,7 +58,10 @@ final class Overlay {
     fm=price.getPaint().getFontMetrics();int priceHeight=(int)Math.ceil(fm.descent-fm.ascent)+dp(2*scale);
     LinearLayout.LayoutParams priceParams=new LinearLayout.LayoutParams(diameter,priceHeight);priceParams.topMargin=(diameter-priceHeight)/2;price.setLayoutParams(priceParams);
     LinearLayout.LayoutParams ageParams=new LinearLayout.LayoutParams(diameter,ageHeight);ageParams.topMargin=gap;updated.setLayoutParams(ageParams);
-    android.graphics.drawable.GradientDrawable circle=new android.graphics.drawable.GradientDrawable();circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);circle.setColor(Color.argb(s.prefs.getInt("opacity",70)*255/100,12,13,15));root.setBackground(circle);
+    android.graphics.drawable.GradientDrawable circle=new android.graphics.drawable.GradientDrawable();circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+    int alpha=s.prefs.getInt("opacity",70)*255/100;
+    if(Appearance.lineage(c)){circle.setGradientType(android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT);circle.setGradientRadius(diameter*.65f);circle.setColors(new int[]{Color.argb(alpha,12,54,78),Color.argb(alpha,5,22,32)});circle.setStroke(dp(2),Color.argb(alpha,212,180,116));}
+    else circle.setColor(Color.argb(alpha,12,13,15));root.setBackground(circle);
     lp.width=diameter;lp.height=diameter;wm.updateViewLayout(root,lp);updateAge();
     price.requestLayout();root.requestLayout();
     root.post(()->{if(root!=null)position(lp.x,lp.y);});

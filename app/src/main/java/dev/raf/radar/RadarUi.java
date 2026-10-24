@@ -17,10 +17,13 @@ final class RadarUi {
     if (border != 0) d.setStroke(dp(c,1), border); return d;
   }
   static void touch(View v, int color, int radius, int border) {
-    v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x24FFFFFF),shape(v.getContext(),color,radius,border),null));
+    v.setTag(R.id.theme_surface,new int[]{color,radius,border,1});
+    v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x24FFFFFF),Appearance.lineage(v.getContext())?Appearance.frame(v.getContext(),true):shape(v.getContext(),color,radius,border),null));
   }
   static TextView text(Context c, String value, float size, int color, boolean bold) {
-    TextView t = new TextView(c); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+    TextView t = new TextView(c); t.setText(value); t.setTextSize(size);
+    if(Appearance.lineage(c)){if(color==0xFFF5F5F7)color=Appearance.TEXT;else if(color==0xFF92969F)color=Appearance.MUTED;else if(color==YELLOW)color=Appearance.GOLD;}
+    t.setTextColor(color);
     t.setFontFeatureSettings("kern"); t.setIncludeFontPadding(false);
     t.setTypeface(Typeface.create(bold ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL)); return t;
   }
@@ -52,8 +55,10 @@ final class RadarUi {
     @Override protected void onMeasure(int w,int h) { setMeasuredDimension(resolveSize(dp(getContext(),56),w),resolveSize(dp(getContext(),48),h)); }
     @Override protected void onDraw(Canvas canvas) {
       float width=dp(getContext(),44), height=dp(getContext(),26), left=(getWidth()-width)/2f, top=(getHeight()-height)/2f;
-      paint.setColor(isChecked()?YELLOW:0xFF41454C); canvas.drawRoundRect(left,top,left+width,top+height,height/2,height/2,paint);
-      paint.setColor(Color.WHITE); float radius=dp(getContext(),11);
+      boolean fantasy=Appearance.lineage(getContext());
+      paint.setColor(isChecked()?(fantasy?0xFF235B61:YELLOW):(fantasy?0xFF343C34:0xFF41454C)); canvas.drawRoundRect(left,top,left+width,top+height,fantasy?dp(getContext(),4):height/2,fantasy?dp(getContext(),4):height/2,paint);
+      if(fantasy){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(getContext(),1));paint.setColor(Appearance.GOLD);canvas.drawRoundRect(left,top,left+width,top+height,dp(getContext(),4),dp(getContext(),4),paint);paint.setStyle(Paint.Style.FILL);}
+      paint.setColor(fantasy?Appearance.GOLD:Color.WHITE); float radius=dp(getContext(),fantasy?8:11);
       canvas.drawCircle(left+(isChecked()?width-height/2:height/2),top+height/2,radius,paint);
     }
   }

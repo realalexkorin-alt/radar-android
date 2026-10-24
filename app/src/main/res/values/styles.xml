@@ -11,4 +11,16 @@
  </style>
  <style name="RadarDialogDark" parent="android:style/Theme.Material.Dialog.Alert"><item name="android:windowBackground">@drawable/dialog_dark</item><item name="android:colorAccent">#F7CE46</item><item name="android:windowMinWidthMajor">90%</item><item name="android:windowMinWidthMinor">90%</item></style>
  <style name="RadarDialogLight" parent="android:style/Theme.Material.Light.Dialog.Alert"><item name="android:windowBackground">@drawable/dialog_light</item><item name="android:colorAccent">#9B7700</item><item name="android:windowMinWidthMajor">90%</item><item name="android:windowMinWidthMinor">90%</item></style>
+ <style name="AppThemeLineage" parent="AppThemeDark">
+  <item name="android:alertDialogTheme">@style/LineageDialog</item><item name="android:colorAccent">#D4B474</item>
+  <item name="android:windowBackground">#101719</item><item name="android:textColorPrimary">#F1E8D3</item><item name="android:textColorSecondary">#AEA995</item>
+ </style>
+ <style name="LineageDialog" parent="RadarDialogDark">
+  <item name="android:windowBackground">@drawable/dialog_lineage</item><item name="android:colorAccent">#D4B474</item>
+  <item name="android:textColorPrimary">#F1E8D3</item><item name="android:textColorSecondary">#AEA995</item>
+  <item name="android:buttonBarButtonStyle">@style/LineageDialogButton</item>
+ </style>
+ <style name="LineageDialogButton" parent="android:style/Widget.Material.Button.Borderless">
+  <item name="android:textColor">#F1E8D3</item><item name="android:textAllCaps">false</item><item name="android:background">@drawable/button_lineage</item><item name="android:minHeight">48dp</item>
+ </style>
 </resources>

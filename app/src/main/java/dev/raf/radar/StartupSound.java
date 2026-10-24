@@ -13,7 +13,7 @@ final class StartupSound {
   void play(Context context, boolean enabled) {
     if (attempted) return;
     attempted = true;
-    if (!enabled) return;
+    if (!enabled || !Appearance.sounds(context)) return;
     audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
     if (audio == null || audio.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
     AudioAttributes attributes = new AudioAttributes.Builder()
