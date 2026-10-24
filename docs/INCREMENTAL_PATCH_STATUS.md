@@ -19,6 +19,7 @@ GitHub is the source of truth. Each release is signed with the existing certific
 | 0.1.33 | Five-minute fixed-point observations, durable account-scoped queue, server weather and private history |
 | 0.1.34 | Geographic anchors, local label dragging and kilometer-area glow |
 | 0.1.35 | Remove forecast radius glow and label dragging; ignore previous visual offsets |
+| 0.1.36 | Round overlay, stable +999 reference size, centered numeric age; widget/font size sliders retained |
 
 ## Remaining external dependency
 Actual push when app is fully closed: no Huawei Push Kit app configuration is available. SDK/provider transport is not implemented or advertised as complete. See HUAWEI_PUSH_SETUP.md. Local notifications require app/foreground monitoring to sync.
@@ -45,3 +46,5 @@ Install0.1.33 or newer on both phones, enable monitoring and5–10 fixed points 
 Release/test/signature details for the completed series: PATCH_SERIES_0.1.31-34.md. Latest versionCode35; the latest APK contains all four incremental changes.
 
 0.1.35 removes only radius visualization and dragging; server statistics/radius grouping remain. Saved points are local; friend point copying is a proposal for a separate catalog/permission/import feature, not shipped.
+
+0.1.36 changes only overlay rendering and its targeted check. Both user scaling controls and opacity remain; numeric age does not affect diameter or price center. Final real-screen rendering check passed onAPI35.
