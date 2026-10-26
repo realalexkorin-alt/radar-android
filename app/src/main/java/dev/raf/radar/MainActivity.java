@@ -46,7 +46,7 @@ public final class MainActivity extends Activity {
   String selected="me";
   Handler handler=new Handler();
   static final String[] TARIFF_IDS={"econom"};
-  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();refreshFriends(false);handler.postDelayed(this,5000);}}};
+  final Runnable refreshLoop=new Runnable(){public void run(){if(resumed){updateViewing();mapGps.start();refreshCards();refreshPeers();refreshFriends(false);if(currentTab==3&&statisticsPanel!=null)statisticsPanel.visible();handler.postDelayed(this,5000);}}};
 
   @Override public void onCreate(Bundle saved) {
     setTheme(Appearance.lineage(this)?R.style.AppThemeLineage:R.style.AppThemeDark);

@@ -31,7 +31,7 @@ final class StatisticsPanel extends LinearLayout {
  String periodTitle(){Calendar s=start(date);SimpleDateFormat f=new SimpleDateFormat(mode.equals("month")?"LLLL yyyy":"d MMM yyyy",new Locale("ru"));if(!mode.equals("week"))return f.format(s.getTime());Calendar end=(Calendar)s.clone();end.add(Calendar.DATE,6);return new SimpleDateFormat("d MMM",new Locale("ru")).format(s.getTime())+" – "+f.format(end.getTime());}
  void move(int direction){if(direction>0&&currentPeriod())return;date=start(date);date.add(mode.equals("month")?Calendar.MONTH:Calendar.DATE,direction*(mode.equals("week")?7:1));data=null;render();load(true);}
  void zones(){JSONArray list=data==null?new JSONArray():data.optJSONArray("areas");ArrayList<String> ids=new ArrayList<>(),labels=new ArrayList<>();ids.add("all");labels.add("Все зоны");if(list!=null)for(int i=0;i<list.length();i++){ids.add(list.optString(i));labels.add("Зона #"+list.optString(i));}new android.app.AlertDialog.Builder(a).setTitle("Область статистики").setItems(labels.toArray(new String[0]),(d,i)->{region=ids.get(i);data=null;render();load(true);}).setNegativeButton("Отмена",null).show();}
- void visible(){if(data==null||SystemClock.elapsedRealtime()-loadedAt>300000)load(false);}
+ void visible(){if(loadedAt==0||SystemClock.elapsedRealtime()-loadedAt>300000)load(false);}
  void load(boolean force){
   if(busy&&!force)return;final int ticket=++generation;busy=true;status.setText("Загружаем историю…");
   final String token=AccountClient.session(a.store),query="mode="+mode+"&date="+key()+"&region="+region+"&timezone="+UriEncode(TimeZone.getDefault().getID());
