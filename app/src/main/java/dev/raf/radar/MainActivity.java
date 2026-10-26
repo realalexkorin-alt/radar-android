@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
   final BroadcastReceiver monitorState=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if("dev.raf.radar.PEERS".equals(i.getAction())){friends=PresenceClient.cached(store);peers=new ArrayList<>(friends);renderFriends();}refreshCards();}};
   int fg,bg,surface,muted,currentTab;
   LinearLayout root,cards,mapPanel,pointsPanel,settingsPanel,navigation;
+  StatisticsPanel statisticsPanel;
   FrameLayout pages,mapFrame;
   MapView mapView; MapLibreMap map;
   TextView state,friendBadge;boolean socialPending;
@@ -82,16 +83,10 @@ public final class MainActivity extends Activity {
     getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     root=column();root.setBackgroundColor(bg);root.setFitsSystemWindows(true);setContentView(root);
     pages=new FrameLayout(this);root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));
-    buildMap(saved);buildPoints();buildSettings();
+    buildMap(saved);buildPoints();buildSettings();statisticsPanel=new StatisticsPanel(this);pages.addView(statisticsPanel,new FrameLayout.LayoutParams(-1,-1));
     View border=new View(this);border.setBackgroundColor(dark?0xFF25272C:0xFFDDDFE3);root.addView(border,new LinearLayout.LayoutParams(-1,dp(1)));
     navigation=row();navigation.setBackgroundColor(bg);
-    String[] labels={"Карта","Точки","Настройки"},icons={"map","list","settings"};
-    for(int i=0;i<labels.length;i++){
-      final int tab=i;LinearLayout item=column();item.setGravity(Gravity.CENTER);item.setContentDescription("Вкладка "+labels[i]);item.setFocusable(true);
-      item.addView(RadarUi.icon(this,icons[i],i==currentTab?RadarUi.YELLOW:muted,23));
-      TextView label=text(labels[i],10,i==currentTab?RadarUi.YELLOW:muted);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.topMargin=dp(5);item.addView(label,lp);
-      item.setOnClickListener(v->showTab(tab));navigation.addView(item,new LinearLayout.LayoutParams(0,dp(66),1));
-    }
+    rebuildNavigation();
     root.addView(navigation);showTab(currentTab);refreshCards();
     themeMapCaption();
   }
@@ -176,11 +171,11 @@ public final class MainActivity extends Activity {
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=settingsContents();scroll.addView(body);settingsPanel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
   void showTab(int tab){
     if(resumed&&tab!=currentTab)AppSounds.ui(this,tab==0?AppSounds.Event.TAB_MAP:tab==1?AppSounds.Event.TAB_POINTS:AppSounds.Event.MENU_OPEN);
-    currentTab=Math.max(0,Math.min(2,tab));mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
+    currentTab=tab==3&&store.prefs.getBoolean("experimentalStatistics",false)?3:Math.max(0,Math.min(2,tab));statisticsPanel.setVisibility(currentTab==3?View.VISIBLE:View.GONE);if(currentTab==3)statisticsPanel.visible();mapPanel.setVisibility(currentTab==0?View.VISIBLE:View.GONE);pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);settingsPanel.setVisibility(currentTab==2?View.VISIBLE:View.GONE);
     updateNavigation();
     syncBrandLogo();
     if(currentTab==2&&resumed)rebuildSettings();
-    updateViewing();if(currentTab!=2){sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));refreshCards();}
+    updateViewing();if(currentTab==0||currentTab==1){sendBroadcast(new Intent("dev.raf.radar.VIEWING").setPackage(getPackageName()));refreshCards();}
   }
   void syncBrandLogo(){
     if(brandLogo==null)return;
@@ -199,7 +194,7 @@ public final class MainActivity extends Activity {
     if(mapTitle!=null&&mapTitle.getLayoutParams() instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapTitle.getLayoutParams();int left=dp(experimental?8:20),top=dp(experimental?8:18);if(lp.leftMargin!=left||lp.topMargin!=top){lp.leftMargin=left;lp.topMargin=top;mapTitle.setLayoutParams(lp);}}
     if(mapLoading!=null){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapLoading.getLayoutParams();int top=dp(experimental?senseHeight+65:130);if(lp.topMargin!=top){lp.topMargin=top;mapLoading.setLayoutParams(lp);}}
   }
-  void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&currentTab!=2?System.currentTimeMillis()+15000:0).apply();}
+  void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&(currentTab==0||currentTab==1)?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
   Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&r.rub!=null){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){
@@ -704,9 +699,19 @@ public final class MainActivity extends Activity {
 
   Button action(String value,Runnable run){Button button=new Button(this);button.setText(value);button.setTextColor(fg);button.setTextSize(13);button.setAllCaps(false);button.setMinHeight(dp(48));button.setPadding(dp(12),0,dp(12),0);RadarUi.touch(button,surface,12,0);button.setOnClickListener(v->{AppSounds.ui(this,AppSounds.Event.CLICK);run.run();});return button;}
   void settings(){showTab(2);}
+  void rebuildNavigation(){
+    if(navigation==null)return;navigation.removeAllViews();
+    int[] tabs=store.prefs.getBoolean("experimentalStatistics",false)?new int[]{0,1,3,2}:new int[]{0,1,2};
+    String[] labels={"Карта","Точки","Настройки","Статистика"},icons={"map","list","settings","chart"};
+    for(int tab:tabs){LinearLayout item=column();item.setTag(tab);item.setGravity(Gravity.CENTER);item.setContentDescription("Вкладка "+labels[tab]);item.setFocusable(true);
+      item.addView(RadarUi.icon(this,icons[tab],tab==currentTab?Appearance.accent(this):muted,23));
+      TextView label=text(labels[tab],10,tab==currentTab?Appearance.accent(this):muted);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.topMargin=dp(5);item.addView(label,lp);
+      item.setOnClickListener(v->showTab(tab));navigation.addView(item,new LinearLayout.LayoutParams(0,dp(66),1));
+    }updateNavigation();
+  }
   void updateNavigation(){
-    if(navigation==null)return;navigation.setBackgroundColor(bg);String[] icons={"map","list","settings"};
-    for(int i=0;i<3;i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);item.setSelected(i==currentTab);int color=i==currentTab?Appearance.accent(this):muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[i],color));((TextView)item.getChildAt(1)).setTextColor(color);}
+    if(navigation==null)return;navigation.setBackgroundColor(bg);String[] icons={"map","list","settings","chart"};
+    for(int i=0;i<navigation.getChildCount();i++){LinearLayout item=(LinearLayout)navigation.getChildAt(i);int tab=(Integer)item.getTag();item.setSelected(tab==currentTab);int color=tab==currentTab?Appearance.accent(this):muted;((ImageView)item.getChildAt(0)).setImageDrawable(new RadarUi.Icon(icons[tab],color));((TextView)item.getChildAt(1)).setTextColor(color);}
     if(Appearance.lineage(this))navigation.setBackground(Appearance.frame(this,false));
   }
   void themes(){
@@ -734,7 +739,7 @@ public final class MainActivity extends Activity {
     root.setBackgroundColor(bg);getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
     Appearance.recolor(root,before,after);updateNavigation();
     pages.removeView(pointsPanel);buildPoints();pointsPanel.setVisibility(currentTab==1?View.VISIBLE:View.GONE);
-    rebuildSettings();themeMapCaption();peerBitmap=null;nearbyPeerBitmap=null;offlinePeerBitmap=null;refreshCards();applyMapStyle();
+    rebuildSettings();if(statisticsPanel!=null)statisticsPanel.render();themeMapCaption();peerBitmap=null;nearbyPeerBitmap=null;offlinePeerBitmap=null;refreshCards();applyMapStyle();
     toast(after?"Тема Lineage 2 включена":"Стандартная тема включена");
   }
   void themeMapCaption(){
@@ -771,6 +776,7 @@ public final class MainActivity extends Activity {
     sizeSlider(controls,"Прозрачность","opacity",20,100);
     LinearLayout more=group(body,"Дополнительно");
     settingAction(more,"Темы",this::themes);
+    switchRow(more,"Статистика (экспериментальная)",store.prefs.getBoolean("experimentalStatistics",false),0,enabled->{store.prefs.edit().putBoolean("experimentalStatistics",enabled).apply();if(!enabled&&currentTab==3)showTab(2);rebuildNavigation();});
     switchRow(more,"Прогнозирование",store.prefs.getBoolean("forecast",false),0,enabled->{store.prefs.edit().putBoolean("forecast",enabled).apply();refreshCards();});
     switchRow(more,"Время обновления точек",store.prefs.getBoolean("mapPointUpdateTime",false),0,enabled->{store.prefs.edit().putBoolean("mapPointUpdateTime",enabled).apply();refreshCards();});
     switchRow(more,"Делиться местоположением",store.prefs.getBoolean("shareLocation",false),0,enabled->{

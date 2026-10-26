@@ -70,6 +70,7 @@ final class RadarUi {
       c.save(); Rect b=getBounds();c.translate(b.left,b.top);c.scale(b.width()/24f,b.height()/24f);
       p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.9f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
       switch(name) {
+        case "chart": line(c,3,3,3,21,22,21);line(c,6,16,11,10,15,13,21,5);break;
         case "search": c.drawCircle(10.5f,10.5f,6.5f,p);line(c,15.5f,15.5f,21,21);break;
         case "layers": line(c,3,9,12,3,21,9,12,15,3,9);line(c,3,14,12,20,21,14);break;
         case "person": c.drawCircle(12,7,4,p);c.drawArc(4,13,20,27,180,180,false,p);break;
