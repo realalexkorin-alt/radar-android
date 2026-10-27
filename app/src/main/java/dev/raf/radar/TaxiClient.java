@@ -93,7 +93,14 @@ public final class TaxiClient {
       }
       int status = c.getResponseCode();
       Diagnostics.record("taxi",stage,status==200?"info":"error",null,status,android.os.SystemClock.elapsedRealtime()-started,-1,null);
-      if (status != 200) throw new ApiException(status);
+      if (status != 200) {
+        String detail;
+        try (InputStream error = c.getErrorStream()) {
+          detail = ServiceError.classify(error, c.getContentType());
+        } catch (Exception ignored) { detail = "response_unreadable"; }
+        Diagnostics.error("taxi", detail, null, status, -1, -1, null);
+        throw new ApiException(status);
+      }
       try (InputStream in = c.getInputStream()) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] b = new byte[8192];
