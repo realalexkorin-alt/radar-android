@@ -787,6 +787,8 @@ public final class MainActivity extends Activity {
     LinearLayout updates=group(body,"Обновление");
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
+    LinearLayout diagnostic=group(body,"Диагностика");
+    settingAction(diagnostic,"Отправить диагностику",()->Diagnostics.sendManual(this));
     return body;
   }
   LinearLayout group(LinearLayout body,String title){
