@@ -1,7 +1,7 @@
 name: Sense launcher icon
 on:
   push:
-    branches: ['codex/sense-icon']
+    branches: ['codex/sense-icon-v2']
 permissions:
   contents: read
 jobs:
