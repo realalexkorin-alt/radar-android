@@ -27,6 +27,30 @@ final class Diagnostics {
  }
  static void retry(){failures=Math.min(6,failures+1);retryAt=SystemClock.elapsedRealtime()+Math.min(3600000,60000L*(1L<<failures));}
  static int upload(String body,String token)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL("https://radar-presence.vercel.app/api/diagnostics").openConnection();try{c.setConnectTimeout(8000);c.setReadTimeout(20000);c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Authorization","Bearer "+token);try(OutputStream out=c.getOutputStream()){out.write(body.getBytes(StandardCharsets.UTF_8));}return c.getResponseCode();}finally{c.disconnect();}}
+ static void sendManual(MainActivity a){
+  if(app==null||journal==null){a.toast("Диагностика недоступна");return;}
+  a.toast("Отправляем диагностику…");
+  worker.execute(()->{
+   String result;
+   try {
+    journal.event("app","manual_report","error",null,0,-1,-1,null);
+    File report=journal.report("manual_report",device(),snapshot(),true);
+    if(report==null) result="Не удалось подготовить отчёт";
+    else {
+     String token=AccountClient.session(new Store(app));
+     if(token==null) result="Отчёт сохранён. Войдите в аккаунт для отправки";
+     else {
+      int status=transport.send(DiagnosticJournal.read(report),token);
+      app.getSharedPreferences("radar",0).edit().putInt("diagUploadHttp",status).apply();
+      if(status==200){journal.acknowledged(report);app.getSharedPreferences("radar",0).edit().putLong("diagUploadedAt",System.currentTimeMillis()).apply();result="Диагностика отправлена";}
+      else if(status==401||status==403) result="Отчёт сохранён. Войдите в аккаунт снова";
+      else result="Отчёт сохранён. Не удалось отправить (HTTP "+status+")";
+     }
+    }
+   }catch(Exception e){result="Отчёт сохранён. Не удалось отправить";}
+   String message=result;new Handler(Looper.getMainLooper()).post(()->{if(!a.isFinishing())a.toast(message);});
+  });
+ }
  static void ui(MainActivity a){check();new AlertDialog.Builder(a).setTitle("Диагностика").setMessage(summary()).setPositiveButton("Закрыть",null).setNeutralButton("Скопировать отчёт",(d,w)->((ClipboardManager)a.getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Радар · диагностика",summary()))).setNegativeButton("Отправить отчёт",(d,w)->{worker.execute(()->{journal.event("app","manual_report","error",null,0,-1,-1,null);journal.report("manual_report",device(),snapshot(),true);retryAt=0;flush();});a.toast("Отчёт поставлен в очередь отправки");}).show();}
  static String summary(){if(app==null)return "Диагностика не запущена";android.content.SharedPreferences p=app.getSharedPreferences("radar",0);return "Радар "+BuildConfig.VERSION_NAME+"\nID: "+p.getInt("accountId",0)+"\n"+snapshot().toString()+"\nПоследняя ошибка: "+p.getString("diagLastError","нет")+"\nПоследняя отправка: "+(p.getLong("diagUploadedAt",0)==0?"ещё не было":new java.text.SimpleDateFormat("dd.MM HH:mm:ss",java.util.Locale.getDefault()).format(new java.util.Date(p.getLong("diagUploadedAt",0))))+"\nHTTP отправки: "+p.getInt("diagUploadHttp",0);}
 }
