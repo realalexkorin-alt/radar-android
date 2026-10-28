@@ -102,7 +102,7 @@ public final class LoginActivity extends Activity {
       catch(java.net.SocketTimeoutException e){result="Сервис не ответил вовремя.";Diagnostics.error("yandex_auth","probe_timeout",e,0,-1,-1,null);}
       catch(Exception e){result="Запрос не выполнен: "+e.getClass().getSimpleName()+".";Diagnostics.error("yandex_auth","probe_failed",e,0,-1,-1,null);}
       String message=result;
-      runOnUiThread(()->{testing=false;if(isFinishing()||isDestroyed())return;test.setEnabled(true);hint.setText(cookies+"\n"+message+"\nОтправляем диагностический отчёт…");Diagnostics.sendManual(this,delivery->hint.setText(cookies+"\\n"+message+"\\n"+delivery));});
+      runOnUiThread(()->{testing=false;if(isFinishing()||isDestroyed())return;test.setEnabled(true);hint.setText(cookies+"\n"+message+"\nОтправляем диагностический отчёт…");Diagnostics.sendManual(this,delivery->hint.setText(cookies+"\n"+message+"\n"+delivery));});
     });
   }
 
