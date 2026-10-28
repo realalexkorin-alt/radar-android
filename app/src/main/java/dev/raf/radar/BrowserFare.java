@@ -74,7 +74,7 @@ final class BrowserFare {
    final String key="sense_fare_"+UUID.randomUUID().toString().replace("-","");
    final long deadline=SystemClock.elapsedRealtime()+70000;
    main.post(new Runnable(){boolean started,retried;long attemptDeadline=SystemClock.elapsedRealtime()+35000;WebView owner;Map<String,String> used=Collections.emptyMap();
-    void finish(JSONObject data,Exception error){if(done.getCount()==0)return;fareInFlight=false;result[0]=data;failure[0]=error;done.countDown();if(owner!=null&&owner==web&&trusted(owner.getUrl()))owner.evaluateJavascript(FareScript.clear(key),null);}
+    void finish(JSONObject data,Exception error){if(done.getCount()==0)return;if(retried&&error!=null)Diagnostics.info("yandex_browser","session_recovery_failed");fareInFlight=false;result[0]=data;failure[0]=error;done.countDown();if(owner!=null&&owner==web&&trusted(owner.getUrl()))owner.evaluateJavascript(FareScript.clear(key),null);}
     @Override public void run(){
      if(done.getCount()==0)return;
      if(SystemClock.elapsedRealtime()>=Math.min(deadline,attemptDeadline)){finish(null,new java.net.SocketTimeoutException("Страница Яндекса не ответила"));return;}
@@ -112,7 +112,7 @@ final class BrowserFare {
          Diagnostics.info("yandex_browser","session_recovery_started");
          refreshSession(context);main.postDelayed(this,250);return;
         }
-        if(retried)Diagnostics.info("yandex_browser",http==200&&"ok".equals(kind)?"session_recovery_succeeded":"session_recovery_failed");
+        if(retried&&http==200&&"ok".equals(kind))Diagnostics.info("yandex_browser","session_recovery_succeeded");
         if(http!=200){finish(null,http>0?new TaxiClient.ApiException(http,"verification".equals(kind)?"response_verification":"response_browser_refused"):new IOException("Не удалось получить ответ страницы"));return;}
         JSONObject data=envelope.getJSONObject("data");
         if(data.optJSONArray("service_levels")==null)throw new JSONException("service_levels");
@@ -124,8 +124,8 @@ final class BrowserFare {
     }
    });
    try{
-    if(!done.await(72,TimeUnit.SECONDS)){done.countDown();throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
-   }catch(InterruptedException e){done.countDown();Thread.currentThread().interrupt();throw e;}
+    if(!done.await(72,TimeUnit.SECONDS)){done.countDown();main.post(()->fareInFlight=false);throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
+   }catch(InterruptedException e){done.countDown();main.post(()->fareInFlight=false);Thread.currentThread().interrupt();throw e;}
    if(failure[0]!=null)throw failure[0];
    if(result[0]==null)throw new IOException("Нет данных Яндекса");
    return result[0];
