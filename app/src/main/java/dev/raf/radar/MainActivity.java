@@ -395,6 +395,7 @@ public final class MainActivity extends Activity {
     previewValue=heading("Надбавка "+RadarUi.value(displayReading(p)),22);LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=dp(12);vp.bottomMargin=dp(10);sheet.addView(previewValue,vp);
     TextView address=text(pointAddress(p),16,fg);address.setMaxLines(2);sheet.addView(address);
     if(!p.dynamic){final double lat=p.lat,lon=p.lon;resolveAddress(lat,lon,result->{if(preview!=p)return;p.address=result;address.setText(result);cacheAddress(p.id,lat,lon,result);});}
+    if(existing&&!p.dynamic&&store.prefs.getBoolean("experimentalStatistics",false)){TextView statistics=primary("Статистика",false,()->PointStatistics.show(this,p));statistics.setContentDescription("Статистика точки");LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(46));sp.topMargin=dp(14);sheet.addView(statistics,sp);}
     LinearLayout buttons=row();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(50));bp.topMargin=dp(20);sheet.addView(buttons,bp);
     TextView action=primary(existing?"Удалить":"Сохранить",!existing,()->{
       if(existing){if(!p.dynamic){store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}}
@@ -511,127 +512,7 @@ public final class MainActivity extends Activity {
   }
 
 
-  void editDetails(Point p) {
-    boolean existing = store.points().stream().anyMatch(saved -> saved.id.equals(p.id));
-    LinearLayout form = form();
-    EditText name = new EditText(this);
-    name.setTextColor(fg);
-    name.setHintTextColor(muted);
-    name.setHint("Название точки");
-    name.setText(p.name);
-    name.setEnabled(!p.dynamic);
-    form.addView(name);
-    if (!p.dynamic) {
-      TextView coords = text(String.format(Locale.US, "%.5f, %.5f", p.lat, p.lon), 12, muted);
-      form.addView(coords);
-      TextView coefficient = text("Надбавка: " + pointValues(p), 16, fg);
-      coefficient.setPadding(0, dp(8), 0, dp(8));
-      form.addView(coefficient);
-      TextView address = text(pointAddress(p), 13, muted);
-      form.addView(address);
-      final double addressLat = p.lat, addressLon = p.lon;
-      resolveAddress(addressLat, addressLon, resolved -> {
-        if (p.lat != addressLat || p.lon != addressLon) return;
-        if (!isFinishing() && address.isAttachedToWindow()) address.setText(resolved);
-        p.address = resolved;
-        cacheAddress(p.id, addressLat, addressLon, resolved);
-      });
-      Button move =
-          action(
-              "Переместить в центр карты",
-              () -> {
-                if (map != null) {
-                  LatLng pos = map.getCameraPosition().target;
-                  p.lat = pos.getLatitude();
-                  p.lon = pos.getLongitude();
-                  coords.setText(String.format(Locale.US, "%.5f, %.5f", p.lat, p.lon));
-                  p.address = "";
-                  address.setText(pointAddress(p));
-                  coefficient.setText("Надбавка: —");
-                  final double moveLat = p.lat, moveLon = p.lon;
-                  resolveAddress(moveLat, moveLon, resolved -> {
-                    if (p.lat != moveLat || p.lon != moveLon) return;
-                    p.address = resolved; address.setText(resolved);
-                    cacheAddress(p.id, moveLat, moveLon, resolved);
-                  });
-                }
-              });
-      form.addView(move);
-    }
-    Switch on = new Switch(this);
-    on.setText("Уведомлять");
-    on.setTextColor(fg);
-    on.setChecked(p.notify);
-    form.addView(on);
-    final int[] threshold = {p.threshold};
-    slider(form, "Уведомлять при", 0, 1000, p.threshold, 50, v -> threshold[0] = v, " ₽");
-    form.addView(
-        text(
-            "Пауза 30 минут. Рост ещё на 50 ₽ — сразу.\n"
-                + "Уведомления используют расчётную надбавку в ₽.",
-            12,
-            muted));
-    ScrollView sc = new ScrollView(this);
-    sc.addView(form);
-    AlertDialog dialog =
-        new AlertDialog.Builder(this)
-            .setTitle(p.dynamic ? "Моя геопозиция" : "Настройка точки")
-            .setView(sc)
-            .setPositiveButton("Сохранить", null)
-            .setNegativeButton("Отменить", null)
-            .setNeutralButton(
-                !p.dynamic && existing ? "Удалить" : null,
-                (d, w) -> {
-                  if(!p.dynamic){store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}
-                  refreshCards();
-                })
-            .create();
-    dialog.setOnShowListener(
-        d -> {
-          Button saveButton = dialog.getButton(-1);
-          if (saveButton.getParent() instanceof LinearLayout) {
-            LinearLayout buttons = (LinearLayout) saveButton.getParent();
-            buttons.setOrientation(LinearLayout.HORIZONTAL);
-            buttons.setPadding(dp(8), 0, dp(8), dp(8));
-            for (int index = 0; index < buttons.getChildCount(); index++) {
-              View child = buttons.getChildAt(index);
-              if (child instanceof Button) {
-                Button button = (Button) child;
-                button.setAllCaps(false); button.setTextSize(12);
-                button.setMinWidth(0); button.setMinimumWidth(0);
-                button.setPadding(dp(4), 0, dp(4), 0);
-                button.setSingleLine(false); button.setMaxLines(2);
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(52), 1);
-                params.setMargins(dp(2), 0, dp(2), 0);
-                button.setLayoutParams(params);
-              } else child.setVisibility(View.GONE);
-            }
-          }
-          dialog.getButton(-1).setBackground(Appearance.lineage(this)?Appearance.frame(this,true):shape(0xFFF7CE46, 12));
-          dialog.getButton(-1).setTextColor(Appearance.lineage(this)?Appearance.TEXT:Color.BLACK);
-          dialog.getButton(-2).setTextColor(fg);
-          dialog.getButton(-2).setBackground(Appearance.lineage(this)?Appearance.frame(this,true):shape(surface, 12));
-            dialog
-                .getButton(-1)
-                .setOnClickListener(
-                    v -> {
-                      p.name = p.dynamic ? "Моя геопозиция" : name.getText().toString().trim();
-                      if (p.name.isEmpty()) {
-                        toast("Укажите название");
-                        return;
-                      }
-                      p.tariffs = new ArrayList<>(Collections.singletonList("econom"));
-                      p.notify = on.isChecked();
-                      p.threshold = threshold[0];
-                      store.update(p);
-                      if(!existing)AppSounds.play(this,AppSounds.Event.POINT_SAVE);
-                      selected = p.id;
-                      refreshCards();
-                      dialog.dismiss();
-                    });
-        });
-    dialog.show();
-  }
+  void editDetails(Point p) {PointEditor.show(this,p);}
 
   LinearLayout form() {
     LinearLayout f = new LinearLayout(this);
@@ -918,4 +799,5 @@ public final class MainActivity extends Activity {
     mapView.onSaveInstanceState(b);
   }
 }
+
 
