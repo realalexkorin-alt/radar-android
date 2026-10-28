@@ -33,7 +33,7 @@ public class ProfilePointPatchTest {
    s.onActivity(a->a.edit(new Point("new-fixture","Новая точка",55,61,false)));
    onView(withText("Сохранить")).perform(click());
    onView(withText("Настройка точки")).check(androidx.test.espresso.assertion.ViewAssertions.matches(isDisplayed()));
-   onView(withHint("Название точки")).perform(replaceText("Дом"),closeSoftKeyboard());
+   onView(withHint("Название точки")).perform(replaceText("Дом"),androidx.test.espresso.action.ViewActions.closeSoftKeyboard());
    ScreenTest.capture("new-point-settings");
    onView(withText("Сохранить")).perform(click());
    s.onActivity(a->{boolean found=false;for(Point p:a.store.points())if("new-fixture".equals(p.id)){found=true;assertEquals("Дом",p.name);}assertTrue(found);});
