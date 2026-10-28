@@ -276,7 +276,7 @@ public final class MainActivity extends Activity {
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
     int width=dp(point.dynamic?114:56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
     for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(RadarUi.value(reading)))+dp(24));
-    boolean showAge=store.prefs.getBoolean("mapPointUpdateTime",false);String age=showAge?pointAge(point):"";
+    boolean showAge=store.prefs.getBoolean("mapPointUpdateTime",false);String age=showAge?pointAge(point):"";paint.setTextSize(dp(9));width=Math.max(width,Math.round(paint.measureText(age))+dp(16));paint.setTextSize(dp(12));
     int ageTop=header+rows.size()*rowHeight;
     Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),ageTop+dp(showAge?22:8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
     if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
@@ -284,11 +284,10 @@ public final class MainActivity extends Activity {
       Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
       int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
       if(Appearance.lineage(this)){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setColor(Appearance.GOLD);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(4),dp(4),paint);paint.setStyle(Paint.Style.FILL);}
-      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);boolean trend=store.prefs.getBoolean("forecast",false);float valueCenter=width/2f;paint.setTextSize(dp(12));
+      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);float valueCenter=width/2f;paint.setTextSize(dp(12));
       canvas.drawText(RadarUi.value(reading),valueCenter,top+dp(20),paint);
-      if(trend){int direction=store.prefs.getInt("trend:"+point.id,0);int trendColor=direction>0?0xFF62E69D:direction<0?0xFFFF6878:0xFF9399A2;paint.setColor(trendColor);paint.setStrokeWidth(dp(1.5f));paint.setStrokeCap(Paint.Cap.ROUND);float x=width-dp(7),y=top+dp(11);if(direction==0)canvas.drawLine(x-dp(4),y,x+dp(4),y,paint);else{float sign=direction>0?-1:1;canvas.drawLine(x,y-sign*dp(4),x,y+sign*dp(4),paint);canvas.drawLine(x,y+sign*dp(4),x-dp(3),y+sign*dp(1),paint);canvas.drawLine(x,y+sign*dp(4),x+dp(3),y+sign*dp(1),paint);}paint.setTextSize(dp(12));}
     }
-    paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);if(showAge){float available=width-dp(4),measured=paint.measureText(age);if(measured>available)paint.setTextSize(dp(9)*available/measured);canvas.drawText(age,width/2f,ageTop+dp(13),paint);}
+    paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);if(showAge)canvas.drawText(age,width/2f,ageTop+dp(13),paint);
     return bitmap;
   }
   Bitmap locationIcon(boolean own,boolean fresh){
