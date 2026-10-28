@@ -764,6 +764,8 @@ public final class MainActivity extends Activity {
     TextView identity=text("ID: "+(AccountClient.active(store)?PresenceClient.ownId(store):"—"),13,muted);identity.setPadding(dp(12),0,0,0);identity.setTextIsSelectable(true);identityRow.addView(identity);profile.addView(identityRow);
     if(AccountClient.active(store)){settingAction(profile,"Изменить пароль",()->AccountUi.password(this));settingAction(profile,"Выйти из аккаунта",()->new AlertDialog.Builder(this).setTitle("Выйти?").setMessage("Для возврата потребуются ID и пароль. Сохранённые точки останутся на телефоне.").setNegativeButton("Отмена",null).setPositiveButton("Выйти",(d,w)->{stopMonitor();AccountClient.call(this,AccountClient.action("logout"),(data,error)->{AccountClient.clear(store);friends.clear();peers.clear();rebuildSettings();AccountUi.choose(this);});}).show());}
     else settingAction(profile,"Регистрация или вход",()->AccountUi.choose(this));
+    LinearLayout yandex=group(body,"Яндекс");
+    settingAction(yandex,"Яндекс авторизация",()->startActivity(new Intent(this,LoginActivity.class)));
     LinearLayout work=group(body,"Работа приложения");
     monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
     settingAction(work,"О приложении",()->new AlertDialog.Builder(this).setTitle("Радар Pro · "+BuildConfig.VERSION_NAME)
@@ -794,7 +796,6 @@ public final class MainActivity extends Activity {
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
     LinearLayout diagnostic=group(body,"Диагностика");
-    settingAction(diagnostic,"Яндекс: вход и проверка",()->startActivity(new Intent(this,LoginActivity.class)));
     settingAction(diagnostic,"Отправить диагностику",()->Diagnostics.sendManual(this));
     return body;
   }
