@@ -22,4 +22,4 @@ dependencies {
  testImplementation 'org.json:json:20240303'
 }
 
-// Sign-in isolation, immediate retry and monitoring recovery checks.
+// Sign-in isolation and bounded 401 renewal with a fresh browser context.
