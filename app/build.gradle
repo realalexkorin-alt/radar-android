@@ -22,4 +22,4 @@ dependencies {
  testImplementation 'org.json:json:20240303'
 }
 
-// Profile authorization and point creation/display regression checks.
+// Sign-in isolation, immediate retry and monitoring recovery checks.
