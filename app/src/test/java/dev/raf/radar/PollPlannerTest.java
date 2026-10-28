@@ -6,6 +6,34 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+
+  @Test public void oneBrokenPointDoesNotPauseOthersAndRefreshCannotBypassCooldown(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("a","b");
+    assertEquals("a",p.nextMinute(ids,100000,"me"));
+    assertEquals(60000,p.failed("a",500,100000));
+    p.expedite("a");p.refresh();
+    assertEquals("b",p.nextMinute(ids,110000,"me"));
+    p.succeeded("b");
+    assertEquals("a",p.nextMinute(ids,160000,"me"));
+  }
+  @Test public void broadFailuresAndRateLimitStillPauseAllRequests(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("a","b","c","d");
+    p.failed("a",500,100000);p.failed("b",504,110000);p.failed("c",0,120000);
+    assertNull(p.nextMinute(ids,179999,"me"));
+    assertEquals("a",p.nextMinute(ids,180000,"me"));
+    p.failed("a",429,180000);p.refresh();p.expedite("d");
+    assertNull(p.nextMinute(ids,1079999,"me"));
+    assertNotNull(p.nextMinute(ids,1080000,"me"));
+  }
+  @Test public void retriesGrowOnlyForTheFailingPointAndResetAfterSuccess(){
+    PollPlanner p=new PollPlanner();
+    assertEquals(60000,p.failed("a",500,100000));
+    assertEquals(120000,p.failed("a",500,160000));
+    assertEquals(60000,p.failed("b",500,170000));
+    p.succeeded("a");
+    assertEquals(60000,p.failed("a",500,300000));
+  }
+
   @Test public void fiveAndTenSavedPointsMeetMinuteCadenceWithTwoSecondResponses(){
     for(int count:new int[]{5,10}){
       PollPlanner p=new PollPlanner();List<String> ids=new ArrayList<>();ids.add("me");

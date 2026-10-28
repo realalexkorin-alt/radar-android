@@ -17,9 +17,10 @@ final class LocationState {
   }
   static synchronized boolean accept(Store s, Location l) {
     long nanos=SystemClock.elapsedRealtimeNanos()-l.getElapsedRealtimeNanos();
-    if(nanos<0 || nanos>=120_000_000_000L || !l.hasAccuracy() || l.getAccuracy()>500 || l.getAccuracy()<0
+    if(nanos<0 || nanos>=120_000_000_000L){Diagnostics.once("gps","fix_rejected_age",false);return false;}
+    if(!l.hasAccuracy() || l.getAccuracy()>500 || l.getAccuracy()<0
         || !Double.isFinite(l.getLatitude()) || !Double.isFinite(l.getLongitude())
-        || Math.abs(l.getLatitude())>90 || Math.abs(l.getLongitude())>180)return false;
+        || Math.abs(l.getLatitude())>90 || Math.abs(l.getLongitude())>180){Diagnostics.once("gps","fix_rejected_quality",false);return false;}
     long at=System.currentTimeMillis()-nanos/1_000_000L;
     if(at<s.prefs.getLong("gpsAt",0))return false;
     if(s.prefs.getLong("gpsAt",0)>0){

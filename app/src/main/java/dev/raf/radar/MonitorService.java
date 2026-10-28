@@ -22,7 +22,8 @@ public final class MonitorService extends Service implements LocationListener {
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
       queue.execute(()->{tick();});
   };
-  private int failures = 0;
+  private long lastGpsSubscribe;
+  private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)&&SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();cueHandler.postDelayed(this,30000);}};
   private boolean announced,stopping;
   private final android.os.Handler cueHandler=new android.os.Handler(android.os.Looper.getMainLooper());
   private final BroadcastReceiver manual =
@@ -75,17 +76,8 @@ public final class MonitorService extends Service implements LocationListener {
         requests,
         androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     locations = (LocationManager) getSystemService(LOCATION_SERVICE);
-    if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-        == PackageManager.PERMISSION_GRANTED) {
-      try {
-        for (String provider : locations.getProviders(true)) {
-          Location last = locations.getLastKnownLocation(provider);
-          if (last != null) onLocationChanged(last);
-          locations.requestLocationUpdates(provider, 15000, 0, this);
-        }
-      } catch (SecurityException e) {Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);
-      }
-    }
+    subscribeGps();
+    cueHandler.postDelayed(gpsWatchdog,30000);
     overlay = new Overlay(this, store);
     store.prefs.registerOnSharedPreferenceChangeListener(appearanceListener);
     queue = Executors.newSingleThreadScheduledExecutor();
@@ -108,6 +100,7 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   private void tick() {
+    String attempted=null;
     try {
       if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
       long now = System.currentTimeMillis();
@@ -136,9 +129,11 @@ public final class MonitorService extends Service implements LocationListener {
           break;
         }
       if (p == null) return;
+      attempted=p.id;
       Point request=Point.from(p.json());
       request.tariffs=TariffSelection.requested(p,store.widgetTariffs(),p.id.equals(widgetPoint));
-      store.prefs.edit().putLong("diagAttemptAt",now).apply();
+      store.prefs.edit().putLong("diagAttemptAt",now).putLong("diagPointAttempt:"+p.id,now).apply();
+      Diagnostics.info(Diagnostics.pointArea(p.id),"request");
       Diagnostics.record("taxi","request","info",null,0,-1,-1,p.dynamic?"own":"saved");
       List<Store.Reading> readings = new TaxiClient(this).fetch(request);
       if (p.dynamic) {
@@ -165,31 +160,50 @@ public final class MonitorService extends Service implements LocationListener {
       Statistics.capture(this,request,readings);
       if(p.dynamic)store.prefs.edit().putLong("readQueryLat",Double.doubleToLongBits(request.lat)).putLong("readQueryLon",Double.doubleToLongBits(request.lon)).apply();
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
-      failures = 0;
+      planner.succeeded(p.id);
       Store.Reading best = null;
       for (Store.Reading r : readings)
         if (current.tariffs.contains(r.tariff) && r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
       boolean valid=false;for(Store.Reading r:readings)if(r.rub!=null&&r.fresh())valid=true;
-      if(valid){store.prefs.edit().putLong("diagSuccessAt",System.currentTimeMillis()).putLong("diagPauseUntil",0).apply();Diagnostics.info("taxi","surcharge_updated");}
+      if(valid){store.prefs.edit().putLong("diagSuccessAt",System.currentTimeMillis()).putLong("diagPointSuccess:"+p.id,System.currentTimeMillis()).putLong("diagPauseUntil",0).apply();Diagnostics.info("taxi","surcharge_updated");Diagnostics.info(Diagnostics.pointArea(p.id),"surcharge_updated");}
       else {String reason="missing_ruble_surcharge";for(Store.Reading r:readings){if(r.status!=null&&r.status.startsWith("Нет базовой цены"))reason="missing_base_price";}Diagnostics.error("taxi",reason,null,0,-1,-1,p.dynamic?"own":"saved");}
       if (best != null) alert(p, best);
       broadcast();
     } catch (TaxiClient.ApiException e) {
-      long pause = e.status == 401 || e.status == 403 || e.status == 429 ? 15 * 60_000L : 60_000L;
-      planner.backoff(android.os.SystemClock.elapsedRealtime(), pause);
-      store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
-      Diagnostics.error("taxi","http_backoff",e,e.status,-1,pause/1000,null);
-      store.prefs.edit().putString("status", e.getMessage()).apply();
-      broadcast();
+      failedPoint(attempted,e.status,e);
     } catch (Exception e) {
-      failures = Math.min(failures + 1, 5);
-      long pause=Math.min(900000,30000L*(1L<<failures));
-      planner.backoff(android.os.SystemClock.elapsedRealtime(),pause);
-      store.prefs.edit().putLong("diagPauseUntil",System.currentTimeMillis()+pause).apply();
-      Diagnostics.error("taxi","request_failed",e,0,-1,pause/1000,null);
-      store.prefs.edit().putString("status", "Нет обновления · повтор позже").apply();
-      broadcast();
+      failedPoint(attempted,0,e);
     }
+  }
+
+  private void failedPoint(String id,int status,Exception error){
+    long elapsed=SystemClock.elapsedRealtime();
+    long pause;
+    if(id==null){pause=60000;planner.backoff(elapsed,pause);}
+    else pause=planner.failed(id,status,elapsed);
+    long global=planner.globalPause(elapsed);
+    store.prefs.edit().putLong("diagPauseUntil",global>0?System.currentTimeMillis()+global:0).apply();
+    Diagnostics.error("taxi",status==0?"request_failed":"http_backoff",error,status,-1,pause/1000,null);
+    if(id!=null)Diagnostics.error(Diagnostics.pointArea(id),"retry_scheduled",error,status,-1,pause/1000,null);
+    store.prefs.edit().putString("status",global>10000?"Сервис недоступен · повтор позже":"Ошибка точки · остальные обновляются").apply();
+    broadcast();
+  }
+
+  private void subscribeGps(){
+    if(locations==null||stopping||!Access.location(this))return;
+    lastGpsSubscribe=SystemClock.elapsedRealtime();
+    try{locations.removeUpdates(this);}catch(RuntimeException e){Diagnostics.error("gps","unsubscribe_failed",e,0,-1,-1,null);}
+    int subscribed=0;
+    for(String provider:locations.getAllProviders()){
+      if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
+      try{
+        locations.requestLocationUpdates(provider,15000,0,this,Looper.getMainLooper());
+        subscribed++;
+        Location last=locations.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);
+      }catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
+      catch(RuntimeException e){Diagnostics.error("gps","subscribe_failed",e,0,-1,-1,null);}
+    }
+    Diagnostics.once("gps",subscribed==0?"no_providers":"subscriptions_refreshed",subscribed==0);
   }
 
   private void alert(Point p, Store.Reading r) {
@@ -244,7 +258,7 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   @Override
-  public void onProviderEnabled(String p) {}
+  public void onProviderEnabled(String p) {Diagnostics.once("gps","provider_enabled",false);if(!stopping)subscribeGps();}
 
   @Override
   public void onProviderDisabled(String p) {Diagnostics.once("gps","provider_disabled",true);}
