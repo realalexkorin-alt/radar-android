@@ -6,6 +6,28 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+  @Test public void successfulLoginProbeResumesAuthPausedQueueWithoutBurst(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
+    assertEquals("me",p.nextMinute(ids,100000,"me"));
+    p.failed("me",401,101000);
+    assertNull(p.nextMinute(ids,150000,"me"));
+    p.authorizationRestored(150000);
+    assertNull(p.nextMinute(ids,150999,"me"));
+    assertNotNull(p.nextMinute(ids,151000,"me"));
+    assertNull(p.nextMinute(ids,151001,"me"));
+  }
+  @Test public void loginSuccessCannotClearRateLimitOrPointFailure(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
+    p.failed("saved",500,100000);p.failed("me",401,101000);p.failed("me",429,102000);
+    p.authorizationRestored(110000);
+    assertNull(p.nextMinute(ids,1001999,"me"));
+    assertNotNull(p.nextMinute(ids,1002000,"me"));
+    PollPlanner q=new PollPlanner();q.failed("saved",500,100000);q.failed("me",401,101000);
+    q.authorizationRestored(110000);
+    assertEquals("me",q.nextMinute(ids,111000,"me"));
+    assertNull(q.nextMinute(Collections.singletonList("saved"),120000,"me"));
+  }
+
 
   @Test public void oneBrokenPointDoesNotPauseOthersAndRefreshCannotBypassCooldown(){
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("a","b");
