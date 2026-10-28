@@ -210,7 +210,8 @@ public final class MainActivity extends Activity {
       View dot=new View(this);dot.setBackground(shape(p.dynamic?0xFF69AEFF:RadarUi.tariffColor(p.tariffs.isEmpty()?"econom":p.tariffs.get(0)),20));LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(12),dp(12));dotParams.rightMargin=dp(12);line.addView(dot,dotParams);
       LinearLayout labels=column();TextView name=RadarUi.text(this,p.name,15,fg,true);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);labels.addView(name);
       TextView address=text(pointAddress(p),12,muted);address.setMaxLines(1);address.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.topMargin=dp(5);labels.addView(address,ap);
-      TextView age=text(pointAge(p),10,0xB3FFFFFF);age.setPadding(0,dp(4),0,0);labels.addView(age);
+      LinearLayout nameRow=row();labels.removeView(name);nameRow.addView(name,new LinearLayout.LayoutParams(0,-2,1));
+      TextView age=text(pointAge(p),10,muted);age.setPadding(dp(8),0,0,0);age.setMaxLines(1);age.setContentDescription("Время обновления: "+p.name+" · "+pointAge(p));nameRow.addView(age);labels.addView(nameRow,0);
       labels.setContentDescription("Настроить точку: "+p.name);labels.setOnClickListener(v->{selected=p.id;editDetails(p);});line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
       labels.setAlpha(p.enabled?1f:.5f);dot.setAlpha(p.enabled?1f:.35f);
       RadarUi.Toggle toggle=new RadarUi.Toggle(this);toggle.setContentDescription("Обновлять точку: "+p.name);toggle.setChecked(p.enabled);
@@ -275,7 +276,7 @@ public final class MainActivity extends Activity {
     Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextSize(dp(12));
     int width=dp(point.dynamic?114:56),rowHeight=dp(30),header=point.dynamic?dp(22):0;
     for(Store.Reading reading:rows)width=Math.max(width,Math.round(paint.measureText(RadarUi.value(reading)))+dp(24));
-    boolean showAge=store.prefs.getBoolean("mapPointUpdateTime",false);String age=showAge?pointAge(point):"";paint.setTextSize(dp(9));width=Math.max(width,Math.round(paint.measureText(age))+dp(16));paint.setTextSize(dp(12));
+    boolean showAge=store.prefs.getBoolean("mapPointUpdateTime",false);String age=showAge?pointAge(point):"";
     int ageTop=header+rows.size()*rowHeight;
     Bitmap bitmap=Bitmap.createBitmap(width,Math.max(dp(30),ageTop+dp(showAge?22:8)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
     if(point.dynamic){paint.setColor(0xDD273655);canvas.drawRoundRect(0,0,width,header+dp(8),dp(9),dp(9),paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(10));canvas.drawText("▲ Моя геопозиция",width/2f,dp(15),paint);paint.setTextSize(dp(12));}
@@ -283,12 +284,11 @@ public final class MainActivity extends Activity {
       Store.Reading reading=rows.get(i);int color=PriceLevel.color(reading.rub);
       int top=header+i*rowHeight;paint.setColor(0xEE15171B);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(8),dp(8),paint);
       if(Appearance.lineage(this)){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setColor(Appearance.GOLD);canvas.drawRoundRect(dp(2),top+dp(2),width-dp(2),top+rowHeight-dp(2),dp(4),dp(4),paint);paint.setStyle(Paint.Style.FILL);}
-      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);boolean trend=store.prefs.getBoolean("forecast",false);float valueCenter=trend?(width-dp(24))/2f:width/2f;paint.setTextSize(dp(12));
-      if(trend){float available=width-dp(30);float measured=paint.measureText(RadarUi.value(reading));if(measured>available)paint.setTextSize(dp(12)*available/measured);}
+      paint.setColor(color);paint.setTextAlign(Paint.Align.CENTER);boolean trend=store.prefs.getBoolean("forecast",false);float valueCenter=width/2f;paint.setTextSize(dp(12));
       canvas.drawText(RadarUi.value(reading),valueCenter,top+dp(20),paint);
-      if(trend){int direction=store.prefs.getInt("trend:"+point.id,0);int trendColor=direction>0?0xFF62E69D:direction<0?0xFFFF6878:0xFF9399A2;paint.setColor(trendColor);paint.setStrokeWidth(dp(1.5f));paint.setStrokeCap(Paint.Cap.ROUND);float x=width-dp(11),y=top+dp(11);if(direction==0)canvas.drawLine(x-dp(4),y,x+dp(4),y,paint);else{float sign=direction>0?-1:1;canvas.drawLine(x,y-sign*dp(4),x,y+sign*dp(4),paint);canvas.drawLine(x,y+sign*dp(4),x-dp(3),y+sign*dp(1),paint);canvas.drawLine(x,y+sign*dp(4),x+dp(3),y+sign*dp(1),paint);}paint.setTextSize(dp(7));canvas.drawText("0%",x,top+dp(25),paint);paint.setTextSize(dp(12));}
+      if(trend){int direction=store.prefs.getInt("trend:"+point.id,0);int trendColor=direction>0?0xFF62E69D:direction<0?0xFFFF6878:0xFF9399A2;paint.setColor(trendColor);paint.setStrokeWidth(dp(1.5f));paint.setStrokeCap(Paint.Cap.ROUND);float x=width-dp(7),y=top+dp(11);if(direction==0)canvas.drawLine(x-dp(4),y,x+dp(4),y,paint);else{float sign=direction>0?-1:1;canvas.drawLine(x,y-sign*dp(4),x,y+sign*dp(4),paint);canvas.drawLine(x,y+sign*dp(4),x-dp(3),y+sign*dp(1),paint);canvas.drawLine(x,y+sign*dp(4),x+dp(3),y+sign*dp(1),paint);}paint.setTextSize(dp(12));}
     }
-    paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);if(showAge)canvas.drawText(age,width/2f,ageTop+dp(13),paint);
+    paint.setTextSize(dp(9));paint.setColor(0xB3FFFFFF);paint.setTextAlign(Paint.Align.CENTER);if(showAge){float available=width-dp(4),measured=paint.measureText(age);if(measured>available)paint.setTextSize(dp(9)*available/measured);canvas.drawText(age,width/2f,ageTop+dp(13),paint);}
     return bitmap;
   }
   Bitmap locationIcon(boolean own,boolean fresh){
@@ -401,6 +401,7 @@ public final class MainActivity extends Activity {
       if(existing){if(!p.dynamic){store.remove(p.id);AppSounds.play(this,AppSounds.Event.POINT_DELETE);}}
       else{store.update(p);AppSounds.play(this,AppSounds.Event.POINT_SAVE);}
       hidePreview();refreshCards();
+      if(!existing)editDetails(p);
     });
     if(!p.dynamic)buttons.addView(action,new LinearLayout.LayoutParams(-1,-1));else buttons.setVisibility(View.GONE);
     sheet.setClickable(true);sheet.setContentDescription("Карточка локации");
@@ -517,6 +518,7 @@ public final class MainActivity extends Activity {
     EditText name = new EditText(this);
     name.setTextColor(fg);
     name.setHintTextColor(muted);
+    name.setHint("Название точки");
     name.setText(p.name);
     name.setEnabled(!p.dynamic);
     form.addView(name);
@@ -764,8 +766,7 @@ public final class MainActivity extends Activity {
     TextView identity=text("ID: "+(AccountClient.active(store)?PresenceClient.ownId(store):"—"),13,muted);identity.setPadding(dp(12),0,0,0);identity.setTextIsSelectable(true);identityRow.addView(identity);profile.addView(identityRow);
     if(AccountClient.active(store)){settingAction(profile,"Изменить пароль",()->AccountUi.password(this));settingAction(profile,"Выйти из аккаунта",()->new AlertDialog.Builder(this).setTitle("Выйти?").setMessage("Для возврата потребуются ID и пароль. Сохранённые точки останутся на телефоне.").setNegativeButton("Отмена",null).setPositiveButton("Выйти",(d,w)->{stopMonitor();AccountClient.call(this,AccountClient.action("logout"),(data,error)->{AccountClient.clear(store);friends.clear();peers.clear();rebuildSettings();AccountUi.choose(this);});}).show());}
     else settingAction(profile,"Регистрация или вход",()->AccountUi.choose(this));
-    LinearLayout yandex=group(body,"Яндекс");
-    settingAction(yandex,"Яндекс авторизация",()->startActivity(new Intent(this,LoginActivity.class)));
+    YandexProfile.add(this,profile);
     LinearLayout work=group(body,"Работа приложения");
     monitorToggle=switchRow(work,"Мониторинг",MonitorService.running,0,enabled->{if(enabled)startMonitor();else stopMonitor();});
     settingAction(work,"О приложении",()->new AlertDialog.Builder(this).setTitle("Радар Pro · "+BuildConfig.VERSION_NAME)
@@ -853,7 +854,7 @@ public final class MainActivity extends Activity {
     super.onResume();
     Diagnostics.foreground=true;Diagnostics.worker.execute(Diagnostics::check);
     mapView.onResume();
-    resumed = true;syncBrandLogo();syncScreenAwake();PresenceClient.reconcile(this);PresenceClient.screen(this,true);
+    resumed = true;if(currentTab==2)rebuildSettings();syncBrandLogo();syncScreenAwake();PresenceClient.reconcile(this);PresenceClient.screen(this,true);
     if(!AccountClient.active(store))handler.post(()->AccountUi.choose(this));else if(store.prefs.getString("profileName","").isEmpty())handler.post(()->editName(true));
     mapGps.start();nextPresenceQuery=0;
     if (startupSoundPending) {

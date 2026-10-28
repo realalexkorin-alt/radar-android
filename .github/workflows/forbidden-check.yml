@@ -1,7 +1,7 @@
-name: Yandex authorization UI verification
+name: Profile and point UI verification
 on:
   push:
-    branches: ['codex/yandex-account-056']
+    branches: ['codex/profile-points-057']
     paths: ['app/build.gradle']
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.YandexStatusTest --tests dev.raf.radar.PollPlannerTest --tests dev.raf.radar.FareScriptTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='56' versionName='0.1.56-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='57' versionName='0.1.57-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - name: Enable emulator acceleration
         run: |
@@ -38,13 +38,13 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            adb shell am instrument -w -r -e class dev.raf.radar.YandexUiTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
+            adb shell am instrument -w -r -e class dev.raf.radar.YandexUiTest,dev.raf.radar.ProfilePointPatchTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
-            grep -q 'OK (2 tests)' yandex-ui.txt
+            grep -q 'OK (4 tests)' yandex-ui.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yandex-account-release
+          name: profile-points-release
           path: |
             app/build/outputs/apk/release/*.apk
             yandex-ui.txt
