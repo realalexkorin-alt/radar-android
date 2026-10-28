@@ -34,7 +34,7 @@ public class YandexUiTest {
   java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
   InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
    BrowserFare.clearLocalSession(()->{});YandexSession.enable(c);
-   WebView w=BrowserFare.view(c);WebViewClient original=w.getWebViewClient();
+   WebView w=BrowserFare.view(c);w.stopLoading();WebViewClient original=w.getWebViewClient();
    w.setWebViewClient(new WebViewClient(){
     @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest req){
      if(req.isForMainFrame())return new WebResourceResponse("text/html","UTF-8",new java.io.ByteArrayInputStream("<html><body>fixture</body></html>".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -43,7 +43,7 @@ public class YandexUiTest {
     @Override public void onPageStarted(WebView v,String url,android.graphics.Bitmap icon){original.onPageStarted(v,url,icon);}
     @Override public void onPageFinished(WebView v,String url){
      original.onPageFinished(v,url);int n=loads.incrementAndGet();
-     String json=n==1?"{}":"{\\"service_levels\\":[],\\"currency_rules\\":{\\"code\\":\\"RUB\\"}}";
+     String json=n==1?"{}":"{\"service_levels\":[],\"currency_rules\":{\"code\":\"RUB\"}}";
      try{
       String script="window.fetch=()=>Promise.resolve(new Response("+org.json.JSONObject.quote(json)+",{status:"+(n==1?401:200)+"}));true";
       v.evaluateJavascript(script,ignored->{
