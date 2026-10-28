@@ -6,6 +6,16 @@ import java.util.*;
 import org.junit.Test;
 
 public class PollPlannerTest {
+ @Test public void verifiedProbeRecoversBrokenBrowserPointsButNotRateLimit(){
+  PollPlanner p=new PollPlanner();java.util.List<String> ids=java.util.Arrays.asList("me","a","b");
+  p.failed("me",0,100000);p.failed("a",0,101000);p.failed("b",0,102000);
+  assertNull(p.nextMinute(ids,110000,"me"));
+  p.authorizationRestored(110000);
+  assertNotNull(p.nextMinute(ids,111000,"me"));assertNull(p.nextMinute(ids,111001,"me"));
+  p.failed("me",429,120000);p.failed("a",0,121000);p.authorizationRestored(122000);
+  assertNull(p.nextMinute(ids,1019999,"me"));assertNotNull(p.nextMinute(ids,1020000,"me"));
+ }
+
   @Test public void successfulLoginProbeResumesAuthPausedQueueWithoutBurst(){
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
     assertEquals("me",p.nextMinute(ids,100000,"me"));

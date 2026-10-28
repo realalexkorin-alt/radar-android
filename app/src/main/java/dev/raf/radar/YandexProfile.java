@@ -18,13 +18,11 @@ final class YandexProfile {
  static void result(Activity a,boolean success){Toast.makeText(a,success?"Вход выполнен":"Вход не выполнен",Toast.LENGTH_LONG).show();}
  static void check(MainActivity a){
   if(checking)return;
-  long now=System.currentTimeMillis(),before=a.store.prefs.getLong("yandexTestAt",0);
-  if(now>=before&&now-before<60000){Toast.makeText(a,"Повторная проверка через "+((60000-now+before+999)/1000)+" с",Toast.LENGTH_SHORT).show();return;}
   Point p=null;
   if(LocationState.fresh(a.store))p=new Point("me","Проверка",Double.longBitsToDouble(a.store.prefs.getLong("lat",0)),Double.longBitsToDouble(a.store.prefs.getLong("lon",0)),true);
   else for(Point point:a.store.points())if(!point.dynamic&&point.enabled){p=point;break;}
-  if(p==null||YandexSession.headers(a).isEmpty()){result(a,false);return;}
-  checking=true;a.store.prefs.edit().putLong("yandexTestAt",now).apply();Point point=p;
+  if(p==null){result(a,false);return;}
+  checking=true;BrowserFare.refreshSession(a);Point point=p;
   ProgressDialog progress=new ProgressDialog(a);progress.setMessage("Проверяем вход…");progress.setCancelable(false);progress.show();
   new Thread(()->{
    boolean ok=false;
