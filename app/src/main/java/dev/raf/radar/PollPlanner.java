@@ -65,7 +65,7 @@ public final class PollPlanner {
   }
 
   public static boolean needed(Point p, boolean browsing, String overlayPoint) {
-    return !p.tariffs.isEmpty() && (!p.dynamic || p.enabled);
+    return p.enabled && !p.tariffs.isEmpty();
   }
 
   public synchronized void expedite(String id) {

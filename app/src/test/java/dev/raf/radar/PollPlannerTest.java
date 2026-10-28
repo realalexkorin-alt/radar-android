@@ -65,9 +65,9 @@ public class PollPlannerTest {
     assertNull(p.nextMinute(Arrays.asList("a","b"),130000,"me"));
     assertNull(p.nextMinute(Collections.emptyList(),140000,"me"));
   }
-  @Test public void fixedPointMigrationIgnoresOldDisableFlag()throws Exception{
+  @Test public void fixedPointDisableSurvivesReload()throws Exception{
     Point fixed=new Point("a","a",55,61,false);fixed.enabled=false;
-    assertTrue(Point.from(fixed.json()).enabled);
+    assertFalse(Point.from(fixed.json()).enabled);
     fixed.dynamic=true;assertFalse(Point.from(fixed.json()).enabled);
   }
 
@@ -109,10 +109,12 @@ public class PollPlannerTest {
     saved.notify = true; assertTrue(PollPlanner.needed(saved, false, ""));
     saved.tariffs.clear(); assertFalse(PollPlanner.needed(saved, true, "saved"));
   }
-  @Test public void legacyDisabledSavedPointStillJoinsMinuteCycle() {
+  @Test public void disabledSavedPointNeverJoinsQueue() {
     Point point = new Point("saved", "saved", 55, 61, false);
     point.notify = true; point.enabled = false;
-    assertTrue(PollPlanner.needed(point, true, "saved"));
+    assertFalse(PollPlanner.needed(point, true, "saved"));
+    assertFalse(PollPlanner.needed(point, false, ""));
+    point.enabled=true;assertTrue(PollPlanner.needed(point,false,""));
   }
   @Test public void dynamicAlwaysNeeded() {
     assertTrue(PollPlanner.needed(new Point("me", "me", 0, 0, true), false, ""));

@@ -43,8 +43,7 @@ public final class Point {
             j.getDouble("lon"),
             j.optBoolean("dynamic"));
     p.address = j.optString("address", "");
-    // Fixed points always join the minute cycle; migrate old per-point switches.
-    p.enabled = !p.dynamic || j.optBoolean("enabled", true);
+    p.enabled = j.optBoolean("enabled", true);
     p.notify = j.optBoolean("notify");
     p.threshold = j.optInt("threshold", 200);
     return p;

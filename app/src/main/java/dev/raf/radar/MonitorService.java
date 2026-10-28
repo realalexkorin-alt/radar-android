@@ -152,7 +152,7 @@ public final class MonitorService extends Service implements LocationListener {
       }
       Point current = null;
       for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
-      if (current == null || (current.dynamic && !current.enabled) || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
+      if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
       List<String> stillNeeded=TariffSelection.requested(current,store.widgetTariffs(),store.prefs.getBoolean("overlay",false)&&current.id.equals(store.widgetPoint().id));
       if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
@@ -177,6 +177,7 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   private void failedPoint(String id,int status,Exception error){
+    if(id!=null){boolean active=false;for(Point point:store.points())if(point.id.equals(id)&&point.enabled)active=true;if(!active)return;}
     long elapsed=SystemClock.elapsedRealtime();
     long pause;
     if(id==null){pause=60000;planner.backoff(elapsed,pause);}
