@@ -60,7 +60,7 @@ public final class MainActivity extends Activity {
     if(saved==null&&store.prefs.getBoolean("autoUpdate",true))handler.postDelayed(()->Updates.checkAutomatic(this,store),1200);
   }
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);openRequestedSettings(intent);}
-  private void openRequestedSettings(Intent intent){if(intent.getBooleanExtra("openFriends",false)){intent.removeExtra("openFriends");handler.post(()->{if(!isFinishing()&&AccountClient.active(store)){showTab(0);showFriends();}});}if(intent.getBooleanExtra("widgetSettings",false)){intent.removeExtra("widgetSettings");handler.post(()->{if(!isFinishing())settings();});}}
+  private void openRequestedSettings(Intent intent){if(intent.getBooleanExtra("openDiagnostics",false)){intent.removeExtra("openDiagnostics");handler.post(()->{if(!isFinishing()){showTab(2);Diagnostics.ui(this);}});}if(intent.getBooleanExtra("openFriends",false)){intent.removeExtra("openFriends");handler.post(()->{if(!isFinishing()&&AccountClient.active(store)){showTab(0);showFriends();}});}if(intent.getBooleanExtra("widgetSettings",false)){intent.removeExtra("widgetSettings");handler.post(()->{if(!isFinishing())settings();});}}
   int dp(float n){return RadarUi.dp(this,n);}
   TextView text(String value,int size,int color){return RadarUi.text(this,value,size,color,false);}
   GradientDrawable shape(int color,int radius){return RadarUi.shape(this,color,radius,0);}
@@ -796,6 +796,10 @@ public final class MainActivity extends Activity {
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
     LinearLayout diagnostic=group(body,"Диагностика");
+    switchRow(diagnostic,"Режим диагностики",store.prefs.getBoolean(DiagnosticMode.KEY,false),0,enabled->{DiagnosticMode.set(this,enabled);if(enabled&&!Access.notifications(this))toast("Разрешите уведомления в настройках Android");});
+    TextView explanation=text("Подробный журнал за 24 часа и уведомления о сбоях. Отправка по кнопке. При заполнении журнала удаляются самые старые события; число пропусков входит в отчёт.",12,muted);diagnostic.addView(explanation);
+    settingAction(diagnostic,"Состояние диагностики",()->Diagnostics.ui(this));
+    settingAction(diagnostic,"Журнал диагностики",()->Diagnostics.journalUi(this));
     settingAction(diagnostic,"Отправить диагностику",()->Diagnostics.sendManual(this));
     return body;
   }
@@ -914,3 +918,4 @@ public final class MainActivity extends Activity {
     mapView.onSaveInstanceState(b);
   }
 }
+
