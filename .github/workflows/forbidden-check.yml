@@ -1,7 +1,7 @@
 name: Yandex session recovery verification
 on:
   push:
-    branches: ['codex/auth-recovery-059']
+    branches: ['codex/session-renewal-060']
     paths: ['app/build.gradle']
 permissions:
   contents: read
@@ -19,9 +19,9 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.YandexStatusTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.PollPlannerTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.AuthRecoveryTest --tests dev.raf.radar.YandexStatusTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.PollPlannerTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='59' versionName='0.1.59-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='60' versionName='0.1.60-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - name: Enable emulator acceleration
         run: |
