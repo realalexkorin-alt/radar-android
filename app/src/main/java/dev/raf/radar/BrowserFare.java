@@ -12,6 +12,7 @@ import org.json.*;
 final class BrowserFare {
  private static WebView web;
  private static boolean ready;
+ static java.util.function.Consumer<String> pageObserver;
  private static final Handler main=new Handler(Looper.getMainLooper());
  private static final Object serial=new Object();
  private BrowserFare(){}
@@ -33,8 +34,8 @@ final class BrowserFare {
      if("POST".equals(req.getMethod()))YandexSession.capture(app,req.getUrl().toString(),req.getRequestHeaders());
      return super.shouldInterceptRequest(w,req);
     }
-    @Override public void onPageStarted(WebView w,String url,android.graphics.Bitmap icon){ready=false;}
-    @Override public void onPageFinished(WebView w,String url){ready=trusted(url);}
+    @Override public void onPageStarted(WebView w,String url,android.graphics.Bitmap icon){ready=false;if(pageObserver!=null)pageObserver.accept(url);}
+    @Override public void onPageFinished(WebView w,String url){ready=trusted(url);if(pageObserver!=null)pageObserver.accept(url);}
     @Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest req){
      Uri u=req.getUrl();String h=u.getHost();
      return !("https".equals(u.getScheme())&&h!=null&&(h.equals("yandex.ru")||h.endsWith(".yandex.ru")||h.equals("yandex.com")||h.endsWith(".yandex.com")));
