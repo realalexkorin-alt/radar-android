@@ -22,4 +22,4 @@ dependencies {
  testImplementation 'org.json:json:20240303'
 }
 
-// Authorization UI, palette, website entry and session replacement checks.
+// Profile authorization and point creation/display regression checks.
