@@ -12,13 +12,23 @@ final class ServiceError {
     try {
       ByteArrayOutputStream data = new ByteArrayOutputStream();
       byte[] buffer = new byte[512];
-      while (data.size() < 2048) {
-        int n = input.read(buffer, 0, Math.min(buffer.length, 2048 - data.size()));
+      while (data.size() < 8192) {
+        int n = input.read(buffer, 0, Math.min(buffer.length, 8192 - data.size()));
         if (n < 0) break;
         if (n == 0) break;
         data.write(buffer, 0, n);
       }
       String text = new String(data.toByteArray(), StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+      return classifyText(text,contentType);
+    } catch (Exception ignored) {
+      return "response_unreadable";
+    }
+  }
+  static String classifyText(String body,String contentType){
+    String text=body==null?"":body.toLowerCase(Locale.ROOT);
+    if(text.contains("smartcaptcha")||text.contains("/showcaptcha")||text.contains("verify you are human")||text.contains("вы не робот"))return "response_verification";
+    if(text.contains("invalid_csrf_token")||text.contains("csrf token"))return "response_csrf";
+    if(text.contains("access denied")||text.contains("доступ запрещ"))return "response_access_denied";
       if (text.trim().isEmpty()) return "response_empty";
       if (text.contains("timeout") || text.contains("timed out")) return "response_timeout";
       if (text.contains("rate limit") || text.contains("rate_limit") || text.contains("too many requests")) return "response_rate_limit";
@@ -31,8 +41,5 @@ final class ServiceError {
       if (type.contains("json") || text.trim().startsWith("{")) return "response_json_other";
       if (type.contains("html") || text.trim().startsWith("<")) return "response_html_other";
       return "response_text_other";
-    } catch (Exception ignored) {
-      return "response_unreadable";
-    }
   }
 }
