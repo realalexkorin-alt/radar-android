@@ -22,7 +22,7 @@ final class YandexProfile {
   if(LocationState.fresh(a.store))p=new Point("me","Проверка",Double.longBitsToDouble(a.store.prefs.getLong("lat",0)),Double.longBitsToDouble(a.store.prefs.getLong("lon",0)),true);
   else for(Point point:a.store.points())if(!point.dynamic&&point.enabled){p=point;break;}
   if(p==null){result(a,false);return;}
-  checking=true;Point point=p;
+  checking=true;BrowserFare.refreshSession(a);Point point=p;
   ProgressDialog progress=new ProgressDialog(a);progress.setMessage("Проверяем вход…");progress.setCancelable(false);progress.show();
   new Thread(()->{
    boolean ok=false;
