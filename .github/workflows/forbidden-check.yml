@@ -42,7 +42,7 @@ jobs:
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
             adb shell am instrument -w -r -e class dev.raf.radar.YandexUiTest,dev.raf.radar.DiagnosticsTest,dev.raf.radar.DiagnosticModeUiTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
-            grep -q 'OK (6 tests)' yandex-ui.txt
+            grep -q 'OK (7 tests)' yandex-ui.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
