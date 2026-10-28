@@ -1,7 +1,7 @@
-name: Manual probe verification
+name: Browser fares verification
 on:
   push:
-    branches: ['codex/manual-probe-053']
+    branches: ['codex/browser-fares-054']
     paths: ['app/build.gradle']
   pull_request:
     branches: [main]
@@ -21,13 +21,13 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.BrowserProbeTest --tests dev.raf.radar.ServiceErrorTest :app:assembleRelease :app:lintDebug
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.BrowserProbeTest --tests dev.raf.radar.ServiceErrorTest :app:assembleRelease :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='53' versionName='0.1.53-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='54' versionName='0.1.54-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: manual-probe-release
+          name: browser-fares-release
           path: |
             app/build/outputs/apk/release/*.apk
             apksigner.jar
