@@ -29,7 +29,7 @@ public final class MonitorService extends Service implements LocationListener {
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
       queue.execute(()->{tick();});
   };
-  private long lastGpsSubscribe;
+  private long lastGpsSubscribe,lastQueueDiagnostic;
   private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)&&SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();cueHandler.postDelayed(this,30000);}};
   private boolean announced,stopping;
   private final android.os.Handler cueHandler=new android.os.Handler(android.os.Looper.getMainLooper());
@@ -107,7 +107,7 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   private void tick() {
-    String attempted=null;
+    String attempted=null;long requestStarted=0;boolean requestSuccess=false;int requestHttp=0;
     try {
       if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
       long now = System.currentTimeMillis();
@@ -127,6 +127,7 @@ public final class MonitorService extends Service implements LocationListener {
         }
         eligible.add(q.id);
       }
+      if(Diagnostics.verbose()&&SystemClock.elapsedRealtime()-lastQueueDiagnostic>=15000){lastQueueDiagnostic=SystemClock.elapsedRealtime();Diagnostics.detail("monitor","queue_state",planner.diagnosticState(eligible,lastQueueDiagnostic,"me"));}
       String id = planner.nextMinute(eligible, android.os.SystemClock.elapsedRealtime(), "me");
       if (id == null) {Diagnostics.once("monitor","queue_wait",false);return;}
       Point p = null;
@@ -136,13 +137,14 @@ public final class MonitorService extends Service implements LocationListener {
           break;
         }
       if (p == null) return;
-      attempted=p.id;
+      attempted=p.id;requestStarted=SystemClock.elapsedRealtime();int trace=Diagnostics.sequence.incrementAndGet();Diagnostics.request.set(trace);
+      Diagnostics.detail(Diagnostics.pointArea(p.id),"request_started","requestId",trace,"ageMs",Math.max(0,now-store.prefs.getLong("diagPointSuccess:"+p.id,now)));
       Point request=Point.from(p.json());
       request.tariffs=TariffSelection.requested(p,store.widgetTariffs(),p.id.equals(widgetPoint));
       store.prefs.edit().putLong("diagAttemptAt",now).putLong("diagPointAttempt:"+p.id,now).apply();
       Diagnostics.info(Diagnostics.pointArea(p.id),"request");
       Diagnostics.record("taxi","request","info",null,0,-1,-1,p.dynamic?"own":"saved");
-      List<Store.Reading> readings = new TaxiClient(this).fetch(request);
+      List<Store.Reading> readings = new TaxiClient(this).fetch(request);requestHttp=200;
       if (p.dynamic) {
         float[] distance = new float[1];
         Location.distanceBetween(
@@ -153,15 +155,15 @@ public final class MonitorService extends Service implements LocationListener {
             distance);
         if (distance[0] > 250) {
           Diagnostics.info("taxi","result_discarded_moved");
-          planner.expedite("me");
+          Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason","moved");planner.expedite("me");
           return;
         }
       }
       Point current = null;
       for (Point candidate : store.points()) if (candidate.id.equals(p.id)) current = candidate;
-      if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))) return;
+      if (current == null || !current.enabled || (!p.dynamic && (current.lat != p.lat || current.lon != p.lon))){Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason",current==null||!current.enabled?"disabled":"changed");return;}
       List<String> stillNeeded=TariffSelection.requested(current,store.widgetTariffs(),store.prefs.getBoolean("overlay",false)&&current.id.equals(store.widgetPoint().id));
-      if(!request.tariffs.containsAll(stillNeeded)){planner.expedite(p.id);return;}
+      if(!request.tariffs.containsAll(stillNeeded)){Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason","tariffs_changed");planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);
       Statistics.capture(this,request,readings);
@@ -172,15 +174,16 @@ public final class MonitorService extends Service implements LocationListener {
       for (Store.Reading r : readings)
         if (current.tariffs.contains(r.tariff) && r.rub != null && r.fresh() && (best == null || r.rub > best.rub)) best = r;
       boolean valid=false;for(Store.Reading r:readings)if(r.rub!=null&&r.fresh())valid=true;
+      requestSuccess=valid;requestHttp=200;
       if(valid){store.prefs.edit().putLong("diagSuccessAt",System.currentTimeMillis()).putLong("diagPointSuccess:"+p.id,System.currentTimeMillis()).putLong("diagPauseUntil",0).apply();Diagnostics.info("taxi","surcharge_updated");Diagnostics.info(Diagnostics.pointArea(p.id),"surcharge_updated");}
       else {String reason="missing_ruble_surcharge";for(Store.Reading r:readings){if(r.status!=null&&r.status.startsWith("Нет базовой цены"))reason="missing_base_price";}Diagnostics.error("taxi",reason,null,0,-1,-1,p.dynamic?"own":"saved");}
       if (best != null) alert(p, best);
       broadcast();
     } catch (TaxiClient.ApiException e) {
-      failedPoint(attempted,e.status,e);
+      requestHttp=e.status;failedPoint(attempted,e.status,e);
     } catch (Exception e) {
       failedPoint(attempted,0,e);
-    }
+    } finally {if(requestStarted>0){long elapsed=SystemClock.elapsedRealtime()-requestStarted;Diagnostics.load.completed(SystemClock.elapsedRealtime(),elapsed,requestSuccess);store.prefs.edit().putLong("diagFinishedAt",System.currentTimeMillis()).apply();Diagnostics.detail(Diagnostics.pointArea(attempted),"request_finished","requestId",Diagnostics.request.get(),"rttMs",elapsed,"http",requestHttp,"successes",requestSuccess?1:0,"failures",requestSuccess?0:1);}}
   }
 
   private void failedPoint(String id,int status,Exception error){
@@ -298,3 +301,4 @@ public final class MonitorService extends Service implements LocationListener {
     return null;
   }
 }
+

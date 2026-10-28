@@ -129,16 +129,17 @@ final class PresenceClient {
     });
   }
   static String request(String method,String url,JSONObject body,String secret)throws Exception{
-    HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
+    long started=SystemClock.elapsedRealtime();HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
     connection.setConnectTimeout(15000);connection.setReadTimeout(25000);connection.setInstanceFollowRedirects(false);connection.setRequestMethod(method);
     try{
       if(secret!=null)connection.setRequestProperty("Authorization","Bearer "+secret);
       if(body!=null){connection.setRequestProperty("Content-Type","application/json");connection.setDoOutput(true);
         try(OutputStream output=connection.getOutputStream()){output.write(body.toString().getBytes(StandardCharsets.UTF_8));}}
-      if(connection.getResponseCode()!=200)throw new IOException("Presence HTTP "+connection.getResponseCode());
+      int status=connection.getResponseCode();Diagnostics.record("presence","http_response",status==200?"info":"error",null,status,SystemClock.elapsedRealtime()-started,-1,null);if(status!=200)throw new IOException("Presence HTTP "+status);
       try(InputStream input=connection.getInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
         byte[] buffer=new byte[4096];int n,total=0;while((n=input.read(buffer))!=-1){total+=n;if(total>128000)throw new IOException("Response too large");output.write(buffer,0,n);}return output.toString("UTF-8");
       }
-    }finally{connection.disconnect();}
+    }catch(Exception e){Diagnostics.detail("presence","transport_failed","kind",Diagnostics.cause(e),"rttMs",SystemClock.elapsedRealtime()-started);throw e;}finally{connection.disconnect();}
   }
 }
+

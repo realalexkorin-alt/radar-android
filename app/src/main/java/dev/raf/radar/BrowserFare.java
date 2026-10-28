@@ -33,17 +33,21 @@ final class BrowserFare {
    web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);
    web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
    CookieManager.getInstance().setAcceptCookie(true);
+   web.setWebChromeClient(new WebChromeClient(){@Override public boolean onConsoleMessage(ConsoleMessage m){String text=m.message()==null?"":m.message();if(text.contains("CORS")||text.contains("Access-Control-Allow"))Diagnostics.once("yandex_browser","cors_rejected",true);else if(text.contains("net::ERR_"))Diagnostics.once("yandex_browser","browser_network_error",true);return false;}});
    web.setWebViewClient(new WebViewClient(){
+    @Override public void onReceivedError(WebView w,WebResourceRequest req,WebResourceError error){if(req.isForMainFrame()||TaxiClient.ENDPOINT.equals(req.getUrl().toString())){int code=error.getErrorCode();Diagnostics.detail("yandex_browser","web_error","kind",code==WebViewClient.ERROR_HOST_LOOKUP?"dns":code==WebViewClient.ERROR_TIMEOUT?"timeout":code==WebViewClient.ERROR_CONNECT?"connect":code==WebViewClient.ERROR_FAILED_SSL_HANDSHAKE?"ssl":"network");Diagnostics.once("yandex_browser","web_load_failed",true);}}
+    @Override public void onReceivedHttpError(WebView w,WebResourceRequest req,WebResourceResponse response){if(req.isForMainFrame()||TaxiClient.ENDPOINT.equals(req.getUrl().toString()))Diagnostics.error("yandex_browser","web_http_error",null,response.getStatusCode(),-1,-1,null);}
+    @Override public void onReceivedSslError(WebView w,SslErrorHandler handler,android.net.http.SslError error){Diagnostics.once("yandex_browser","ssl_rejected",true);handler.cancel();}
     @Override public WebResourceResponse shouldInterceptRequest(WebView w,WebResourceRequest req){
      long generation=pageGeneration;
      if("POST".equals(req.getMethod())&&!fareInFlight){
       String url=req.getUrl().toString();Map<String,String> headers=new HashMap<>(req.getRequestHeaders());
-      main.post(()->{if(w==web&&generation==pageGeneration&&!fareInFlight&&YandexSession.capture(app,url,headers))contextReady=true;});
+      main.post(()->{if(w==web&&generation==pageGeneration&&!fareInFlight&&YandexSession.capture(app,url,headers)){contextReady=true;Diagnostics.detail("yandex_browser","context_ready","sessionAgeMs",0);}});
      }
      return super.shouldInterceptRequest(w,req);
     }
-    @Override public void onPageStarted(WebView w,String url,android.graphics.Bitmap icon){ready=false;contextReady=false;pageGeneration++;if(pageObserver!=null)pageObserver.accept(url);}
-    @Override public void onPageFinished(WebView w,String url){ready=trusted(url);if(ready)CookieManager.getInstance().flush();if(pageObserver!=null)pageObserver.accept(url);}
+    @Override public void onPageStarted(WebView w,String url,android.graphics.Bitmap icon){ready=false;contextReady=false;pageGeneration++;Diagnostics.detail("yandex_browser","page_started","ready",false,"contextReady",false);if(pageObserver!=null)pageObserver.accept(url);}
+    @Override public void onPageFinished(WebView w,String url){ready=trusted(url);if(ready)CookieManager.getInstance().flush();Diagnostics.detail("yandex_browser","page_finished","ready",ready,"contextReady",contextReady);if(pageObserver!=null)pageObserver.accept(url);}
     @Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest req){
      Uri u=req.getUrl();String h=u.getHost();
      return !("https".equals(u.getScheme())&&h!=null&&(h.equals("yandex.ru")||h.endsWith(".yandex.ru")||h.equals("yandex.com")||h.endsWith(".yandex.com")));
@@ -68,7 +72,10 @@ final class BrowserFare {
  }
  static JSONObject fetch(Context context,JSONObject body,Map<String,String> session)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IllegalStateException("Worker thread required");
+  final long queuedAt=SystemClock.elapsedRealtime();final int diagnosticId=Diagnostics.request.get();
+  Diagnostics.detail("yandex_browser","request_queued","requestId",diagnosticId);
   synchronized(serial){
+   Diagnostics.detail("yandex_browser","request_dequeued","requestId",diagnosticId,"waitMs",SystemClock.elapsedRealtime()-queuedAt);
    final CountDownLatch done=new CountDownLatch(1);
    final JSONObject[] result=new JSONObject[1];final Exception[] failure=new Exception[1];
    final String key="sense_fare_"+UUID.randomUUID().toString().replace("-","");
@@ -92,6 +99,7 @@ final class BrowserFare {
        used=active;
        JSONObject currentBody=new JSONObject(body.toString());
        currentBody.put("id",active.get("X-YaTaxi-UserId"));
+       Diagnostics.detail("yandex_browser","request_context","requestId",diagnosticId,"ready",ready,"contextReady",contextReady,"sessionAgeMs",Math.max(0,System.currentTimeMillis()-context.getSharedPreferences("radar",0).getLong("yandexSessionAt",0)));
        fareInFlight=true;
        owner.evaluateJavascript(FareScript.start(key,currentBody,active),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
        return;
@@ -102,7 +110,7 @@ final class BrowserFare {
        try{
         JSONObject envelope=FareScript.decode(value);String kind=envelope.optString("kind","pending");
         if("pending".equals(kind)){main.postDelayed(this,250);return;}
-        int http=envelope.optInt("http",0);
+        int http=envelope.optInt("http",0);Diagnostics.detail("yandex_browser","fetch_result","requestId",diagnosticId,"http",http,"kind",envelope.optString("kind"),"stage",envelope.optString("stage"),"rttMs",envelope.optLong("durationMs",0),"requestBytes",envelope.optLong("requestBytes",0),"responseBytes",envelope.optLong("responseBytes",0));
         String detail=java.util.Arrays.asList("ok","verification","refused","timeout","network","invalid_json","schema","too_large","empty","invalid_response").contains(kind)?kind:"invalid_response";
         Diagnostics.record("yandex_browser","fare_"+("ok".equals(kind)?"received":detail),http==200?"info":"error",null,http,-1,-1,null);
         if(http==401||http==403)YandexSession.rejected(context,used);
@@ -132,3 +140,4 @@ final class BrowserFare {
   }
  }
 }
+

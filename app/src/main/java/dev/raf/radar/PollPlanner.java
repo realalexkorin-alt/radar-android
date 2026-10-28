@@ -106,4 +106,11 @@ public final class PollPlanner {
   public synchronized void backoff(long now, long delay) {
     nextGlobal = Math.max(nextGlobal, now + delay);
   }
+  synchronized org.json.JSONObject diagnosticState(List<String> eligible,long now,String own){
+    org.json.JSONObject out=new org.json.JSONObject();int overdue=0,blockedCount=0;for(String id:eligible){if(now>due.getOrDefault(id,now))overdue++;if(now<blocked.getOrDefault(id,0L))blockedCount++;}
+    int saved=eligible.size()-(eligible.contains(own)?1:0),slots=saved+(eligible.contains(own)?6:0);
+    String reason=now<authUntil?"auth":now<transientUntil?"transient":now<nextGlobal?(nextGlobal-now>10000?"rate_limit":"budget"):eligible.isEmpty()?"empty":blockedCount==eligible.size()?"point_backoff":"deadline";
+    try{out.put("eligible",eligible.size()).put("saved",saved).put("overdue",overdue).put("blocked",blockedCount).put("gapMs",Math.max(1000,Math.min(10000,(50000L/Math.max(1,slots)/1000)*1000))).put("waitMs",globalPause(now)).put("reason",reason);}catch(org.json.JSONException ignored){}return out;
+  }
 }
+
