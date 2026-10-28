@@ -200,7 +200,8 @@ public final class MonitorService extends Service implements LocationListener {
         locations.requestLocationUpdates(provider,15000,0,this,Looper.getMainLooper());
         subscribed++;
         Location last=locations.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);
-      }catch(RuntimeException e){Diagnostics.error("gps","subscribe_failed",e,0,-1,-1,null);}
+      }catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
+      catch(RuntimeException e){Diagnostics.error("gps","subscribe_failed",e,0,-1,-1,null);}
     }
     Diagnostics.once("gps",subscribed==0?"no_providers":"subscriptions_refreshed",subscribed==0);
   }
