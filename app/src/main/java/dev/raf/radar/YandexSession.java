@@ -12,7 +12,7 @@ import org.json.JSONObject;
 /** Only the owner's locally established fare-request context; never sent to diagnostics. */
 final class YandexSession {
   private static Map<String,String> cached;
-  private static final String[] HEADERS={"X-Csrf-Token","X-YaTaxi-UserId","X-Personal-Phone-Id","X-AppMetrica-DeviceId","X-AppMetrica-UUID","X-Taxi","User-Agent"};
+  private static final String[] HEADERS={"X-Csrf-Token","X-YaTaxi-UserId","X-Personal-Phone-Id","X-AppMetrica-DeviceId","X-AppMetrica-UUID","X-Taxi","User-Agent","Origin","Referer"};
   static Map<String,String> select(String url,Map<String,String> input){
     try{
       URI uri=new URI(url);
@@ -20,7 +20,8 @@ final class YandexSession {
           ||(uri.getPort()!=-1&&uri.getPort()!=443)||uri.getRawUserInfo()!=null||!"/3.0/routestats".equals(uri.getPath()))return Collections.emptyMap();
       Map<String,String> out=new HashMap<>();
       for(String allowed:HEADERS)for(Map.Entry<String,String> e:input.entrySet())if(allowed.equalsIgnoreCase(e.getKey())){
-        String v=e.getValue();if(v!=null&&!v.isEmpty()&&v.length()<=4096&&v.indexOf('\r')<0&&v.indexOf('\n')<0)out.put(allowed,v);
+        String v=e.getValue();if(("Origin".equals(allowed)||"Referer".equals(allowed))&&v!=null){URI source=new URI(v);if(!"https".equalsIgnoreCase(source.getScheme())||!"taxi.yandex.ru".equalsIgnoreCase(source.getHost()))continue;}
+        if(v!=null&&!v.isEmpty()&&v.length()<=4096&&v.indexOf('\r')<0&&v.indexOf('\n')<0)out.put(allowed,v);
       }
       if(!out.containsKey("X-Csrf-Token")||!out.containsKey("X-YaTaxi-UserId"))return Collections.emptyMap();
       return Collections.unmodifiableMap(out);
