@@ -1,10 +1,8 @@
-name: Authentication recovery verification
+name: Yandex authorization UI verification
 on:
   push:
-    branches: ['codex/auth-resume-055']
+    branches: ['codex/yandex-account-056']
     paths: ['app/build.gradle']
-  pull_request:
-    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -21,13 +19,34 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.PollPlannerTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.BrowserProbeTest --tests dev.raf.radar.ServiceErrorTest :app:assembleRelease :app:lintDebug
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.YandexStatusTest --tests dev.raf.radar.PollPlannerTest --tests dev.raf.radar.FareScriptTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='55' versionName='0.1.55-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='56' versionName='0.1.56-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
-      - uses: actions/upload-artifact@v4
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
         with:
-          name: auth-resume-release
+          api-level: 31
+          profile: pixel_2
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
+            adb shell am instrument -w -r -e class dev.raf.radar.YandexUiTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
+            adb pull /sdcard/Pictures/RadarSmoke ./screens || true
+            grep -q 'OK (2 tests)' yandex-ui.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yandex-account-release
           path: |
             app/build/outputs/apk/release/*.apk
+            yandex-ui.txt
+            screens/
             apksigner.jar
