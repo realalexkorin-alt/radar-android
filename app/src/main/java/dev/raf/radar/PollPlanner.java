@@ -6,6 +6,8 @@ import java.util.*;
 public final class PollPlanner {
   private final Map<String, Long> due = new HashMap<>();
   private long nextGlobal = 0;
+  private final Map<String,Long> blocked = new HashMap<>(), recentFailures = new HashMap<>();
+  private final Map<String,Integer> failures = new HashMap<>();
   private int cursor = 0;
   private boolean lastWasPriority;
 
@@ -50,6 +52,7 @@ public final class PollPlanner {
     long gap=Math.max(1000,Math.min(10000,(50000L/Math.max(1,slots)/1000)*1000));
     String selected=null;long earliest=Long.MAX_VALUE;
     for(String id:eligible){
+      if(now<blocked.getOrDefault(id,0L))continue;
       long deadline=due.getOrDefault(id,0L);
       long lead=id.equals(own)?0:15000;
       if(deadline>now+lead)continue;
@@ -72,6 +75,21 @@ public final class PollPlanner {
   public synchronized void refresh() {
     due.clear();
   }
+
+  /** Transient failures cool down only their point; repeated failures across points pause the service. */
+  public synchronized long failed(String id,int http,long now) {
+    if(http==401||http==403||http==429){backoff(now,900000);return 900000;}
+    int n=Math.min(5,failures.getOrDefault(id,0)+1);failures.put(id,n);
+    long delay=Math.min(900000,60000L*(1L<<(n-1)));blocked.put(id,now+delay);
+    if(http==0||http>=500){
+      recentFailures.entrySet().removeIf(e->now-e.getValue()>60000);
+      recentFailures.put(id,now);
+      if(recentFailures.size()>=3){backoff(now,60000);recentFailures.clear();}
+    }
+    return delay;
+  }
+  public synchronized void succeeded(String id){failures.remove(id);blocked.remove(id);recentFailures.clear();}
+  public synchronized long globalPause(long now){return Math.max(0,nextGlobal-now);}
 
   public synchronized void backoff(long now, long delay) {
     nextGlobal = Math.max(nextGlobal, now + delay);
