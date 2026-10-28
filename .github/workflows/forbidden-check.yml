@@ -1,7 +1,7 @@
-name: Forbidden response verification
+name: Manual probe verification
 on:
   push:
-    branches: ['codex/forbidden-check-052']
+    branches: ['codex/manual-probe-053']
     paths: ['app/build.gradle']
   pull_request:
     branches: [main]
@@ -23,11 +23,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.BrowserProbeTest --tests dev.raf.radar.ServiceErrorTest :app:assembleRelease :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='52' versionName='0.1.52-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='53' versionName='0.1.53-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: forbidden-check-release
+          name: manual-probe-release
           path: |
             app/build/outputs/apk/release/*.apk
             apksigner.jar

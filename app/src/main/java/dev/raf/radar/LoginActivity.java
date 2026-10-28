@@ -70,8 +70,7 @@ public final class LoginActivity extends Activity {
   private void probe(){
     if(testing)return;
     Store store=new Store(this);long now=System.currentTimeMillis();
-    long pause=store.prefs.getLong("diagPauseUntil",0)-now;
-    if(pause>10000){Updates.show(this,"Сервис на паузе. Повторите через "+((pause+999)/1000)+" с");return;}
+    // A user-initiated probe is independent of the monitoring circuit breaker.
     long previous=store.prefs.getLong("yandexTestAt",0);
     if(now>=previous&&now-previous<60000){Updates.show(this,"Повторная проверка доступна через минуту");return;}
     Point candidate=null;
