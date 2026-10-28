@@ -46,6 +46,13 @@ final class BrowserFare {
  }
  static void detach(WebView w){if(w!=null&&w.getParent() instanceof ViewGroup)((ViewGroup)w.getParent()).removeView(w);}
  static void releaseIfIdle(){main.post(()->{if(web!=null&&web.getParent()==null){web.stopLoading();web.destroy();web=null;ready=false;}});}
+
+ static void clearLocalSession(Runnable finished){
+  if(Looper.myLooper()!=Looper.getMainLooper())throw new IllegalStateException("Main thread required");
+  if(web!=null){detach(web);web.stopLoading();web.clearCache(true);web.clearHistory();web.destroy();web=null;ready=false;}
+  WebStorage.getInstance().deleteAllData();
+  CookieManager.getInstance().removeAllCookies(removed->{CookieManager.getInstance().flush();finished.run();});
+ }
  static JSONObject fetch(Context context,JSONObject body,Map<String,String> session)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IllegalStateException("Worker thread required");
   synchronized(serial){
@@ -54,7 +61,7 @@ final class BrowserFare {
    final JSONObject[] result=new JSONObject[1];final Exception[] failure=new Exception[1];
    final String key="sense_fare_"+UUID.randomUUID().toString().replace("-","");
    final long deadline=SystemClock.elapsedRealtime()+35000;
-   main.post(new Runnable(){boolean started;WebView owner;
+   main.post(new Runnable(){boolean started;WebView owner;Map<String,String> used=Collections.emptyMap();
     void finish(JSONObject data,Exception error){if(done.getCount()==0)return;result[0]=data;failure[0]=error;done.countDown();if(owner!=null&&owner==web&&trusted(owner.getUrl()))owner.evaluateJavascript(FareScript.clear(key),null);}
     @Override public void run(){
      if(done.getCount()==0)return;
@@ -70,6 +77,7 @@ final class BrowserFare {
        started=true;
        Map<String,String> active=YandexSession.headers(context);
        if(active.isEmpty()){finish(null,new IOException("Откройте Яндекс и войдите в аккаунт"));return;}
+       used=active;
        JSONObject currentBody=new JSONObject(body.toString());
        currentBody.put("id",active.get("X-YaTaxi-UserId"));
        owner.evaluateJavascript(FareScript.start(key,currentBody,active),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
@@ -77,14 +85,17 @@ final class BrowserFare {
       }
       owner.evaluateJavascript(FareScript.poll(key),value->{
        if(done.getCount()==0)return;
+       if(owner!=web||!trusted(owner.getUrl())){finish(null,new IOException("Страница Яндекса закрыта"));return;}
        try{
         JSONObject envelope=FareScript.decode(value);String kind=envelope.optString("kind","pending");
         if("pending".equals(kind)){main.postDelayed(this,250);return;}
         int http=envelope.optInt("http",0);
         Diagnostics.record("yandex_browser","fare_"+("ok".equals(kind)?"received":"failed"),http==200?"info":"error",null,http,-1,-1,null);
+        if(http==401||http==403)YandexSession.rejected(context,used);
         if(http!=200){finish(null,http>0?new TaxiClient.ApiException(http,"verification".equals(kind)?"response_verification":"response_browser_refused"):new IOException("Не удалось получить ответ страницы"));return;}
         JSONObject data=envelope.getJSONObject("data");
         if(data.optJSONArray("service_levels")==null)throw new JSONException("service_levels");
+        YandexSession.verified(context,used);
         finish(data,null);
        }catch(Exception e){finish(null,new IOException("Изменился формат ответа Яндекса",e));}
       });
