@@ -1,7 +1,7 @@
-name: Online diagnostics verification
+name: Point history and editor verification
 on:
   push:
-    branches: ['codex/online-diagnostics-061']
+    branches: ['codex/point-history-062']
     paths: ['app/build.gradle']
 permissions:
   contents: read
@@ -21,9 +21,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci --ignore-scripts && node --test test/*.test.js
         working-directory: backend
-      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.DiagnosticJournalTest --tests dev.raf.radar.DiagnosticLoadTest --tests dev.raf.radar.AuthRecoveryTest --tests dev.raf.radar.YandexStatusTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.PollPlannerTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.SourceQueueTest --tests dev.raf.radar.ObservationQueueTest :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - run: |
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='61' versionName='0.1.61-alpha'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='62' versionName='0.1.62-alpha'"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
       - name: Enable emulator acceleration
         run: |
@@ -40,13 +40,13 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell appops set dev.raf.radar REQUEST_INSTALL_PACKAGES allow
-            adb shell am instrument -w -r -e class dev.raf.radar.YandexUiTest,dev.raf.radar.DiagnosticsTest,dev.raf.radar.DiagnosticModeUiTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
+            adb shell am instrument -w -r -e class dev.raf.radar.PointHistoryUiTest,dev.raf.radar.StatisticsDisplayTest dev.raf.radar.test/androidx.test.runner.AndroidJUnitRunner | tee yandex-ui.txt
             adb pull /sdcard/Pictures/RadarSmoke ./screens || true
-            grep -q 'OK (7 tests)' yandex-ui.txt
+            grep -q 'OK (4 tests)' yandex-ui.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: online-diagnostics-release
+          name: point-history-release
           path: |
             app/build/outputs/apk/release/*.apk
             yandex-ui.txt
