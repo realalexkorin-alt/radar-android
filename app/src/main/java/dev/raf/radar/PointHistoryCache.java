@@ -1,0 +1,10 @@
+package dev.raf.radar;
+import java.io.*;import java.nio.charset.StandardCharsets;import java.security.MessageDigest;import java.util.*;import org.json.*;
+/** Private, bounded copies; account, point, location, date and timezone are part of the key. */
+final class PointHistoryCache {
+ final File root;PointHistoryCache(File root){this.root=root;root.mkdirs();}
+ String key(int owner,Point p,String date,String timezone)throws Exception{String raw=owner+"|"+p.id+"|"+p.lat+"|"+p.lon+"|"+date+"|"+timezone;StringBuilder out=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)))out.append(String.format(Locale.US,"%02x",b&255));return out.toString();}
+ static boolean valid(JSONObject data,String date,String timezone){if(data==null||data.optInt("schema")!=2||!date.equals(data.optString("date"))||!timezone.equals(data.optString("timezone")))return false;JSONArray slots=data.optJSONArray("slots");if(slots==null||slots.length()!=24)return false;for(int i=0;i<24;i++){JSONObject s=slots.optJSONObject(i);if(s==null||s.optInt("hour",-1)!=i||s.optJSONArray("bins")==null||s.optJSONArray("bins").length()!=12)return false;}return true;}
+ synchronized JSONObject read(int owner,Point p,String date,String timezone){if(owner<1)return null;try{File f=new File(root,key(owner,p,date,timezone)+".json");if(f.length()>256000)return null;JSONObject data=new JSONObject(DiagnosticJournal.read(f));return valid(data,date,timezone)?data:null;}catch(Exception e){return null;}}
+ synchronized void save(int owner,Point p,String date,String timezone,JSONObject data)throws Exception{if(owner<1||!valid(data,date,timezone))return;String text=data.toString();if(text.getBytes(StandardCharsets.UTF_8).length>256000)return;DiagnosticJournal.write(new File(root,key(owner,p,date,timezone)+".json"),text);File[] files=root.listFiles((d,n)->n.endsWith(".json"));if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified));for(int i=0;i<files.length-64;i++)files[i].delete();}}
+}
