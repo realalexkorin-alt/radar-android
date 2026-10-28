@@ -4,17 +4,27 @@ import androidx.test.core.app.ActivityScenario;import androidx.test.platform.app
 import org.junit.Test;import static org.junit.Assert.*;
 public class YandexUiTest {
  WebView web(View v){if(v instanceof WebView)return (WebView)v;if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++){WebView w=web(g.getChildAt(i));if(w!=null)return w;}}return null;}
- @Test public void serviceMapIsNeverShownAfterOfficialLogin(){
+ @Test public void signInHasOwnBrowserAndAVisibleReturnPanel(){
   Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();
   c.getSharedPreferences("radar",0).edit().clear().putBoolean("economyOnlyV1",true).commit();
   try(ActivityScenario<LoginActivity> s=ActivityScenario.launch(LoginActivity.class)){
-   s.onActivity(a->{assertNotNull(BrowserFare.pageObserver);BrowserFare.pageObserver.accept("https://taxi.yandex.ru/");assertEquals(View.GONE,web(a.getWindow().getDecorView()).getVisibility());assertFalse(SettingsPolishTest.contains(a.getWindow().getDecorView(),"Выберите маршрут"));});
-   ScreenTest.capture("login-no-map");
+   s.onActivity(a->{
+    assertNotSame(BrowserFare.view(a),web(a.getWindow().getDecorView()));
+    a.authPage("https://taxi.yandex.ru/",false);
+    assertEquals(View.INVISIBLE,web(a.getWindow().getDecorView()).getVisibility());
+    assertTrue(SettingsPolishTest.contains(a.getWindow().getDecorView(),"Аккаунт выбран"));
+   });ScreenTest.capture("login-return-panel");
   }
  }
- @Test public void failedCheckStaysOnLoginWithoutAResultPage(){
+ @Test public void failedCheckAllowsImmediateRetryWithoutMinuteTimer(){
+  Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();Store store=new Store(c);
+  store.prefs.edit().putLong("yandexTestAt",System.currentTimeMillis()).commit();
   try(ActivityScenario<LoginActivity> s=ActivityScenario.launch(LoginActivity.class)){
-   s.onActivity(a->{a.showResult(false,"fixture");assertNotNull(web(a.getWindow().getDecorView()));assertFalse(SettingsPolishTest.contains(a.getWindow().getDecorView(),"К списку сессий"));});
+   s.onActivity(a->{
+    a.showResult(false,"fixture");a.probe();
+    assertFalse(SettingsPolishTest.contains(a.getWindow().getDecorView(),"Повторная проверка будет доступна"));
+    assertFalse(SettingsPolishTest.contains(a.getWindow().getDecorView(),"К списку сессий"));
+   });
   }
  }
 }
