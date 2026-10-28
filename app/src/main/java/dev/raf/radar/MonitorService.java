@@ -282,6 +282,7 @@ public final class MonitorService extends Service implements LocationListener {
     if (queue != null) queue.shutdownNow();
     if (locations != null) locations.removeUpdates(this);
     if (overlay != null) overlay.close();
+    BrowserFare.releaseIfIdle();
     super.onDestroy();
   }
 

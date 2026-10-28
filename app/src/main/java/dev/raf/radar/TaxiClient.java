@@ -45,10 +45,9 @@ public final class TaxiClient {
   public TaxiClient(android.content.Context c) { context = c.getApplicationContext(); }
 
   public List<Store.Reading> fetch(Point p) throws Exception {
-    String cookie = android.webkit.CookieManager.getInstance().getCookie(ENDPOINT);
     Map<String,String> session=YandexSession.headers(context);
     JSONObject body=request(p);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
-    JSONObject response = post(ENDPOINT, body, cookie,session);
+    JSONObject response = BrowserFare.fetch(context, body, session);
     String zone = "";
     try {
       String key = "zone:" + p.id;
@@ -67,8 +66,7 @@ public final class TaxiClient {
             .putLong(key + ":lat", Double.doubleToLongBits(p.lat))
             .putLong(key + ":lon", Double.doubleToLongBits(p.lon)).apply();
       }
-    } catch (ApiException e) { throw e; }
-      catch (Exception e) {Diagnostics.error("taxi","zone_lookup_failed",e,0,-1,-1,null);}
+    } catch (Exception e) {Diagnostics.error("taxi","zone_lookup_failed",e,0,-1,-1,null);}
     JSONObject table;
     try (InputStream in = context.getAssets().open("tariffs.json")) {
       ByteArrayOutputStream out = new ByteArrayOutputStream();

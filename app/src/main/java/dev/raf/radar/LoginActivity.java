@@ -34,36 +34,11 @@ public final class LoginActivity extends Activity {
     hint.setText("Войдите на сайте Яндекса ниже и выберите маршрут и оплату наличными, не заказывая поездку. Когда сайт покажет цены, нажмите «Проверить запрос». Заказ поездки не создаётся. Проверяем Эконом с оплатой наличными. Cookies и платёжные данные в отчёт не входят.");
     root.addView(hint);
     test=new Button(this);test.setText("Проверить запрос");test.setOnClickListener(v->probe());root.addView(test);
-    web = new WebView(this);
+    web = BrowserFare.view(this);
+    BrowserFare.detach(web);
     root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
     setContentView(root);
-    web.getSettings().setJavaScriptEnabled(true);
-    web.getSettings().setDomStorageEnabled(true);
-    web.getSettings().setAllowFileAccess(false);
-    web.getSettings().setAllowContentAccess(false);
-    web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-    CookieManager.getInstance().setAcceptCookie(true);
-    web.setWebViewClient(
-        new WebViewClient() {
-          @Override
-          public WebResourceResponse shouldInterceptRequest(WebView w,WebResourceRequest req){
-            if("POST".equals(req.getMethod()))YandexSession.capture(getApplicationContext(),req.getUrl().toString(),req.getRequestHeaders());
-            return super.shouldInterceptRequest(w,req);
-          }
-          @Override
-          public boolean shouldOverrideUrlLoading(WebView w, WebResourceRequest req) {
-            Uri u = req.getUrl();
-            String h = u.getHost();
-            if ("https".equals(u.getScheme())
-                && h != null
-                && (h.equals("yandex.ru")
-                    || h.endsWith(".yandex.ru")
-                    || h.equals("yandex.com")
-                    || h.endsWith(".yandex.com"))) return false;
-            return true;
-          }
-        });
-    web.loadUrl("https://taxi.yandex.ru/");
+
   }
 
 
@@ -91,19 +66,18 @@ public final class LoginActivity extends Activity {
     testing=true;test.setEnabled(false);hint.setText(cookies+"\nПроверяем запрос…");
     Point point=candidate;
     worker.execute(()->{
-      String result;boolean compareBrowser=false;
+      String result;
       try{
         java.util.List<Store.Reading> readings=new TaxiClient(this).fetch(point);
         boolean rub=false;for(Store.Reading r:readings)if(r.rub!=null)rub=true;
         result=rub?"Запрос прошёл. Надбавка получена.":"Запрос прошёл, но надбавку в рублях рассчитать не удалось.";
         Diagnostics.info("yandex_auth",rub?"probe_surcharge_received":"probe_no_ruble_surcharge");
-      }catch(TaxiClient.ApiException e){compareBrowser=e.status==403&&!"response_verification".equals(e.reason);result="Запрос отклонён: HTTP "+e.status+" ("+e.reason+").";Diagnostics.error("yandex_auth","probe_http_error",e,e.status,-1,-1,null);}
+      }catch(TaxiClient.ApiException e){result="Запрос отклонён: HTTP "+e.status+" ("+e.reason+").";Diagnostics.error("yandex_auth","probe_http_error",e,e.status,-1,-1,null);}
       catch(java.net.UnknownHostException e){result="Ошибка DNS: телефон не нашёл адрес сервиса.";Diagnostics.error("yandex_auth","probe_dns_error",e,0,-1,-1,null);}
       catch(java.net.SocketTimeoutException e){result="Сервис не ответил вовремя.";Diagnostics.error("yandex_auth","probe_timeout",e,0,-1,-1,null);}
       catch(Exception e){result="Запрос не выполнен: "+e.getClass().getSimpleName()+".";Diagnostics.error("yandex_auth","probe_failed",e,0,-1,-1,null);}
       String message=result;
-      boolean compare=compareBrowser;
-      runOnUiThread(()->{if(isFinishing()||isDestroyed())return;if(compare)browserProbe(point,cookies,message);else finishProbe(cookies,message);});
+      runOnUiThread(()->{if(isFinishing()||isDestroyed())return;finishProbe(cookies,message);});
     });
   }
 
@@ -113,48 +87,13 @@ public final class LoginActivity extends Activity {
     test.setEnabled(true);hint.setText(cookies+"\n"+message+"\nОтправляем диагностический отчёт…");
     Diagnostics.sendManual(this,delivery->hint.setText(cookies+"\n"+message+"\n"+delivery));
   }
-  private void browserProbe(Point point,String cookies,String nativeResult){
-    try{
-      Uri page=Uri.parse(web.getUrl()==null?"":web.getUrl());
-      if(!"https".equals(page.getScheme())||!"taxi.yandex.ru".equals(page.getHost())||(page.getPort()!=-1&&page.getPort()!=443)){
-        Diagnostics.info("yandex_browser","trusted_page_required");finishProbe(cookies,nativeResult+"\nДля браузерной проверки откройте страницу такси Яндекса.");return;
-      }
-      java.util.Map<String,String> session=YandexSession.headers(this);
-      org.json.JSONObject body=TaxiClient.request(point);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
-      String key="sense_probe_"+java.util.UUID.randomUUID().toString().replace("-","");
-      hint.setText(cookies+"\n"+nativeResult+"\nСравниваем с запросом через страницу Яндекса…");
-      web.evaluateJavascript(BrowserProbe.start(key,body,session),value->{
-        if(isFinishing()||isDestroyed())return;
-        if(!"true".equals(value)){finishProbe(cookies,nativeResult+"\nБраузерная проверка не запущена.");return;}
-        pollBrowser(key,SystemClock.elapsedRealtime()+21000,cookies,nativeResult);
-      });
-    }catch(Exception e){Diagnostics.error("yandex_browser","start_failed",e,0,-1,-1,null);finishProbe(cookies,nativeResult+"\nБраузерная проверка не запущена.");}
-  }
-  private void pollBrowser(String key,long deadline,String cookies,String nativeResult){
-    if(isFinishing()||isDestroyed())return;
-    if(SystemClock.elapsedRealtime()>=deadline){Diagnostics.error("yandex_browser","response_timeout",null,0,-1,-1,null);finishProbe(cookies,nativeResult+"\nБраузер: время ожидания истекло.");return;}
-    web.evaluateJavascript(BrowserProbe.poll(key),value->{
-      if(isFinishing()||isDestroyed())return;
-      try{
-        String raw=new org.json.JSONArray("["+value+"]").optString(0,"{}");org.json.JSONObject result=new org.json.JSONObject(raw);
-        String kind=result.optString("kind","pending");if(!BrowserProbe.KINDS.contains(kind))kind="unreadable";
-        if("pending".equals(kind)){probeHandler.postDelayed(()->pollBrowser(key,deadline,cookies,nativeResult),300);return;}
-        int http=result.optInt("http",0);if(http<100||http>599)http=0;
-        Diagnostics.record("yandex_browser","response_"+kind,http==200?"info":"error",null,http,-1,-1,null);
-        String outcome=http==200?"Браузер: запрос прошёл (HTTP 200).":http>0?"Браузер: HTTP "+http+" ("+kind+").":"Браузер: "+kind+" (ответ недоступен, в том числе при запрете CORS).";
-        if("verification".equals(kind))outcome+=" Требуется проверка на сайте Яндекса.";
-        finishProbe(cookies,nativeResult+"\n"+outcome);
-      }catch(Exception e){Diagnostics.error("yandex_browser","result_failed",e,0,-1,-1,null);finishProbe(cookies,nativeResult+"\nНе удалось прочитать результат браузера.");}
-    });
-  }
-
   @Override
   public void onDestroy() {
     probeHandler.removeCallbacksAndMessages(null);
     worker.shutdownNow();
     if (web != null) {
-      web.stopLoading();
-      web.destroy();
+      BrowserFare.detach(web);
+      if(!MonitorService.running)BrowserFare.releaseIfIdle();
     }
     super.onDestroy();
   }
