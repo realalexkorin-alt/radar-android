@@ -31,7 +31,7 @@ final class Diagnostics {
    String[] keys={"gpsAt","diagTickAt","diagAttemptAt","diagSuccessAt"},names={"gpsAgeSeconds","lastTickAgeSeconds","lastAttemptAgeSeconds","lastSuccessAgeSeconds"};for(int i=0;i<keys.length;i++)if(p.getLong(keys[i],0)>0)s.put(names[i],Math.min(Integer.MAX_VALUE,Math.max(0,(now-p.getLong(keys[i],now))/1000)));s.put("pauseRemainingSeconds",Math.max(0,(p.getLong("diagPauseUntil",0)-now+999)/1000));int enabled=0;for(Point point:new Store(app).points())if(point.enabled)enabled++;s.put("enabledPoints",enabled);File[] queue=journal.root.listFiles((d,n)->n.startsWith("report-"));s.put("queuePending",queue==null?0:queue.length);
   }catch(Exception ignored){}return s;}
  static void flush(){if(app==null||SystemClock.elapsedRealtime()<retryAt)return;File file=journal.pending();if(file==null)return;String token=AccountClient.session(new Store(app));if(token==null)return;
-  try{int status=transport.send(DiagnosticJournal.read(file),token);app.getSharedPreferences("radar",0).edit().putInt("diagUploadHttp",status).apply();if(status==200){journal.acknowledged(file);failures=0;retryAt=SystemClock.elapsedRealtime()+60000;app.getSharedPreferences("radar",0).edit().putLong("diagUploadedAt",System.currentTimeMillis()).apply();}else if(status==400||status==413){journal.acknowledged(file);retryAt=SystemClock.elapsedRealtime()+900000;}else retry();}catch(Exception e){retry();}
+  try{int status=transport.send(DiagnosticJournal.read(file),token);app.getSharedPreferences("radar",0).edit().putInt("diagUploadHttp",status).apply();if(status==200){journal.acknowledged(file);failures=0;retryAt=SystemClock.elapsedRealtime()+60000;app.getSharedPreferences("radar",0).edit().putLong("diagUploadedAt",System.currentTimeMillis()).apply();}else if(status==400||status==413){retryAt=SystemClock.elapsedRealtime()+900000;}else retry();}catch(Exception e){retry();}
  }
  static void retry(){failures=Math.min(6,failures+1);retryAt=SystemClock.elapsedRealtime()+Math.min(3600000,60000L*(1L<<failures));}
  static String compressed(String body)throws Exception{ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(java.util.zip.GZIPOutputStream gzip=new java.util.zip.GZIPOutputStream(bytes)){gzip.write(body.getBytes(StandardCharsets.UTF_8));}return new JSONObject().put("encoding","gzip-base64").put("payload",android.util.Base64.encodeToString(bytes.toByteArray(),android.util.Base64.NO_WRAP)).toString();}
@@ -44,7 +44,8 @@ final class Diagnostics {
   worker.execute(()->{
    String result;
    try {
-    journal.event("app","manual_report","error",null,0,-1,-1,null);
+    journal.event("app","manual_report","info",null,0,-1,-1,null);
+    journal.event("network","upload_network","info",null,0,-1,-1,null,DiagnosticMode.network());
     File report=journal.report("manual_report",device(),snapshot(),true);
     if(report==null) result="Не удалось подготовить отчёт";
     else {
@@ -52,15 +53,16 @@ final class Diagnostics {
      if(token==null) result="Отчёт сохранён. Войдите в Sense PRO для отправки";
      else {
       int status=transport.send(DiagnosticJournal.read(report),token);
+      journal.event("diagnostics","upload_result",status==200?"info":"error",null,status,-1,-1,null);
       app.getSharedPreferences("radar",0).edit().putInt("diagUploadHttp",status).apply();
       if(status==200){journal.acknowledged(report);app.getSharedPreferences("radar",0).edit().putLong("diagUploadedAt",System.currentTimeMillis()).apply();result="Диагностика отправлена";}
       else if(status==401||status==403) result="Отчёт сохранён. Сессия Sense PRO истекла — войдите снова";
       else result="Отчёт сохранён. Не удалось отправить (HTTP "+status+")";
      }
     }
-   }catch(java.net.UnknownHostException e){result="Отчёт сохранён. DNS не нашёл сервер диагностики";}
-   catch(java.net.SocketTimeoutException e){result="Отчёт сохранён. Сервер диагностики не ответил вовремя";}
-   catch(Exception e){result="Отчёт сохранён. Ошибка отправки: "+e.getClass().getSimpleName();}
+   }catch(java.net.UnknownHostException e){journal.event("diagnostics","upload_dns_failed","error",e,0,-1,-1,null);result="Отчёт сохранён. DNS не нашёл сервер диагностики";}
+   catch(java.net.SocketTimeoutException e){journal.event("diagnostics","upload_timeout","error",e,0,-1,-1,null);result="Отчёт сохранён. Сервер диагностики не ответил вовремя";}
+   catch(Exception e){journal.event("diagnostics","upload_failed","error",e,0,-1,-1,null);result="Отчёт сохранён. Ошибка отправки: "+e.getClass().getSimpleName();}
    String message=result;new Handler(Looper.getMainLooper()).post(()->{if(!a.isFinishing()&&!a.isDestroyed()){Updates.show(a,message);if(delivery!=null)delivery.ready(message);}});
   });
  }
