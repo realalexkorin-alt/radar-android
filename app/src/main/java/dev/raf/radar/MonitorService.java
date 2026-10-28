@@ -144,7 +144,7 @@ public final class MonitorService extends Service implements LocationListener {
       store.prefs.edit().putLong("diagAttemptAt",now).putLong("diagPointAttempt:"+p.id,now).apply();
       Diagnostics.info(Diagnostics.pointArea(p.id),"request");
       Diagnostics.record("taxi","request","info",null,0,-1,-1,p.dynamic?"own":"saved");
-      List<Store.Reading> readings = new TaxiClient(this).fetch(request);
+      List<Store.Reading> readings = new TaxiClient(this).fetch(request);requestHttp=200;
       if (p.dynamic) {
         float[] distance = new float[1];
         Location.distanceBetween(
@@ -183,7 +183,7 @@ public final class MonitorService extends Service implements LocationListener {
       requestHttp=e.status;failedPoint(attempted,e.status,e);
     } catch (Exception e) {
       failedPoint(attempted,0,e);
-    } finally {if(requestStarted>0){long elapsed=SystemClock.elapsedRealtime()-requestStarted;Diagnostics.load.completed(SystemClock.elapsedRealtime(),elapsed,requestSuccess);store.prefs.edit().putLong("diagFinishedAt",System.currentTimeMillis()).apply();Diagnostics.detail(Diagnostics.pointArea(attempted),"request_finished","requestId",Diagnostics.request.get(),"rttMs",elapsed,"successes",requestSuccess?1:0,"failures",requestSuccess?0:1);}}
+    } finally {if(requestStarted>0){long elapsed=SystemClock.elapsedRealtime()-requestStarted;Diagnostics.load.completed(SystemClock.elapsedRealtime(),elapsed,requestSuccess);store.prefs.edit().putLong("diagFinishedAt",System.currentTimeMillis()).apply();Diagnostics.detail(Diagnostics.pointArea(attempted),"request_finished","requestId",Diagnostics.request.get(),"rttMs",elapsed,"http",requestHttp,"successes",requestSuccess?1:0,"failures",requestSuccess?0:1);}}
   }
 
   private void failedPoint(String id,int status,Exception error){
