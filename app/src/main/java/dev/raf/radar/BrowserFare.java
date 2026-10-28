@@ -68,7 +68,11 @@ final class BrowserFare {
       }
       if(!started){
        started=true;
-       owner.evaluateJavascript(FareScript.start(key,body,session),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
+       Map<String,String> active=YandexSession.headers(context);
+       if(active.isEmpty()){finish(null,new IOException("Откройте Яндекс и войдите в аккаунт"));return;}
+       JSONObject currentBody=new JSONObject(body.toString());
+       currentBody.put("id",active.get("X-YaTaxi-UserId"));
+       owner.evaluateJavascript(FareScript.start(key,currentBody,active),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
        return;
       }
       owner.evaluateJavascript(FareScript.poll(key),value->{

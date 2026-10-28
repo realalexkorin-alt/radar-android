@@ -69,6 +69,7 @@ public final class LoginActivity extends Activity {
       String result;
       try{
         java.util.List<Store.Reading> readings=new TaxiClient(this).fetch(point);
+        store.prefs.edit().putLong("yandexProbeOk",System.currentTimeMillis()).apply();
         boolean rub=false;for(Store.Reading r:readings)if(r.rub!=null)rub=true;
         result=rub?"Запрос прошёл. Надбавка получена.":"Запрос прошёл, но надбавку в рублях рассчитать не удалось.";
         Diagnostics.info("yandex_auth",rub?"probe_surcharge_received":"probe_no_ruble_surcharge");
