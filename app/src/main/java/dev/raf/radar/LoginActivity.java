@@ -30,7 +30,7 @@ public final class LoginActivity extends Activity {
     root.addView(done);
     hint = new TextView(this);
     hint.setPadding(16,12,16,12);
-    hint.setText("Войдите на сайте Яндекса ниже, затем нажмите «Проверить запрос». Заказ поездки не создаётся. Проверяем Эконом с оплатой наличными. Cookies и платёжные данные в отчёт не входят.");
+    hint.setText("Войдите на сайте Яндекса ниже и выберите маршрут и оплату наличными, не заказывая поездку. Когда сайт покажет цены, нажмите «Проверить запрос». Заказ поездки не создаётся. Проверяем Эконом с оплатой наличными. Cookies и платёжные данные в отчёт не входят.");
     root.addView(hint);
     test=new Button(this);test.setText("Проверить запрос");test.setOnClickListener(v->probe());root.addView(test);
     web = new WebView(this);
@@ -44,6 +44,11 @@ public final class LoginActivity extends Activity {
     CookieManager.getInstance().setAcceptCookie(true);
     web.setWebViewClient(
         new WebViewClient() {
+          @Override
+          public WebResourceResponse shouldInterceptRequest(WebView w,WebResourceRequest req){
+            if("POST".equals(req.getMethod()))YandexSession.capture(getApplicationContext(),req.getUrl().toString(),req.getRequestHeaders());
+            return super.shouldInterceptRequest(w,req);
+          }
           @Override
           public boolean shouldOverrideUrlLoading(WebView w, WebResourceRequest req) {
             Uri u = req.getUrl();
@@ -73,6 +78,9 @@ public final class LoginActivity extends Activity {
       candidate=new Point("me","Проверка",Double.longBitsToDouble(store.prefs.getLong("lat",0)),Double.longBitsToDouble(store.prefs.getLong("lon",0)),true);
     }else for(Point p:store.points())if(!p.dynamic&&p.enabled){candidate=p;break;}
     if(candidate==null){Updates.show(this,"Нет свежей геопозиции или включённых сохранённых точек");return;}
+    boolean contextReady=!YandexSession.headers(this).isEmpty();
+    Diagnostics.info("yandex_auth",contextReady?"session_context_present":"session_context_missing");
+    if(!contextReady){hint.setText("Сессия запроса ещё не получена. Войдите на сайте ниже, выберите маршрут и наличные, дождитесь цен и повторите проверку.");return;}
     String apiCookie=CookieManager.getInstance().getCookie(TaxiClient.ENDPOINT);
     String webCookie=CookieManager.getInstance().getCookie("https://taxi.yandex.ru/");
     boolean apiCookies=apiCookie!=null&&!apiCookie.isEmpty(),webCookies=webCookie!=null&&!webCookie.isEmpty();
@@ -94,7 +102,7 @@ public final class LoginActivity extends Activity {
       catch(java.net.SocketTimeoutException e){result="Сервис не ответил вовремя.";Diagnostics.error("yandex_auth","probe_timeout",e,0,-1,-1,null);}
       catch(Exception e){result="Запрос не выполнен: "+e.getClass().getSimpleName()+".";Diagnostics.error("yandex_auth","probe_failed",e,0,-1,-1,null);}
       String message=result;
-      runOnUiThread(()->{testing=false;if(isFinishing()||isDestroyed())return;test.setEnabled(true);hint.setText(cookies+"\n"+message+"\nОтправляем диагностический отчёт…");Diagnostics.sendManual(this);});
+      runOnUiThread(()->{testing=false;if(isFinishing()||isDestroyed())return;test.setEnabled(true);hint.setText(cookies+"\n"+message+"\nОтправляем диагностический отчёт…");Diagnostics.sendManual(this,delivery->hint.setText(cookies+"\\n"+message+"\\n"+delivery));});
     });
   }
 
