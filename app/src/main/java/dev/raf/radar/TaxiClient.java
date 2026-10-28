@@ -44,7 +44,9 @@ public final class TaxiClient {
 
   public List<Store.Reading> fetch(Point p) throws Exception {
     String cookie = android.webkit.CookieManager.getInstance().getCookie(ENDPOINT);
-    JSONObject response = post(ENDPOINT, request(p), cookie);
+    Map<String,String> session=YandexSession.headers(context);
+    JSONObject body=request(p);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
+    JSONObject response = post(ENDPOINT, body, cookie,session);
     String zone = "";
     try {
       String key = "zone:" + p.id;
@@ -75,7 +77,8 @@ public final class TaxiClient {
     return parse(response, p.tariffs, System.currentTimeMillis(), table.optJSONObject(zone), zone);
   }
 
-  private JSONObject post(String endpoint, JSONObject body, String cookie) throws Exception {
+  private JSONObject post(String endpoint, JSONObject body, String cookie) throws Exception {return post(endpoint,body,cookie,Collections.emptyMap());}
+  private JSONObject post(String endpoint, JSONObject body, String cookie,Map<String,String> session) throws Exception {
     long started=android.os.SystemClock.elapsedRealtime();String stage=endpoint.equals(ENDPOINT)?"routestats":"nearestzone";
     HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
     c.setConnectTimeout(15000);
@@ -87,12 +90,14 @@ public final class TaxiClient {
     c.setRequestProperty("User-Agent", "Radar/0.1 Android");
     c.setRequestProperty("Accept-Language", "ru");
     if (cookie != null) c.setRequestProperty("Cookie", cookie);
+    if(ENDPOINT.equals(endpoint))for(Map.Entry<String,String> h:session.entrySet())c.setRequestProperty(h.getKey(),h.getValue());
     try {
       try (OutputStream o = c.getOutputStream()) {
         o.write(body.toString().getBytes(StandardCharsets.UTF_8));
       }
       int status = c.getResponseCode();
       Diagnostics.record("taxi",stage,status==200?"info":"error",null,status,android.os.SystemClock.elapsedRealtime()-started,-1,null);
+      if(status==401&&ENDPOINT.equals(endpoint))YandexSession.invalidate(context,session);
       if (status != 200) {
         String detail;
         try (InputStream error = c.getErrorStream()) {
