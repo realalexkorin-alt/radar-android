@@ -794,6 +794,7 @@ public final class MainActivity extends Activity {
     switchRow(updates,"Автоматическая проверка",store.prefs.getBoolean("autoUpdate",true),0,enabled->store.prefs.edit().putBoolean("autoUpdate",enabled).apply());
     settingAction(updates,"Проверить обновления",()->Updates.check(this,store));
     LinearLayout diagnostic=group(body,"Диагностика");
+    settingAction(diagnostic,"Яндекс: вход и проверка",()->startActivity(new Intent(this,LoginActivity.class)));
     settingAction(diagnostic,"Отправить диагностику",()->Diagnostics.sendManual(this));
     return body;
   }
