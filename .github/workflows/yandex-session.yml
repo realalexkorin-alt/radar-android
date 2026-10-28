@@ -1,0 +1,33 @@
+name: Yandex session verification
+on:
+  push:
+    branches: ['codex/yandex-session-051']
+    paths: ['app/build.gradle']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.YandexSessionTest :app:assembleRelease :app:lintDebug
+      - run: |
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep "versionCode='51' versionName='0.1.51-alpha'"
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yandex-session-release
+          path: |
+            app/build/outputs/apk/release/*.apk
+            apksigner.jar
