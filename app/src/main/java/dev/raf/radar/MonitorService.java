@@ -263,7 +263,7 @@ public final class MonitorService extends Service implements LocationListener {
   public void onLocationChanged(Location l) {
     if (LocationState.accept(store,l)) {
       Diagnostics.once("gps","fix_accepted",false);
-      if (store.readings("me").isEmpty()) Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason","moved");planner.expedite("me");
+      if (store.readings("me").isEmpty()) planner.expedite("me");
       broadcast();
     }
   }
