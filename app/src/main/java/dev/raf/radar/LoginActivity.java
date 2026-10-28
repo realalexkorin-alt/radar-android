@@ -15,6 +15,9 @@ public final class LoginActivity extends Activity {
  private TextView hint;
  private Button test;
  private ProgressBar progress;
+ private LinearLayout returnPanel;
+ private TextView returnStatus;
+ private boolean returned;
  private boolean testing,signing;
  private int fg,muted,bg,card,accent;
  private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -45,24 +48,47 @@ public final class LoginActivity extends Activity {
   setContentView(root);root.requestApplyInsets();
  }
  void showLogin(){
-  YandexSession.enable(this);signing=true;shell("Вход через официальный сайт Яндекса.");
-  hint=label("Войдите в аккаунт Яндекса. После входа нажмите «Проверить вход».",13,muted,false);root.addView(hint);
+  YandexSession.enable(this);signing=true;returned=false;shell("Вход через официальный сайт Яндекса.");
+  hint=label("Войдите в аккаунт Яндекса. После выбора аккаунта вход проверится автоматически.",13,muted,false);root.addView(hint);
   progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(4)));
   test=button(root,"Проверить вход",true,this::probe);space(root,12);
-  web=BrowserFare.view(this);BrowserFare.detach(web);web.setVisibility(View.GONE);root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
-  BrowserFare.pageObserver=url->{if(isDestroyed()||isFinishing()||web==null)return;boolean taxi=BrowserFare.trusted(url);web.setVisibility(taxi?View.GONE:View.VISIBLE);if(taxi)hint.setText("Можно проверить вход.");};
+  FrameLayout website=new FrameLayout(this);root.addView(website,new LinearLayout.LayoutParams(-1,0,1));
+  web=new WebView(this);
+  web.getSettings().setJavaScriptEnabled(true);web.getSettings().setDomStorageEnabled(true);
+  web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);
+  web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+  CookieManager.getInstance().setAcceptCookie(true);
+  website.addView(web,new FrameLayout.LayoutParams(-1,-1));
+  returnPanel=column();returnPanel.setGravity(Gravity.CENTER);returnPanel.setPadding(dp(24),dp(24),dp(24),dp(24));Appearance.panel(returnPanel,card,20);
+  returnPanel.addView(label("Аккаунт выбран",22,fg,true));space(returnPanel,12);
+  returnStatus=label("Завершаем вход…",15,muted,false);returnStatus.setGravity(Gravity.CENTER);returnPanel.addView(returnStatus);
+  website.addView(returnPanel,new FrameLayout.LayoutParams(-1,-1));returnPanel.setVisibility(View.GONE);
+  web.setWebViewClient(new WebViewClient(){
+   @Override public void onPageStarted(WebView w,String url,android.graphics.Bitmap icon){authPage(url,false);}
+   @Override public void onPageFinished(WebView w,String url){authPage(url,true);}
+   @Override public boolean shouldOverrideUrlLoading(WebView w,WebResourceRequest request){
+    android.net.Uri u=request.getUrl();String h=u.getHost();
+    return !("https".equals(u.getScheme())&&h!=null&&(h.equals("yandex.ru")||h.endsWith(".yandex.ru")||h.equals("yandex.com")||h.endsWith(".yandex.com")));
+   }
+   @Override public void onReceivedError(WebView w,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())hint.setText("Не удалось открыть страницу входа. Проверьте интернет.");}
+  });
   web.loadUrl("https://passport.yandex.ru/auth?retpath=https%3A%2F%2Ftaxi.yandex.ru%2F");
+ }
+ void authPage(String url,boolean finished){
+  if(isDestroyed()||isFinishing()||web==null)return;
+  boolean taxi=BrowserFare.trusted(url);
+  web.setVisibility(taxi?View.INVISIBLE:View.VISIBLE);returnPanel.setVisibility(taxi?View.VISIBLE:View.GONE);
+  if(taxi){hint.setText("Проверяем вход…");if(finished&&!returned){
+   returned=true;CookieManager.getInstance().flush();BrowserFare.refreshSession(this);probe();
+  }}
  }
  void probe(){
   if(testing)return;
-  long now=System.currentTimeMillis(),previous=store.prefs.getLong("yandexTestAt",0);
-  if(now>=previous&&now-previous<60000){hint.setText("Повторная проверка будет доступна через "+((60000-(now-previous)+999)/1000)+" с.");return;}
   Point candidate=null;
   if(LocationState.fresh(store))candidate=new Point("me","Проверка",Double.longBitsToDouble(store.prefs.getLong("lat",0)),Double.longBitsToDouble(store.prefs.getLong("lon",0)),true);
   else for(Point p:store.points())if(!p.dynamic&&p.enabled){candidate=p;break;}
   if(candidate==null){hint.setText("Для проверки включите геолокацию или добавьте сохранённую точку в приложении.");return;}
-  if(YandexSession.headers(this).isEmpty()){YandexProfile.result(this,false);return;}
-  store.prefs.edit().putLong("yandexTestAt",now).apply();testing=true;test.setEnabled(false);progress.setVisibility(View.VISIBLE);hint.setText("Проверяем доступ к тарифам…");
+  testing=true;test.setEnabled(false);progress.setVisibility(View.VISIBLE);hint.setText("Проверяем доступ к тарифам…");
   Point point=candidate;
   worker.execute(()->{
    boolean success=false;String message;
@@ -84,8 +110,10 @@ public final class LoginActivity extends Activity {
   if(progress!=null)progress.setVisibility(View.GONE);
   if(test!=null)test.setEnabled(true);
   YandexProfile.result(this,success);
-  if(success)finish();
+  if(returnStatus!=null)returnStatus.setText(success?"Вход выполнен":"Вход не выполнен. Можно повторить проверку или вернуться в профиль.");
+  hint.setText(success?"Вход выполнен":"Вход не выполнен");
+  if(success){CookieManager.getInstance().flush();finish();}
  }
  @Override public void onBackPressed(){if(testing){Toast.makeText(this,"Дождитесь завершения проверки",Toast.LENGTH_SHORT).show();return;}super.onBackPressed();}
- @Override public void onDestroy(){BrowserFare.pageObserver=null;worker.shutdownNow();if(web!=null)BrowserFare.detach(web);if(!MonitorService.running)BrowserFare.releaseIfIdle();super.onDestroy();}
+ @Override public void onDestroy(){worker.shutdownNow();if(web!=null){BrowserFare.detach(web);web.stopLoading();web.destroy();}if(!MonitorService.running)BrowserFare.releaseIfIdle();super.onDestroy();}
 }
