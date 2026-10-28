@@ -34,7 +34,7 @@ final class YandexSession {
     try{
       JSONObject json=new JSONObject(next);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,AccountClient.key());
       String value=Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP)+":"+Base64.encodeToString(cipher.doFinal(json.toString().getBytes(StandardCharsets.UTF_8)),Base64.NO_WRAP);
-      c.getSharedPreferences("radar",0).edit().putString("yandexSession",value).putLong("yandexSessionAt",System.currentTimeMillis()).apply();
+      c.getSharedPreferences("radar",0).edit().putString("yandexSession",value).putLong("yandexSessionAt",System.currentTimeMillis()).remove("yandexVerifiedAt").remove("yandexRejectedAt").apply();
       cached=next;Diagnostics.info("yandex_auth","session_context_captured");return true;
     }catch(Exception e){Diagnostics.error("yandex_auth","session_store_failed",e,0,-1,-1,null);return false;}
   }
