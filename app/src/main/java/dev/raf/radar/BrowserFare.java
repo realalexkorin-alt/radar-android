@@ -79,8 +79,8 @@ final class BrowserFare {
    final CountDownLatch done=new CountDownLatch(1);
    final JSONObject[] result=new JSONObject[1];final Exception[] failure=new Exception[1];
    final String key="sense_fare_"+UUID.randomUUID().toString().replace("-","");
-   final long deadline=SystemClock.elapsedRealtime()+28000;
-   main.post(new Runnable(){boolean started,retried;long attemptDeadline=SystemClock.elapsedRealtime()+12000;WebView owner;Map<String,String> used=Collections.emptyMap();
+   final long deadline=SystemClock.elapsedRealtime()+70000;
+   main.post(new Runnable(){boolean started,retried;long attemptDeadline=SystemClock.elapsedRealtime()+35000;WebView owner;Map<String,String> used=Collections.emptyMap();
     void finish(JSONObject data,Exception error){if(done.getCount()==0)return;if(retried&&error!=null)Diagnostics.info("yandex_browser","session_recovery_failed");fareInFlight=false;result[0]=data;failure[0]=error;done.countDown();if(owner!=null&&owner==web&&trusted(owner.getUrl()))owner.evaluateJavascript(FareScript.clear(key),null);}
     @Override public void run(){
      if(done.getCount()==0)return;
@@ -116,7 +116,7 @@ final class BrowserFare {
         if(http==401||http==403)YandexSession.rejected(context,used);
         if(recovery.begin(http,kind,retried,SystemClock.elapsedRealtime())&&!context.getSharedPreferences("radar",0).getBoolean("yandexRemoved",false)){
          retried=true;fareInFlight=false;owner.evaluateJavascript(FareScript.clear(key),null);
-         started=false;attemptDeadline=SystemClock.elapsedRealtime()+12000;
+         started=false;attemptDeadline=SystemClock.elapsedRealtime()+35000;
          Diagnostics.info("yandex_browser","session_recovery_started");
          refreshSession(context);main.postDelayed(this,250);return;
         }
@@ -132,7 +132,7 @@ final class BrowserFare {
     }
    });
    try{
-    if(!done.await(30,TimeUnit.SECONDS)){done.countDown();main.post(()->fareInFlight=false);throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
+    if(!done.await(72,TimeUnit.SECONDS)){done.countDown();main.post(()->fareInFlight=false);throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
    }catch(InterruptedException e){done.countDown();main.post(()->fareInFlight=false);Thread.currentThread().interrupt();throw e;}
    if(failure[0]!=null)throw failure[0];
    if(result[0]==null)throw new IOException("Нет данных Яндекса");
