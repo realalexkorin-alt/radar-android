@@ -20,11 +20,11 @@ public class PollPlannerTest {
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
     assertEquals("me",p.nextMinute(ids,100000,"me"));
     p.failed("me",401,101000);
-    assertNull(p.nextMinute(ids,150000,"me"));
-    p.authorizationRestored(150000);
-    assertNull(p.nextMinute(ids,150999,"me"));
-    assertNotNull(p.nextMinute(ids,151000,"me"));
-    assertNull(p.nextMinute(ids,151001,"me"));
+    assertNull(p.nextMinute(ids,120000,"me"));
+    p.authorizationRestored(120000);
+    assertNull(p.nextMinute(ids,120999,"me"));
+    assertNotNull(p.nextMinute(ids,121000,"me"));
+    assertNull(p.nextMinute(ids,121001,"me"));
   }
   @Test public void loginSuccessCannotClearRateLimitOrPointFailure(){
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
