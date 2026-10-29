@@ -20,11 +20,11 @@ public class PollPlannerTest {
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
     assertEquals("me",p.nextMinute(ids,100000,"me"));
     p.failed("me",401,101000);
-    assertNull(p.nextMinute(ids,150000,"me"));
-    p.authorizationRestored(150000);
-    assertNull(p.nextMinute(ids,150999,"me"));
-    assertNotNull(p.nextMinute(ids,151000,"me"));
-    assertNull(p.nextMinute(ids,151001,"me"));
+    assertNull(p.nextMinute(ids,120000,"me"));
+    p.authorizationRestored(120000);
+    assertNull(p.nextMinute(ids,120999,"me"));
+    assertNotNull(p.nextMinute(ids,121000,"me"));
+    assertNull(p.nextMinute(ids,121001,"me"));
   }
   @Test public void loginSuccessCannotClearRateLimitOrPointFailure(){
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","saved");
@@ -73,16 +73,36 @@ public class PollPlannerTest {
       Map<String,Long> last=new HashMap<>();Map<String,Integer> calls=new HashMap<>();
       for(long now=100000;now<3700000;){
         String id=p.nextMinute(ids,now,"me");
-        if(id==null){now+=1000;continue;}
+        if(id==null){now+=250;continue;}
         if(!id.equals("me")&&last.containsKey(id)){
-          long gap=now-last.get(id);assertTrue(id+" delayed "+gap,gap<=60000);assertTrue(gap>=45000);
+          long gap=now-last.get(id);assertTrue(id+" delayed "+gap,gap<=65000);assertTrue(gap>=45000);
         }
         last.put(id,now);calls.put(id,calls.getOrDefault(id,0)+1);
         assertNull(p.nextMinute(ids,now,"me"));
-        now+=3000; // a two-second response plus the service's one-second idle delay
+        now+=2250; // two-second response plus a quarter-second scheduler delay
       }
       for(String id:ids)assertTrue(id+" starved",calls.getOrDefault(id,0)>50);
     }
+  }
+  @Test public void ownWinsAgainstAnyOverdueSavedPointEveryFiveSeconds(){
+    PollPlanner p=new PollPlanner();List<String> ids=new ArrayList<>();
+    for(int i=0;i<30;i++)ids.add("saved"+i);ids.add("me");
+    long previous=-1;int own=0,saved=0;
+    for(long now=100000;now<160000;now+=250){
+      String id=p.nextMinute(ids,now,"me");if(id==null)continue;
+      if(id.equals("me")){if(previous>=0)assertEquals(5000,now-previous);previous=now;own++;}else saved++;
+    }
+    assertEquals(12,own);assertTrue(saved>0);
+  }
+  @Test public void reservationLeavesNextWidgetSlotFreeAndOwnNetworkRetryIsShort(){
+    PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("a","me");
+    assertEquals("me",p.nextMinute(ids,100000,"me"));
+    assertNull(p.nextMinute(ids,103000,"me"));assertEquals("me",p.nextMinute(ids,105000,"me"));
+    assertEquals(5000,p.failed("me",0,105000));
+    assertEquals("a",p.nextMinute(ids,106000,"me"));
+    assertEquals("me",p.nextMinute(ids,110000,"me"));
+    p.failed("me",429,110000);p.authorizationRestored(111000);p.refresh();
+    assertNull(p.nextMinute(ids,1009999,"me"));
   }
   @Test public void minuteCycleKeepsBackoffAndResumesWithoutBurst(){
     PollPlanner p=new PollPlanner();List<String> ids=Arrays.asList("me","a","b");

@@ -39,7 +39,7 @@ final class YandexSession {
     }catch(Exception e){Diagnostics.error("yandex_auth","session_store_failed",e,0,-1,-1,null);return false;}
   }
   static synchronized Map<String,String> headers(Context c){
-    android.content.SharedPreferences p=c.getSharedPreferences("radar",0);if(p.getBoolean("yandexRemoved",false))return Collections.emptyMap();long age=System.currentTimeMillis()-p.getLong("yandexSessionAt",0);
+    android.content.SharedPreferences p=c.getSharedPreferences("radar",0);if(p.getBoolean("yandexRemoved",false))return Collections.emptyMap();long age=System.currentTimeMillis()-Math.max(p.getLong("yandexSessionAt",0),p.getLong("yandexVerifiedAt",0));
     if(age<0||age>8*3600000L){cached=null;return Collections.emptyMap();}
     if(cached!=null)return cached;
     try{
@@ -59,7 +59,7 @@ final class YandexSession {
   static boolean saved(Context c){return !c.getSharedPreferences("radar",0).getString("yandexSession","").isEmpty();}
   static String status(boolean saved,long captured,long verified,long rejected,long now){
     if(!saved)return "Нет подключённых сессий";
-    if(captured<=0||now<captured||now-captured>8*3600000L)return "Сессия устарела · войдите снова";
+    if(captured<=0||now<captured||now-Math.max(captured,verified)>8*3600000L)return "Сессия устарела · войдите снова";
     if(rejected>0&&rejected>=verified)return "Требуется повторный вход";
     return verified>0?"Вход подтверждён":"Ожидает проверки";
   }

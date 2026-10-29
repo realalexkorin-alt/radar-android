@@ -42,26 +42,28 @@ public final class PollPlanner {
   }
 
   public static final long POINT_INTERVAL_MS=60000L;
-  public static final long OWN_INTERVAL_MS=10000L;
+  public static final long OWN_INTERVAL_MS=5000L;
 
   /** One request at a time. Earliest deadline wins; a small lead absorbs timer/IO jitter. */
   public synchronized String nextMinute(List<String> eligible,long now,String own) {
     due.keySet().retainAll(eligible);
     if(now<Math.max(nextGlobal,Math.max(authUntil,transientUntil))||eligible.isEmpty())return null;
-    int saved=eligible.size()-(eligible.contains(own)?1:0);
-    int slots=saved+(eligible.contains(own)?6:0);
-    long gap=Math.max(1000,Math.min(10000,(50000L/Math.max(1,slots)/1000)*1000));
+    // Own location always wins once due, even when saved points are overdue.
     String selected=null;long earliest=Long.MAX_VALUE;
-    for(String id:eligible){
-      if(now<blocked.getOrDefault(id,0L))continue;
-      long deadline=due.getOrDefault(id,0L);
-      long lead=id.equals(own)?0:15000;
-      if(deadline>now+lead)continue;
-      if(deadline<earliest||(deadline==earliest&&id.equals(own))){selected=id;earliest=deadline;}
+    if(eligible.contains(own)&&now>=blocked.getOrDefault(own,0L)&&now>=due.getOrDefault(own,0L))selected=own;
+    if(selected==null){
+      // Reserve enough time for one bounded map request before the next widget slot.
+      if(eligible.contains(own)&&now>=blocked.getOrDefault(own,0L)&&due.getOrDefault(own,0L)-now<2750)return null;
+      for(String id:eligible){
+        if(id.equals(own)||now<blocked.getOrDefault(id,0L))continue;
+        long deadline=due.getOrDefault(id,0L);
+        if(deadline>now+15000)continue;
+        if(deadline<earliest){selected=id;earliest=deadline;}
+      }
     }
     if(selected==null)return null;
     due.put(selected,now+(selected.equals(own)?OWN_INTERVAL_MS:POINT_INTERVAL_MS));
-    nextGlobal=now+gap;
+    nextGlobal=now+1000;
     return selected;
   }
 
@@ -79,11 +81,11 @@ public final class PollPlanner {
 
   /** Transient failures cool down only their point; repeated failures across points pause the service. */
   public synchronized long failed(String id,int http,long now) {
-    if(http==401||http==403){authUntil=Math.max(authUntil,now+900000);return 900000;}
+    if(http==401||http==403){authUntil=Math.max(authUntil,now+30000);return 30000;}
     if(http==429){backoff(now,900000);return 900000;}
     failedHttp.put(id,http);
     int n=Math.min(5,failures.getOrDefault(id,0)+1);failures.put(id,n);
-    long delay=Math.min(900000,60000L*(1L<<(n-1)));blocked.put(id,now+delay);
+    long delay="me".equals(id)&&http==0?Math.min(30000,5000L*(1L<<(n-1))):Math.min(900000,60000L*(1L<<(n-1)));blocked.put(id,now+delay);
     if(http==0||http>=500){
       recentFailures.entrySet().removeIf(e->now-e.getValue()>60000);
       recentFailures.put(id,now);
@@ -110,7 +112,7 @@ public final class PollPlanner {
     org.json.JSONObject out=new org.json.JSONObject();int overdue=0,blockedCount=0;for(String id:eligible){if(now>due.getOrDefault(id,now))overdue++;if(now<blocked.getOrDefault(id,0L))blockedCount++;}
     int saved=eligible.size()-(eligible.contains(own)?1:0),slots=saved+(eligible.contains(own)?6:0);
     String reason=now<authUntil?"auth":now<transientUntil?"transient":now<nextGlobal?(nextGlobal-now>10000?"rate_limit":"budget"):eligible.isEmpty()?"empty":blockedCount==eligible.size()?"point_backoff":"deadline";
-    try{out.put("eligible",eligible.size()).put("saved",saved).put("overdue",overdue).put("blocked",blockedCount).put("gapMs",Math.max(1000,Math.min(10000,(50000L/Math.max(1,slots)/1000)*1000))).put("waitMs",globalPause(now)).put("reason",reason);}catch(org.json.JSONException ignored){}return out;
+    try{out.put("eligible",eligible.size()).put("saved",saved).put("overdue",overdue).put("blocked",blockedCount).put("gapMs",1000).put("ownIntervalMs",OWN_INTERVAL_MS).put("waitMs",globalPause(now)).put("reason",reason);}catch(org.json.JSONException ignored){}return out;
   }
 }
 

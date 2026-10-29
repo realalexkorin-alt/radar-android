@@ -48,25 +48,7 @@ public final class TaxiClient {
     Map<String,String> session=YandexSession.headers(context);
     JSONObject body=request(p);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
     JSONObject response = BrowserFare.fetch(context, body, session);
-    String zone = "";
-    try {
-      String key = "zone:" + p.id;
-      android.content.SharedPreferences prefs = context.getSharedPreferences("radar", 0);
-      long now = System.currentTimeMillis();
-      double oldLat = Double.longBitsToDouble(prefs.getLong(key + ":lat", 0));
-      double oldLon = Double.longBitsToDouble(prefs.getLong(key + ":lon", 0));
-      if (now - prefs.getLong(key + ":time", 0) < 3600000
-          && Math.abs(oldLat - p.lat) < 0.002 && Math.abs(oldLon - p.lon) < 0.002) {
-        zone = prefs.getString(key, "");
-      } else {
-        zone = post("https://tc.mobile.yandex.net/3.0/nearestzone",
-            new JSONObject().put("id", "").put("point", new JSONArray().put(p.lon).put(p.lat)), null)
-            .optString("nearest_zone", "");
-        prefs.edit().putString(key, zone).putLong(key + ":time", now)
-            .putLong(key + ":lat", Double.doubleToLongBits(p.lat))
-            .putLong(key + ":lon", Double.doubleToLongBits(p.lon)).apply();
-      }
-    } catch (Exception e) {Diagnostics.error("taxi","zone_lookup_failed",e,0,-1,-1,null);}
+    String zone = zone(p);
     JSONObject table;
     try (InputStream in = context.getAssets().open("tariffs.json")) {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -77,12 +59,30 @@ public final class TaxiClient {
     return parse(response, p.tariffs, System.currentTimeMillis(), table.optJSONObject(zone), zone);
   }
 
+  private static final java.util.concurrent.ExecutorService zoneWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
+  private static final Set<String> pendingZones=java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private String zone(Point point){
+    String key="zone:"+point.id;
+    android.content.SharedPreferences prefs=context.getSharedPreferences("radar",0);
+    double lat=Double.longBitsToDouble(prefs.getLong(key+":lat",0)),lon=Double.longBitsToDouble(prefs.getLong(key+":lon",0));
+    boolean nearby=Math.abs(lat-point.lat)<0.002&&Math.abs(lon-point.lon)<0.002;
+    String cached=nearby?prefs.getString(key,""):"";
+    if((!nearby||cached.isEmpty()||System.currentTimeMillis()-prefs.getLong(key+":time",0)>=3600000)&&pendingZones.add(key)){
+      double requestLat=point.lat,requestLon=point.lon;
+      zoneWorker.execute(()->{try{
+        String value=post("https://tc.mobile.yandex.net/3.0/nearestzone",new JSONObject().put("id","").put("point",new JSONArray().put(requestLon).put(requestLat)),null).optString("nearest_zone","");
+        if(!value.isEmpty())prefs.edit().putString(key,value).putLong(key+":time",System.currentTimeMillis()).putLong(key+":lat",Double.doubleToLongBits(requestLat)).putLong(key+":lon",Double.doubleToLongBits(requestLon)).apply();
+      }catch(Exception e){Diagnostics.error("taxi","zone_lookup_failed",e,0,-1,-1,null);}finally{pendingZones.remove(key);}});
+    }
+    return cached;
+  }
+
   private JSONObject post(String endpoint, JSONObject body, String cookie) throws Exception {return post(endpoint,body,cookie,Collections.emptyMap());}
   private JSONObject post(String endpoint, JSONObject body, String cookie,Map<String,String> session) throws Exception {
     long started=android.os.SystemClock.elapsedRealtime();String stage=endpoint.equals(ENDPOINT)?"routestats":"nearestzone";
     HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
-    c.setConnectTimeout(15000);
-    c.setReadTimeout(15000);
+    c.setConnectTimeout(3000);
+    c.setReadTimeout(3000);
     c.setInstanceFollowRedirects(false);
     c.setRequestMethod("POST");
     c.setDoOutput(true);

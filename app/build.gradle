@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
  namespace 'dev.raf.radar'
  compileSdk 35
- defaultConfig { applicationId 'dev.raf.radar'; minSdk 28; targetSdk 35; versionCode = (project.findProperty('radarVersionCode') ?: '63').toInteger(); versionName '0.1.63-alpha'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner' }
+ defaultConfig { applicationId 'dev.raf.radar'; minSdk 28; targetSdk 35; versionCode = (project.findProperty('radarVersionCode') ?: '64').toInteger(); versionName '0.1.64-alpha'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner' }
  buildFeatures { buildConfig true }
  signingConfigs {
   release { if (System.getenv('RADAR_KEYSTORE')) { storeFile file(System.getenv('RADAR_KEYSTORE')); storePassword System.getenv('RADAR_STORE_PASSWORD'); keyAlias System.getenv('RADAR_KEY_ALIAS'); keyPassword System.getenv('RADAR_KEY_PASSWORD') } }
@@ -29,3 +29,5 @@ dependencies {
 
 
 
+
+// Five-second own-location priority and resilient monitoring.
