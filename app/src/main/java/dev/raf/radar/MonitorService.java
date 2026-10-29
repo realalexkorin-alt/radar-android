@@ -235,6 +235,7 @@ public final class MonitorService extends Service implements LocationListener {
       if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
       CancellationSignal signal=new CancellationSignal();fixes.add(signal);
       try{locations.getCurrentLocation(provider,signal,getMainExecutor(),fix->{if(!stopping&&running&&fix!=null)onLocationChanged(fix);});}
+      catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
       catch(RuntimeException e){Diagnostics.error("gps","current_fix_failed",e,0,-1,-1,null);}
       cueHandler.postDelayed(signal::cancel,20000);
     }
