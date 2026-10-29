@@ -14,9 +14,6 @@ public final class MonitorService extends Service implements LocationListener {
   private Store store;
   private ScheduledExecutorService queue;
   private LocationManager locations;
-  private PowerManager.WakeLock wakeLock;
-  private final List<CancellationSignal> fixes=new ArrayList<>();
-  private boolean restartExpected;
   private Overlay overlay;
   private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
@@ -32,8 +29,8 @@ public final class MonitorService extends Service implements LocationListener {
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
       queue.execute(()->{tick();});
   };
-  private long lastGpsSubscribe,lastQueueDiagnostic,lastWakeRenew;
-  private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)){requestFreshGps();if(SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();}cueHandler.postDelayed(this,30000);}};
+  private long lastGpsSubscribe,lastQueueDiagnostic;
+  private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)&&SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();cueHandler.postDelayed(this,30000);}};
   private boolean announced,stopping;
   private final android.os.Handler cueHandler=new android.os.Handler(android.os.Looper.getMainLooper());
   private final BroadcastReceiver manual =
@@ -52,7 +49,6 @@ public final class MonitorService extends Service implements LocationListener {
     super.onCreate();
     if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
     store = new Store(this);
-    restartExpected=store.prefs.getBoolean("diagMonitorExpected",false);
     NotificationManager nm = getSystemService(NotificationManager.class);
     nm.createNotificationChannel(
         new NotificationChannel("monitor", "Мониторинг", NotificationManager.IMPORTANCE_LOW));
@@ -75,8 +71,6 @@ public final class MonitorService extends Service implements LocationListener {
                     .build())
             .build();
     startForeground(1, n);
-    PowerManager power=getSystemService(PowerManager.class);
-    if(power!=null){wakeLock=power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"SensePRO:monitor");wakeLock.setReferenceCounted(false);wakeLock.acquire(600000);}
     running = true;
     store.prefs.edit().putBoolean("diagMonitorExpected",true).putLong("diagMonitorSince",System.currentTimeMillis()).putLong("diagTickAt",System.currentTimeMillis()).apply();
     Diagnostics.info("monitor","started");
@@ -94,13 +88,12 @@ public final class MonitorService extends Service implements LocationListener {
     overlay = new Overlay(this, store);
     store.prefs.registerOnSharedPreferenceChangeListener(appearanceListener);
     queue = Executors.newSingleThreadScheduledExecutor();
-    queue.scheduleWithFixedDelay(this::tick, 250, 250, TimeUnit.MILLISECONDS);
+    queue.scheduleWithFixedDelay(this::tick, 1, 1, TimeUnit.SECONDS);
   }
 
   @Override
   public int onStartCommand(Intent i, int flags, int id) {
     if (store == null || !Access.monitorReady(this)) { stopSelf(); return START_NOT_STICKY; }
-    if (i==null&&!restartExpected){stopping=true;store.prefs.edit().putBoolean("diagMonitorExpected",false).apply();stopSelf();return START_NOT_STICKY;}
     if (i != null && "stop".equals(i.getAction())) {
       // A newer queued start wins over an earlier stop from rapid button presses.
       stopping=true;store.prefs.edit().putBoolean("diagMonitorExpected",false).apply();Diagnostics.info("monitor","user_stop");AppSounds.stopMonitor();stopSelf(id);
@@ -110,7 +103,7 @@ public final class MonitorService extends Service implements LocationListener {
     if (overlay != null) overlay.refresh();
     if(i!=null&&"user_start".equals(i.getAction())&&!announced){announced=true;cueHandler.post(()->{if(running&&!stopping)AppSounds.play(this,AppSounds.Event.MONITOR_READY);});}
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
-    return START_STICKY;
+    return START_NOT_STICKY;
   }
 
   private void tick() {
@@ -118,8 +111,6 @@ public final class MonitorService extends Service implements LocationListener {
     try {
       if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
       long now = System.currentTimeMillis();
-      if(stopping)return;
-      if(wakeLock!=null&&SystemClock.elapsedRealtime()-lastWakeRenew>=300000){wakeLock.acquire(600000);lastWakeRenew=SystemClock.elapsedRealtime();}
       store.prefs.edit().putLong("diagTickAt",now).apply();
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();
@@ -196,7 +187,6 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   private void failedPoint(String id,int status,Exception error){
-    if(stopping)return;
     if(id!=null){boolean active=false;for(Point point:store.points())if(point.id.equals(id)&&point.enabled)active=true;if(!active)return;}
     long elapsed=SystemClock.elapsedRealtime();
     long pause;
@@ -218,28 +208,13 @@ public final class MonitorService extends Service implements LocationListener {
     for(String provider:locations.getAllProviders()){
       if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
       try{
-        locations.requestLocationUpdates(provider,1000,0,this,Looper.getMainLooper());
+        locations.requestLocationUpdates(provider,15000,0,this,Looper.getMainLooper());
         subscribed++;
         Location last=locations.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);
       }catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
       catch(RuntimeException e){Diagnostics.error("gps","subscribe_failed",e,0,-1,-1,null);}
     }
-    requestFreshGps();
     Diagnostics.once("gps",subscribed==0?"no_providers":"subscriptions_refreshed",subscribed==0);
-  }
-
-  private void requestFreshGps(){
-    if(locations==null||stopping||!Access.location(this))return;
-    for(CancellationSignal signal:fixes)signal.cancel();fixes.clear();
-    if(Build.VERSION.SDK_INT>=30)for(String provider:locations.getProviders(true)){
-      if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
-      CancellationSignal signal=new CancellationSignal();fixes.add(signal);
-      try{locations.getCurrentLocation(provider,signal,getMainExecutor(),fix->{if(!stopping&&running&&fix!=null)onLocationChanged(fix);});}
-      catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
-      catch(RuntimeException e){Diagnostics.error("gps","current_fix_failed",e,0,-1,-1,null);}
-      cueHandler.postDelayed(signal::cancel,20000);
-    }
-    Diagnostics.once("gps","current_fix_requested",false);
   }
 
   private void alert(Point p, Store.Reading r) {
@@ -286,7 +261,7 @@ public final class MonitorService extends Service implements LocationListener {
 
   @Override
   public void onLocationChanged(Location l) {
-    if (!stopping&&running&&LocationState.accept(store,l)) {
+    if (LocationState.accept(store,l)) {
       Diagnostics.once("gps","fix_accepted",false);
       if (store.readings("me").isEmpty()) planner.expedite("me");
       broadcast();
@@ -306,9 +281,7 @@ public final class MonitorService extends Service implements LocationListener {
   public void onDestroy() {
     if(store!=null&&store.prefs.getBoolean("diagMonitorExpected",false))Diagnostics.error("monitor","unexpected_stop",null,0,-1,-1,null);
     else Diagnostics.info("monitor","stopped");
-    stopping=true;running = false;cueHandler.removeCallbacksAndMessages(null);
-    for(CancellationSignal signal:fixes)signal.cancel();fixes.clear();
-    if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();AppSounds.stopMonitor();
+    running = false;cueHandler.removeCallbacksAndMessages(null);AppSounds.stopMonitor();
     PresenceClient.stop(this);
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);
