@@ -32,9 +32,9 @@ public class ConnectionRecoveryTest {
    w.setWebViewClient(new WebViewClient(){
     @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){if(r.isForMainFrame())return new WebResourceResponse("text/html","UTF-8",new java.io.ByteArrayInputStream("<html>fixture</html>".getBytes()));return original.shouldInterceptRequest(v,r);}
     @Override public void onPageStarted(WebView v,String url,android.graphics.Bitmap icon){original.onPageStarted(v,url,icon);}
-    @Override public void onPageFinished(WebView v,String url){original.onPageFinished(v,url);loads.incrementAndGet();String body=unauthorized?"{}":"{\"service_levels\":[],\"currency_rules\":{\"code\":\"RUB\"}}";
+    @Override public void onPageFinished(WebView v,String url){if(!url.equals(v.getUrl()))return;original.onPageFinished(v,url);loads.incrementAndGet();String body=unauthorized?"{}":"{\"service_levels\":[],\"currency_rules\":{\"code\":\"RUB\"}}";
      v.evaluateJavascript("window.fetch=()=>Promise.resolve(new Response("+org.json.JSONObject.quote(body)+",{status:"+(unauthorized?401:200)+"}));true",done->{original.shouldInterceptRequest(v,request());ready.countDown();});}
-   });BrowserFare.refreshSession(c);
+   });w.loadUrl("https://taxi.yandex.ru/?senseFixture=066");
   });assertTrue(ready.await(10,TimeUnit.SECONDS));return loads;
  }
  @Test public void expiredPauseAllowsOneSuccessfulProbeThenResumes()throws Exception{
@@ -57,8 +57,7 @@ public class ConnectionRecoveryTest {
    assertFalse(FareConnection.online(c));
    try{worker.submit(()->BrowserFare.fetch(c,new org.json.JSONObject(),Collections.emptyMap())).get(3,TimeUnit.SECONDS);fail();}catch(ExecutionException expected){assertTrue(expected.getCause() instanceof java.io.IOException);assertFalse(expected.getCause() instanceof TaxiClient.ApiException);}
    assertFalse(FareConnection.needsLogin(c));assertEquals(session,store.prefs.getString("yandexSession",""));assertEquals(1,loads.get());
-  }finally{ScreenTest.shell("svc wifi enable");ScreenTest.shell("svc data enable");}
-  long deadline=SystemClock.elapsedRealtime()+45000;while(!FareConnection.online(c)&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(100);
+  }finally{ScreenTest.shell("svc wifi enable");ScreenTest.shell("svc data enable");long restore=SystemClock.elapsedRealtime()+45000;while(!FareConnection.online(c)&&SystemClock.elapsedRealtime()<restore)SystemClock.sleep(100);}
   assertTrue("Emulator network did not return",FareConnection.online(c));
   assertNotNull(worker.submit(()->BrowserFare.fetch(c,new org.json.JSONObject(),Collections.emptyMap())).get(15,TimeUnit.SECONDS));assertEquals(1,loads.get());
  }
