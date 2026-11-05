@@ -11,6 +11,8 @@ final class PriceText extends TextView {
   private final Paint flare=new Paint(Paint.ANTI_ALIAS_FLAG);
   private final PowerManager power;
   private Store.Reading reading;
+  private boolean current=true;
+  void animateReading(boolean value){current=value;invalidate();}
   private float shadow=-1;private int shadowColor;
   PriceText(Context c){
     super(c);power=c.getSystemService(PowerManager.class);setIncludeFontPadding(false);
@@ -23,7 +25,7 @@ final class PriceText extends TextView {
     setContentDescription("Эконом: "+getText()+", "+PriceLevel.label(value==null?null:value.rub)
         +(value!=null&&!value.fresh()?", данные устарели":""));invalidate();}
   @Override protected void onDraw(Canvas canvas){
-    boolean animate=reading!=null&&reading.rub!=null&&reading.fresh()&&power!=null&&power.isInteractive();
+    boolean animate=current&&reading!=null&&reading.rub!=null&&reading.fresh()&&power!=null&&power.isInteractive();
     int level=PriceLevel.of(reading==null?null:reading.rub),color=getCurrentTextColor();
     float phase=(SystemClock.uptimeMillis()%(3000-level*350))/(float)(3000-level*350);
     float wave=(1f-(float)Math.cos(phase*Math.PI*2))/2f;

@@ -15,9 +15,26 @@ public final class MonitorService extends Service implements LocationListener {
   private ScheduledExecutorService queue;
   private LocationManager locations;
   private Overlay overlay;
+  private android.net.ConnectivityManager connectivity;
+  private android.net.ConnectivityManager.NetworkCallback networkCallback;
+  private final List<CancellationSignal> currentFixes=new ArrayList<>();
+  private volatile boolean wasOnline;
+  private volatile String lastAvailability="";
+  private void networkChanged(){
+    if(store==null||stopping)return;
+    boolean online=FareConnection.online(this),restored=online&&!wasOnline;wasOnline=online;
+    if(queue!=null&&!queue.isShutdown())queue.execute(()->{if(restored){planner.transportRestored(SystemClock.elapsedRealtime());BrowserFare.networkRestored(this);Diagnostics.info("network","monitor_connection_restored");}tick();broadcast();});
+  }
+  private boolean available(){
+    long pause=FareConnection.remaining(this);
+    String state=!FareConnection.online(this)?"Нет сети · ожидаем подключения":pause>0?"Яндекс ограничил запросы · повтор через "+((pause+999)/1000)+" с":FareConnection.needsLogin(this)?"Требуется вход в Яндекс":"";
+    if(!state.equals(lastAvailability)){lastAvailability=state;if(!state.isEmpty())store.prefs.edit().putString("status",state).apply();broadcast();}
+    if(!state.isEmpty()){store.prefs.edit().putLong("diagPauseUntil",pause>0?System.currentTimeMillis()+pause:0).apply();return false;}
+    return true;
+  }
   private final PollPlanner planner = new PollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
-    if("yandexProbeOk".equals(key)&&queue!=null&&!queue.isShutdown())queue.execute(()->{
+    if(("yandexProbeOk".equals(key)||("yandexVerifiedAt".equals(key)&&!lastAvailability.isEmpty()))&&queue!=null&&!queue.isShutdown())queue.execute(()->{
       planner.authorizationRestored(SystemClock.elapsedRealtime());
       long pause=planner.globalPause(SystemClock.elapsedRealtime());
       store.prefs.edit().putLong("diagPauseUntil",pause>0?System.currentTimeMillis()+pause:0).apply();
@@ -30,7 +47,7 @@ public final class MonitorService extends Service implements LocationListener {
       queue.execute(()->{tick();});
   };
   private long lastGpsSubscribe,lastQueueDiagnostic;
-  private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)&&SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();cueHandler.postDelayed(this,30000);}};
+  private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)){requestFreshGps();if(SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();}cueHandler.postDelayed(this,30000);}};
   private boolean announced,stopping;
   private final android.os.Handler cueHandler=new android.os.Handler(android.os.Looper.getMainLooper());
   private final BroadcastReceiver manual =
@@ -89,6 +106,13 @@ public final class MonitorService extends Service implements LocationListener {
     store.prefs.registerOnSharedPreferenceChangeListener(appearanceListener);
     queue = Executors.newSingleThreadScheduledExecutor();
     queue.scheduleWithFixedDelay(this::tick, 1, 1, TimeUnit.SECONDS);
+    connectivity=getSystemService(android.net.ConnectivityManager.class);wasOnline=FareConnection.online(this);
+    networkCallback=new android.net.ConnectivityManager.NetworkCallback(){
+      @Override public void onAvailable(android.net.Network n){networkChanged();}
+      @Override public void onLost(android.net.Network n){networkChanged();}
+      @Override public void onCapabilitiesChanged(android.net.Network n,android.net.NetworkCapabilities c){networkChanged();}
+    };
+    if(connectivity!=null)connectivity.registerDefaultNetworkCallback(networkCallback);
   }
 
   @Override
@@ -111,7 +135,9 @@ public final class MonitorService extends Service implements LocationListener {
     try {
       if (!Access.monitorReady(this)) { Diagnostics.once("permissions","monitor_unavailable",true); stopSelf(); return; }
       long now = System.currentTimeMillis();
+      if(stopping)return;
       store.prefs.edit().putLong("diagTickAt",now).apply();
+      if(!available())return;
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();
       boolean browsing = store.prefs.getLong("viewingUntil", 0) > now;
@@ -121,7 +147,7 @@ public final class MonitorService extends Service implements LocationListener {
         if (!PollPlanner.needed(q, browsing, widgetPoint)) continue;
         if (q.dynamic) {
           long age = now - store.prefs.getLong("gpsAt", 0);
-          if (age < 0 || age > 120000) {Diagnostics.once("gps","own_point_waiting_fix",false);continue;}
+          if (age < 0 || age > 120000) {Diagnostics.once("gps","own_point_waiting_fix",false);store.prefs.edit().putString("status","Нет свежей геопозиции · запрашиваем GPS").apply();continue;}
           q.lat = Double.longBitsToDouble(store.prefs.getLong("lat", 0));
           q.lon = Double.longBitsToDouble(store.prefs.getLong("lon", 0));
         }
@@ -187,16 +213,19 @@ public final class MonitorService extends Service implements LocationListener {
   }
 
   private void failedPoint(String id,int status,Exception error){
+    if(stopping)return;
     if(id!=null){boolean active=false;for(Point point:store.points())if(point.id.equals(id)&&point.enabled)active=true;if(!active)return;}
+    if("me".equals(id))store.prefs.edit().putLong("widgetFailureAt",System.currentTimeMillis()).apply();
     long elapsed=SystemClock.elapsedRealtime();
     long pause;
     if(id==null){pause=60000;planner.backoff(elapsed,pause);}
+    else if(status==429){pause=FareConnection.remaining(this);if(pause<=0)pause=FareConnection.limited(this,null);}
     else pause=planner.failed(id,status,elapsed);
-    long global=planner.globalPause(elapsed);
+    long global=Math.max(planner.globalPause(elapsed),FareConnection.remaining(this));
     store.prefs.edit().putLong("diagPauseUntil",global>0?System.currentTimeMillis()+global:0).apply();
     Diagnostics.error("taxi",status==0?"request_failed":"http_backoff",error,status,-1,pause/1000,null);
     if(id!=null)Diagnostics.error(Diagnostics.pointArea(id),"retry_scheduled",error,status,-1,pause/1000,null);
-    store.prefs.edit().putString("status",global>10000?"Сервис недоступен · повтор позже":"Ошибка точки · остальные обновляются").apply();
+    store.prefs.edit().putString("status",status==429?"Яндекс ограничил запросы · ожидаем повтор":status==401||status==403?"Требуется вход в Яндекс":!FareConnection.online(this)?"Нет сети · ожидаем подключения":global>10000?"Сервис недоступен · повтор позже":"Ошибка точки · остальные обновляются").apply();
     broadcast();
   }
 
@@ -208,13 +237,28 @@ public final class MonitorService extends Service implements LocationListener {
     for(String provider:locations.getAllProviders()){
       if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
       try{
-        locations.requestLocationUpdates(provider,15000,0,this,Looper.getMainLooper());
+        locations.requestLocationUpdates(provider,3000,0,this,Looper.getMainLooper());
         subscribed++;
         Location last=locations.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);
       }catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
       catch(RuntimeException e){Diagnostics.error("gps","subscribe_failed",e,0,-1,-1,null);}
     }
+    requestFreshGps();
     Diagnostics.once("gps",subscribed==0?"no_providers":"subscriptions_refreshed",subscribed==0);
+  }
+
+  private void requestFreshGps(){
+    if(locations==null||stopping||!Access.location(this))return;
+    for(CancellationSignal signal:currentFixes)signal.cancel();currentFixes.clear();
+    if(Build.VERSION.SDK_INT>=30)for(String provider:locations.getProviders(true)){
+      if(LocationManager.PASSIVE_PROVIDER.equals(provider))continue;
+      CancellationSignal signal=new CancellationSignal();currentFixes.add(signal);
+      try{locations.getCurrentLocation(provider,signal,getMainExecutor(),fix->{if(running&&!stopping&&fix!=null)onLocationChanged(fix);});}
+      catch(SecurityException e){Diagnostics.error("gps","permission_denied",e,0,-1,-1,null);}
+      catch(RuntimeException e){Diagnostics.error("gps","current_fix_failed",e,0,-1,-1,null);}
+      cueHandler.postDelayed(signal::cancel,20000);
+    }
+    Diagnostics.once("gps","current_fix_requested",false);
   }
 
   private void alert(Point p, Store.Reading r) {
@@ -261,7 +305,7 @@ public final class MonitorService extends Service implements LocationListener {
 
   @Override
   public void onLocationChanged(Location l) {
-    if (LocationState.accept(store,l)) {
+    if (!stopping&&LocationState.accept(store,l)) {
       Diagnostics.once("gps","fix_accepted",false);
       if (store.readings("me").isEmpty()) planner.expedite("me");
       broadcast();
@@ -281,7 +325,9 @@ public final class MonitorService extends Service implements LocationListener {
   public void onDestroy() {
     if(store!=null&&store.prefs.getBoolean("diagMonitorExpected",false))Diagnostics.error("monitor","unexpected_stop",null,0,-1,-1,null);
     else Diagnostics.info("monitor","stopped");
-    running = false;cueHandler.removeCallbacksAndMessages(null);AppSounds.stopMonitor();
+    stopping=true;running = false;cueHandler.removeCallbacksAndMessages(null);
+    for(CancellationSignal signal:currentFixes)signal.cancel();currentFixes.clear();
+    if(connectivity!=null&&networkCallback!=null)connectivity.unregisterNetworkCallback(networkCallback);AppSounds.stopMonitor();
     PresenceClient.stop(this);
     sendBroadcast(new Intent("dev.raf.radar.REFRESH").setPackage(getPackageName()));
     if(store!=null)store.prefs.unregisterOnSharedPreferenceChangeListener(appearanceListener);

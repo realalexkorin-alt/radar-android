@@ -39,7 +39,7 @@ final class YandexSession {
     }catch(Exception e){Diagnostics.error("yandex_auth","session_store_failed",e,0,-1,-1,null);return false;}
   }
   static synchronized Map<String,String> headers(Context c){
-    android.content.SharedPreferences p=c.getSharedPreferences("radar",0);if(p.getBoolean("yandexRemoved",false))return Collections.emptyMap();long age=System.currentTimeMillis()-p.getLong("yandexSessionAt",0);
+    android.content.SharedPreferences p=c.getSharedPreferences("radar",0);if(p.getBoolean("yandexRemoved",false))return Collections.emptyMap();long age=System.currentTimeMillis()-Math.max(p.getLong("yandexSessionAt",0),p.getLong("yandexVerifiedAt",0));
     if(age<0||age>8*3600000L){cached=null;return Collections.emptyMap();}
     if(cached!=null)return cached;
     try{
@@ -59,18 +59,18 @@ final class YandexSession {
   static boolean saved(Context c){return !c.getSharedPreferences("radar",0).getString("yandexSession","").isEmpty();}
   static String status(boolean saved,long captured,long verified,long rejected,long now){
     if(!saved)return "Нет подключённых сессий";
-    if(captured<=0||now<captured||now-captured>8*3600000L)return "Сессия устарела · войдите снова";
+    if(captured<=0||now<captured||now-Math.max(captured,verified)>8*3600000L)return "Сессия устарела · войдите снова";
     if(rejected>0&&rejected>=verified)return "Требуется повторный вход";
     return verified>0?"Вход подтверждён":"Ожидает проверки";
   }
-  static String status(Context c){android.content.SharedPreferences p=c.getSharedPreferences("radar",0);return status(saved(c),p.getLong("yandexSessionAt",0),p.getLong("yandexVerifiedAt",0),p.getLong("yandexRejectedAt",0),System.currentTimeMillis());}
+  static String status(Context c){if(FareConnection.needsLogin(c))return "Требуется повторный вход";android.content.SharedPreferences p=c.getSharedPreferences("radar",0);return status(saved(c),p.getLong("yandexSessionAt",0),p.getLong("yandexVerifiedAt",0),p.getLong("yandexRejectedAt",0),System.currentTimeMillis());}
   static synchronized void verified(Context c,Map<String,String> used){
     if(!used.isEmpty()&&headers(c).equals(used))c.getSharedPreferences("radar",0).edit().putLong("yandexVerifiedAt",System.currentTimeMillis()).remove("yandexRejectedAt").apply();
   }
   static synchronized void rejected(Context c,Map<String,String> used){
     if(!used.isEmpty()&&headers(c).equals(used))c.getSharedPreferences("radar",0).edit().putLong("yandexRejectedAt",System.currentTimeMillis()).apply();
   }
-  static synchronized void enable(Context c){c.getSharedPreferences("radar",0).edit().putBoolean("yandexRemoved",false).apply();}
+  static synchronized void enable(Context c){FareConnection.manualLogin(c);c.getSharedPreferences("radar",0).edit().putBoolean("yandexRemoved",false).apply();}
   static synchronized void clear(Context c){
     cached=null;
     c.getSharedPreferences("radar",0).edit().putBoolean("yandexRemoved",true).remove("yandexSession").remove("yandexSessionAt").remove("yandexVerifiedAt").remove("yandexRejectedAt").remove("yandexProbeOk").remove("yandexTestAt").apply();

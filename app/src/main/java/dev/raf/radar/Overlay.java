@@ -39,7 +39,7 @@ final class Overlay {
       if(!screenRegistered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
         androidx.core.content.ContextCompat.registerReceiver(c,screen,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);screenRegistered=true;}
     }
-    Store.Reading reading=s.widgetReading();
+    Store.Reading reading=s.lastWidgetReading();
     // Keep the optional prefix supported without adding another settings row.
     boolean showPlus=s.prefs.getBoolean("widgetShowPlus",false);
     price.reading(reading,showPlus);
@@ -68,9 +68,18 @@ final class Overlay {
   }
   private void updateAge(){
     ageHandler.removeCallbacks(ageTick);if(root==null||updated==null)return;
-    boolean enabled=s.prefs.getBoolean("widgetUpdateTime",false);updated.setVisibility(enabled?View.VISIBLE:View.GONE);
-    if(!enabled)return;long success=s.lastSuccessfulReading("me"),now=System.currentTimeMillis();
-    updated.setText(success>0?Long.toString(Math.max(0,(now-success)/1000)):"—");updated.setContentDescription("Время обновления виджета: "+ReadingAge.label(success,now));
+    Store.Reading reading=s.lastWidgetReading();String issue=FareConnection.issue(c,s);
+    boolean stale=!s.widgetCurrent(reading)||!issue.isEmpty();
+    price.reading(reading,s.prefs.getBoolean("widgetShowPlus",false));price.setAlpha(stale?.45f:1f);price.animateReading(!stale);
+    long success=reading==null?0:reading.time,now=System.currentTimeMillis();
+    boolean enabled=s.prefs.getBoolean("widgetUpdateTime",false)||stale;
+    updated.setVisibility(enabled?View.VISIBLE:View.GONE);
+    String age=success>0?Long.toString(Math.max(0,(now-success)/1000)):"—";
+    String shortIssue=issue.startsWith("Нет GPS")?"GPS":issue.startsWith("Нет сети")?"Сеть":issue.startsWith("Нужен")?"Вход":issue.startsWith("Пауза")?"429":"";
+    long seconds=success>0?Math.max(0,(now-success)/1000):0;
+    String compact=success<=0?"—":seconds<60?seconds+"с":seconds<3600?(seconds/60)+"м":(seconds/3600)+"ч";
+    updated.setText(stale?compact+(shortIssue.isEmpty()?"":" · "+shortIssue):age);updated.setContentDescription("Время обновления виджета: "+ReadingAge.label(success,now)+(issue.isEmpty()?stale?", данные устарели":"":", "+issue));
+    root.setContentDescription("Виджет радара: "+(reading==null?"нет цены":reading.rub+" рублей")+", "+ReadingAge.label(success,now)+(issue.isEmpty()?stale?", данные устарели":"":", "+issue));
     android.os.PowerManager power=c.getSystemService(android.os.PowerManager.class);
     if(power!=null&&power.isInteractive())ageHandler.postDelayed(ageTick,1000);
   }

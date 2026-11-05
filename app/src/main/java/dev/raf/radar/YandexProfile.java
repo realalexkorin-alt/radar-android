@@ -18,6 +18,9 @@ final class YandexProfile {
  static void result(Activity a,boolean success){Toast.makeText(a,success?"Вход выполнен":"Вход не выполнен",Toast.LENGTH_LONG).show();}
  static void check(MainActivity a){
   if(checking)return;
+  if(FareConnection.remaining(a)>0){Toast.makeText(a,"Яндекс ограничил запросы. Повтор через "+((FareConnection.remaining(a)+999)/1000)+" с",Toast.LENGTH_LONG).show();return;}
+  if(!FareConnection.online(a)){Toast.makeText(a,"Нет подключения к интернету",Toast.LENGTH_LONG).show();return;}
+  FareConnection.manualLogin(a);
   Point p=null;
   if(LocationState.fresh(a.store))p=new Point("me","Проверка",Double.longBitsToDouble(a.store.prefs.getLong("lat",0)),Double.longBitsToDouble(a.store.prefs.getLong("lon",0)),true);
   else for(Point point:a.store.points())if(!point.dynamic&&point.enabled){p=point;break;}
