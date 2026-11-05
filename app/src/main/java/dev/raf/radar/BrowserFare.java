@@ -108,6 +108,7 @@ final class BrowserFare {
     @Override public void run(){
      if(done.getCount()==0)return;
      if(FareConnection.remaining(context)>0){finish(null,FareConnection.rateError(context));return;}
+     if(FareConnection.needsLogin(context)){finish(null,new TaxiClient.ApiException(401,"response_login_required"));return;}
      if(!FareConnection.online(context)){finish(null,new IOException("Нет подключения к интернету"));return;}
      if(SystemClock.elapsedRealtime()>=Math.min(deadline,attemptDeadline)){finish(null,new java.net.SocketTimeoutException("Страница Яндекса не ответила"));return;}
      try{
