@@ -103,6 +103,13 @@ public final class PollPlanner {
     if(recovered)nextGlobal=Math.max(nextGlobal,now+1000);
   }
 
+  /** A network transition releases transport retries only; auth and rate-limit pauses remain. */
+  public synchronized void transportRestored(long now){
+    transientUntil=0;
+    for(String id:new ArrayList<>(failedHttp.keySet()))if(failedHttp.get(id)==0){blocked.remove(id);failures.remove(id);failedHttp.remove(id);due.remove(id);}
+    recentFailures.clear();nextGlobal=Math.max(nextGlobal,now+1000);
+  }
+
   public synchronized void backoff(long now, long delay) {
     nextGlobal = Math.max(nextGlobal, now + delay);
   }

@@ -12,14 +12,16 @@ public final class TaxiClient {
   public static final class ApiException extends IOException {
     public final int status;
     public final String reason;
+    public final long retryAfterMs;
 
     ApiException(int s) {this(s,"response_unknown");}
-    ApiException(int s,String cause) {
+    ApiException(int s,String cause) {this(s,cause,0);}
+    ApiException(int s,String cause,long retry) {
       super(
           s == 401 || s == 403
               ? "Доступ ограничен. Мониторинг приостановлен"
-              : s == 429 ? "Лимит запросов. Пауза 15 минут" : "Ошибка сервиса: " + s);
-      status = s;reason=cause;
+              : s == 429 ? "Яндекс временно ограничил запросы" : "Ошибка сервиса: " + s);
+      status = s;reason=cause;retryAfterMs=retry;
     }
   }
 

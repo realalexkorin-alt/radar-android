@@ -42,7 +42,7 @@ public class YandexUiTest {
     }
     @Override public void onPageStarted(WebView v,String url,android.graphics.Bitmap icon){original.onPageStarted(v,url,icon);}
     @Override public void onPageFinished(WebView v,String url){
-     original.onPageFinished(v,url);int n=loads.incrementAndGet();
+     if(!url.equals(v.getUrl()))return;original.onPageFinished(v,url);int n=loads.incrementAndGet();
      String json=n==1?"{}":"{\"service_levels\":[],\"currency_rules\":{\"code\":\"RUB\"}}";
      try{
       String script="window.fetch=()=>Promise.resolve(new Response("+org.json.JSONObject.quote(json)+",{status:"+(n==1?401:200)+"}));true";
@@ -57,7 +57,7 @@ public class YandexUiTest {
       });
      }catch(Exception e){throw new RuntimeException(e);}
     }
-   });BrowserFare.refreshSession(c);
+   });w.loadUrl("https://taxi.yandex.ru/?senseFixture=auth066");
   });
   try{
    java.util.concurrent.Future<org.json.JSONObject> result=worker.submit(()->BrowserFare.fetch(c,new org.json.JSONObject(),java.util.Collections.emptyMap()));

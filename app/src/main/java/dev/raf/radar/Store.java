@@ -33,6 +33,16 @@ public final class Store {
     return null;
   }
 
+  /** Last successful value is display-only; freshness and location remain separate. */
+  public Reading lastWidgetReading(){
+    try{JSONObject j=new JSONObject(prefs.getString("widgetLast:"+prefs.getInt("accountId",0),"{}"));
+      if(j.has("rub")&&j.optLong("time",0)>0)return new Reading("econom",j.getInt("rub"),null,j.getLong("time"),"Последняя успешная надбавка");
+    }catch(Exception ignored){}
+    for(Reading r:readings("me"))if(r.rub!=null&&r.time>0)return r;
+    return null;
+  }
+  public boolean widgetCurrent(Reading r){return r!=null&&r.fresh()&&System.currentTimeMillis()-r.time<=30000&&LocationState.fresh(this)&&LocationState.readingCurrent(this)&&prefs.getLong("widgetFailureAt",0)<=r.time;}
+
   public List<String> widgetTariffs() { return Collections.singletonList("econom"); }
 
   public void widgetTariffs(Collection<String> values) {
@@ -129,6 +139,9 @@ public final class Store {
     }
     android.content.SharedPreferences.Editor edit=prefs.edit().putString("read:" + id, j.toString()).putLong("readSuccess:"+id,successful);
     if("me".equals(id)&&a.stream().anyMatch(r->"econom".equals(r.tariff)&&r.rub!=null&&r.time>0))edit.putLong("readQueryLat",prefs.getLong("lat",0)).putLong("readQueryLon",prefs.getLong("lon",0));
+    if("me".equals(id))for(Reading r:a)if("econom".equals(r.tariff)&&r.rub!=null&&r.time>0)try{
+      edit.putString("widgetLast:"+prefs.getInt("accountId",0),new JSONObject().put("rub",r.rub).put("time",r.time).toString());
+    }catch(JSONException ignored){}
     edit.apply();
   }
 

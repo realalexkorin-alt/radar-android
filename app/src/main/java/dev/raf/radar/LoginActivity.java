@@ -84,6 +84,8 @@ public final class LoginActivity extends Activity {
  }
  void probe(){
   if(testing)return;
+  if(FareConnection.remaining(this)>0){hint.setText("Яндекс ограничил запросы. Повтор через "+((FareConnection.remaining(this)+999)/1000)+" с");return;}
+  FareConnection.manualLogin(this);
   Point candidate=null;
   if(LocationState.fresh(store))candidate=new Point("me","Проверка",Double.longBitsToDouble(store.prefs.getLong("lat",0)),Double.longBitsToDouble(store.prefs.getLong("lon",0)),true);
   else for(Point p:store.points())if(!p.dynamic&&p.enabled){candidate=p;break;}

@@ -210,4 +210,11 @@ public class PollPlannerTest {
     p.next(Arrays.asList("a", "b"), 100000, 120000);
     assertEquals("b", p.next(Arrays.asList("b"), 115000, 120000));
   }
+ @Test public void restoredNetworkReleasesOnlyTransportFailures(){
+  PollPlanner p=new PollPlanner();p.failed("me",0,100000);p.failed("a",500,100000);
+  p.transportRestored(110000);assertEquals("me",p.nextMinute(Arrays.asList("me","a"),111000,"me"));
+  assertNull(p.nextMinute(Collections.singletonList("a"),120000,"me"));
+  p.failed("me",401,120000);p.transportRestored(121000);assertNull(p.nextMinute(Collections.singletonList("me"),200000,"me"));
+  PollPlanner q=new PollPlanner();q.failed("me",429,100000);q.transportRestored(101000);assertNull(q.nextMinute(Collections.singletonList("me"),999999,"me"));
+ }
 }
