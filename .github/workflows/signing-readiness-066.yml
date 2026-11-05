@@ -1,0 +1,22 @@
+name: Release signing readiness
+on:
+  push:
+    branches: ['codex/signing-readiness-066']
+permissions:
+  contents: read
+jobs:
+  signing:
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Check existing release signing configuration
+        env:
+          SIGNING_KEY: ${{ secrets.RADAR_KEYSTORE_B64 }}
+          SIGNING_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
+        run: |
+          if [ -n "$SIGNING_KEY" ] && [ -n "$SIGNING_PASSWORD" ]; then
+            echo 'Existing release signing configuration is available'
+          else
+            echo 'Existing release signing configuration is missing'
+            exit 1
+          fi
