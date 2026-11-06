@@ -14,7 +14,7 @@ public class ConnectionRecoveryTest {
  @After public void cleanup(){worker.shutdownNow();main(()->BrowserFare.releaseIfIdle());store.prefs.edit().remove("fareRateUntil").remove("fareRateFailures").remove("yandexNeedsLogin").commit();}
  static void main(Runnable r){InstrumentationRegistry.getInstrumentation().runOnMainSync(r);}
  static WebResourceRequest request(){return new WebResourceRequest(){public Uri getUrl(){return Uri.parse(TaxiClient.ENDPOINT);}public boolean isForMainFrame(){return false;}public boolean isRedirect(){return false;}public boolean hasGesture(){return false;}public String getMethod(){return "POST";}public Map<String,String> getRequestHeaders(){Map<String,String> h=new HashMap<>();h.put("X-Csrf-Token","fixture");h.put("X-YaTaxi-UserId","fixture-user");return h;}};}
- @Test public void nativeRateLimitPausesAllProbesAndWebsiteWithoutLosingLogin()throws Exception{
+ @Test public void serverRetryAfterPausesSenseOnlyAndInterceptionEndsOnExpiry()throws Exception{
   WebView[] web={null};WebViewClient[] client={null};
   main(()->{web[0]=BrowserFare.view(c);web[0].stopLoading();client[0]=web[0].getWebViewClient();
    client[0].onReceivedHttpError(web[0],request(),new WebResourceResponse("application/json","UTF-8",429,"Too Many Requests",Collections.singletonMap("Retry-After","120"),new java.io.ByteArrayInputStream("{}".getBytes())));
@@ -24,6 +24,8 @@ public class ConnectionRecoveryTest {
   WebResourceResponse blocked=client[0].shouldInterceptRequest(web[0],request());assertNotNull(blocked);assertEquals("1",blocked.getResponseHeaders().get("X-Sense-Local-Cooldown"));
   for(int i=0;i<2;i++)try{worker.submit(()->BrowserFare.fetch(c,new org.json.JSONObject(),Collections.emptyMap())).get(3,TimeUnit.SECONDS);fail();}catch(ExecutionException expected){assertTrue(expected.getCause() instanceof TaxiClient.ApiException);assertEquals(429,((TaxiClient.ApiException)expected.getCause()).status);}
   assertEquals(until,store.prefs.getLong("fareRateUntil",0));
+  store.prefs.edit().putLong("fareRateUntil",System.currentTimeMillis()-1).commit();
+  assertNull(client[0].shouldInterceptRequest(web[0],request()));
  }
  java.util.concurrent.atomic.AtomicInteger fixture(boolean unauthorized)throws Exception{
   java.util.concurrent.atomic.AtomicInteger loads=new java.util.concurrent.atomic.AtomicInteger();CountDownLatch ready=new CountDownLatch(1);

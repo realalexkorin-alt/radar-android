@@ -46,21 +46,23 @@ public final class TaxiClient {
   private final android.content.Context context;
   public TaxiClient(android.content.Context c) { context = c.getApplicationContext(); }
 
-  public List<Store.Reading> fetch(Point p) throws Exception {
+  public List<Store.Reading> fetch(Point p) throws Exception {return fetch(p,false);}
+  public List<Store.Reading> fetch(Point p,boolean mapOnly) throws Exception {
     Map<String,String> session=YandexSession.headers(context);
     JSONObject body=request(p);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
-    JSONObject response = BrowserFare.fetch(context, body, session);
+    JSONObject response = BrowserFare.fetch(context, body, session,mapOnly?3000:70000,mapOnly?()->!MapVisibility.visible(new Store(context)):()->false);
     String zone = "";
     try {
       String key = "zone:" + p.id;
       android.content.SharedPreferences prefs = context.getSharedPreferences("radar", 0);
+      zone=prefs.getString(key, "");
       long now = System.currentTimeMillis();
       double oldLat = Double.longBitsToDouble(prefs.getLong(key + ":lat", 0));
       double oldLon = Double.longBitsToDouble(prefs.getLong(key + ":lon", 0));
       if (now - prefs.getLong(key + ":time", 0) < 3600000
           && Math.abs(oldLat - p.lat) < 0.002 && Math.abs(oldLon - p.lon) < 0.002) {
         zone = prefs.getString(key, "");
-      } else {
+      } else if(!mapOnly||zone.isEmpty()) {
         zone = post("https://tc.mobile.yandex.net/3.0/nearestzone",
             new JSONObject().put("id", "").put("point", new JSONArray().put(p.lon).put(p.lat)), null)
             .optString("nearest_zone", "");
@@ -83,8 +85,8 @@ public final class TaxiClient {
   private JSONObject post(String endpoint, JSONObject body, String cookie,Map<String,String> session) throws Exception {
     long started=android.os.SystemClock.elapsedRealtime();String stage=endpoint.equals(ENDPOINT)?"routestats":"nearestzone";
     HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
-    c.setConnectTimeout(15000);
-    c.setReadTimeout(15000);
+    c.setConnectTimeout(2000);
+    c.setReadTimeout(2000);
     c.setInstanceFollowRedirects(false);
     c.setRequestMethod("POST");
     c.setDoOutput(true);
