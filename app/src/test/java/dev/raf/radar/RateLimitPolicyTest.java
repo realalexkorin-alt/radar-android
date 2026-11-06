@@ -8,7 +8,7 @@ public class RateLimitPolicyTest {
   assertEquals(1800000,RateLimitPolicy.delay("1800",now,4));
  }
  @Test public void malformedOrPastHeadersUseBoundedBackoff(){
-  assertEquals(60000,RateLimitPolicy.delay(null,0,0));assertEquals(120000,RateLimitPolicy.delay("bad",0,1));
-  assertEquals(900000,RateLimitPolicy.delay("-5",0,99));assertEquals(60000,RateLimitPolicy.delay("0",0,0));
+  assertEquals(10000,RateLimitPolicy.delay(null,0,0));assertEquals(10000,RateLimitPolicy.delay("bad",0,1));
+  assertEquals(10000,RateLimitPolicy.delay("-5",0,99));assertEquals(10000,RateLimitPolicy.delay("0",0,0));
  }
 }

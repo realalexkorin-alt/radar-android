@@ -32,7 +32,7 @@ public final class MonitorService extends Service implements LocationListener {
     if(!state.isEmpty()){store.prefs.edit().putLong("diagPauseUntil",pause>0?System.currentTimeMillis()+pause:0).apply();return false;}
     return true;
   }
-  private final PollPlanner planner = new PollPlanner();
+  private final LivePollPlanner planner = new LivePollPlanner();
   private final SharedPreferences.OnSharedPreferenceChangeListener appearanceListener=(prefs,key)->{
     if(("yandexProbeOk".equals(key)||("yandexVerifiedAt".equals(key)&&!lastAvailability.isEmpty()))&&queue!=null&&!queue.isShutdown())queue.execute(()->{
       planner.authorizationRestored(SystemClock.elapsedRealtime());
@@ -140,11 +140,12 @@ public final class MonitorService extends Service implements LocationListener {
       if(!available())return;
       List<Point> a = store.points();
       List<String> eligible = new ArrayList<>();
-      boolean browsing = store.prefs.getLong("viewingUntil", 0) > now;
+      boolean browsing = MapVisibility.visible(store);
+      if(!browsing)planner.mapHidden();
       String widgetPoint = store.prefs.getBoolean("overlay", false)
           ? store.widgetPoint().id : "";
       for (Point q : a) {
-        if (!PollPlanner.needed(q, browsing, widgetPoint)) continue;
+        if (!LivePollPlanner.needed(q, browsing, widgetPoint)) continue;
         if (q.dynamic) {
           long age = now - store.prefs.getLong("gpsAt", 0);
           if (age < 0 || age > 120000) {Diagnostics.once("gps","own_point_waiting_fix",false);store.prefs.edit().putString("status","Нет свежей геопозиции · запрашиваем GPS").apply();continue;}
@@ -170,7 +171,8 @@ public final class MonitorService extends Service implements LocationListener {
       store.prefs.edit().putLong("diagAttemptAt",now).putLong("diagPointAttempt:"+p.id,now).apply();
       Diagnostics.info(Diagnostics.pointArea(p.id),"request");
       Diagnostics.record("taxi","request","info",null,0,-1,-1,p.dynamic?"own":"saved");
-      List<Store.Reading> readings = new TaxiClient(this).fetch(request);requestHttp=200;
+      if(!p.dynamic&&!MapVisibility.visible(store))return;
+      List<Store.Reading> readings = new TaxiClient(this).fetch(request,!p.dynamic);requestHttp=200;
       if (p.dynamic) {
         float[] distance = new float[1];
         Location.distanceBetween(
@@ -192,7 +194,7 @@ public final class MonitorService extends Service implements LocationListener {
       if(!request.tariffs.containsAll(stillNeeded)){Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason","tariffs_changed");planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
       store.readings(p.id, readings);
-      Statistics.capture(this,request,readings);
+      // Observation capture/upload is suspended until multi-account collection is designed.
       if(p.dynamic)store.prefs.edit().putLong("readQueryLat",Double.doubleToLongBits(request.lat)).putLong("readQueryLon",Double.doubleToLongBits(request.lon)).apply();
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
       planner.succeeded(p.id);
@@ -205,6 +207,8 @@ public final class MonitorService extends Service implements LocationListener {
       else {String reason="missing_ruble_surcharge";for(Store.Reading r:readings){if(r.status!=null&&r.status.startsWith("Нет базовой цены"))reason="missing_base_price";}Diagnostics.error("taxi",reason,null,0,-1,-1,p.dynamic?"own":"saved");}
       if (best != null) alert(p, best);
       broadcast();
+    } catch (java.util.concurrent.CancellationException e) {
+      Diagnostics.info("monitor","map_request_cancelled");
     } catch (TaxiClient.ApiException e) {
       requestHttp=e.status;failedPoint(attempted,e.status,e);
     } catch (Exception e) {
@@ -219,7 +223,7 @@ public final class MonitorService extends Service implements LocationListener {
     long elapsed=SystemClock.elapsedRealtime();
     long pause;
     if(id==null){pause=60000;planner.backoff(elapsed,pause);}
-    else if(status==429){pause=FareConnection.remaining(this);if(pause<=0)pause=FareConnection.limited(this,null);}
+    else if(status==429){pause=FareConnection.remaining(this);if(pause<=0)pause=10000;}
     else pause=planner.failed(id,status,elapsed);
     long global=Math.max(planner.globalPause(elapsed),FareConnection.remaining(this));
     store.prefs.edit().putLong("diagPauseUntil",global>0?System.currentTimeMillis()+global:0).apply();

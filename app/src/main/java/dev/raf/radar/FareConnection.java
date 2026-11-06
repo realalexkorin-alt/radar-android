@@ -9,7 +9,9 @@ final class FareConnection {
   ConnectivityManager cm=c.getSystemService(ConnectivityManager.class);NetworkCapabilities caps=cm==null?null:cm.getNetworkCapabilities(cm.getActiveNetwork());
   return caps!=null&&caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)&&caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
  }
- static synchronized long remaining(Context c){return Math.max(0,prefs(c).getLong("fareRateUntil",0)-System.currentTimeMillis());}
+ static synchronized long remaining(Context c){
+  android.content.SharedPreferences p=prefs(c);if(!p.getBoolean("timedPolling67",false))p.edit().remove("fareRateUntil").remove("fareRateFailures").putLong("diagPauseUntil",0).putBoolean("timedPolling67",true).apply();
+  return Math.max(0,prefs(c).getLong("fareRateUntil",0)-System.currentTimeMillis());}
  static synchronized long limited(Context c,String retryAfter){
   long remaining=remaining(c);if(remaining>0)return remaining; // duplicate native/JS notifications must not extend a pause
   android.content.SharedPreferences p=prefs(c);int failures=p.getInt("fareRateFailures",0);

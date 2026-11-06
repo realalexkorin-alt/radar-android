@@ -194,7 +194,8 @@ public final class MainActivity extends Activity {
     if(mapTitle!=null&&mapTitle.getLayoutParams() instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapTitle.getLayoutParams();int left=dp(experimental?8:20),top=dp(experimental?8:18);if(lp.leftMargin!=left||lp.topMargin!=top){lp.leftMargin=left;lp.topMargin=top;mapTitle.setLayoutParams(lp);}}
     if(mapLoading!=null){FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)mapLoading.getLayoutParams();int top=dp(experimental?senseHeight+65:130);if(lp.topMargin!=top){lp.topMargin=top;mapLoading.setLayoutParams(lp);}}
   }
-  void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&(currentTab==0||currentTab==1)?System.currentTimeMillis()+15000:0).apply();}
+  @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(store!=null)updateViewing();}
+  void updateViewing(){store.prefs.edit().putLong("viewingUntil",resumed&&hasWindowFocus()&&currentTab==0?System.currentTimeMillis()+15000:0).apply();}
   String pointAddress(Point p){return p.dynamic?"Ваше текущее местоположение":p.address.isEmpty()?String.format(Locale.US,"%.5f, %.5f",p.lat,p.lon):p.address;}
   Store.Reading displayReading(Point p){Store.Reading result=null;for(Store.Reading r:store.readings(p.id))if(p.tariffs.contains(r.tariff)&&r.rub!=null){if(result==null||(!result.fresh()&&r.fresh()))result=r;}return result;}
   void refreshCards(){

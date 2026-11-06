@@ -1,7 +1,7 @@
 package dev.raf.radar;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
-/** Server Retry-After takes precedence over a bounded exponential fallback. */
+/** Server Retry-After takes precedence over the normal ten-second interval. */
 final class RateLimitPolicy {
  static long delay(String value,long now,int failures){
   if(value!=null)try{
@@ -9,6 +9,6 @@ final class RateLimitPolicy {
    long delay=v.matches("[0-9]{1,9}")?Math.multiplyExact(Long.parseLong(v),1000):ZonedDateTime.parse(v,DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()-now;
    if(delay>0)return Math.max(1000,delay);
   }catch(Exception ignored){}
-  return Math.min(900000,60000L*(1L<<Math.max(0,Math.min(4,failures))));
+  return 10000;
  }
 }

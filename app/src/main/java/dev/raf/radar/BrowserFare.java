@@ -50,7 +50,7 @@ final class BrowserFare {
     @Override public void onReceivedSslError(WebView w,SslErrorHandler handler,android.net.http.SslError error){Diagnostics.once("yandex_browser","ssl_rejected",true);handler.cancel();}
     @Override public WebResourceResponse shouldInterceptRequest(WebView w,WebResourceRequest req){
      long generation=pageGeneration;
-     if(TaxiClient.ENDPOINT.equals(req.getUrl().toString())&&(FareConnection.remaining(app)>0||(ready&&contextReady&&FareConnection.prefs(app).getInt("fareRateFailures",0)>0&&!fareInFlight))){
+     if(TaxiClient.ENDPOINT.equals(req.getUrl().toString())&&(FareConnection.remaining(app)>0)){
       return new WebResourceResponse("application/json","UTF-8",503,"Local cooldown",Collections.singletonMap("X-Sense-Local-Cooldown","1"),new java.io.ByteArrayInputStream("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
      }
      if("POST".equals(req.getMethod())&&!fareInFlight){
@@ -90,6 +90,9 @@ final class BrowserFare {
   }
  });}
  static JSONObject fetch(Context context,JSONObject body,Map<String,String> session)throws Exception{
+  return fetch(context,body,session,70000,()->false);
+ }
+ static JSONObject fetch(Context context,JSONObject body,Map<String,String> session,long budgetMs,java.util.function.BooleanSupplier cancelled)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IllegalStateException("Worker thread required");
   if(FareConnection.remaining(context)>0)throw FareConnection.rateError(context);
   if(FareConnection.needsLogin(context))throw new TaxiClient.ApiException(401,"response_login_required");
@@ -102,11 +105,12 @@ final class BrowserFare {
    final CountDownLatch done=new CountDownLatch(1);
    final JSONObject[] result=new JSONObject[1];final Exception[] failure=new Exception[1];
    final String key="sense_fare_"+UUID.randomUUID().toString().replace("-","");
-   final long deadline=SystemClock.elapsedRealtime()+70000;
+   final long deadline=SystemClock.elapsedRealtime()+budgetMs;
    main.post(new Runnable(){boolean started,retried;long attemptAt=Long.MAX_VALUE;long attemptDeadline=SystemClock.elapsedRealtime()+35000;WebView owner;Map<String,String> used=Collections.emptyMap();
     void finish(JSONObject data,Exception error){if(done.getCount()==0)return;if(retried&&error!=null)Diagnostics.info("yandex_browser","session_recovery_failed");fareInFlight=false;result[0]=data;failure[0]=error;done.countDown();if(owner!=null&&owner==web&&trusted(owner.getUrl()))owner.evaluateJavascript(FareScript.clear(key),null);}
     @Override public void run(){
      if(done.getCount()==0)return;
+     if(cancelled.getAsBoolean()){finish(null,new java.util.concurrent.CancellationException("Map hidden"));return;}
      if(FareConnection.remaining(context)>0){finish(null,FareConnection.rateError(context));return;}
      if(FareConnection.needsLogin(context)){finish(null,new TaxiClient.ApiException(401,"response_login_required"));return;}
      if(!FareConnection.online(context)){finish(null,new IOException("Нет подключения к интернету"));return;}
@@ -122,7 +126,7 @@ final class BrowserFare {
        started=true;attemptAt=SystemClock.elapsedRealtime();
        Map<String,String> active=YandexSession.headers(context);
        if(active.isEmpty()){
-        if(!retried&&recovery.begin(401,"refused",false,SystemClock.elapsedRealtime())){retried=true;started=false;refreshSession(context);main.postDelayed(this,250);return;}
+        if(budgetMs>5000&&!retried&&recovery.begin(401,"refused",false,SystemClock.elapsedRealtime())){retried=true;started=false;refreshSession(context);main.postDelayed(this,250);return;}
         FareConnection.loginRequired(context);finish(null,new TaxiClient.ApiException(401,"response_login_required"));return;
        }
        used=active;
@@ -130,7 +134,7 @@ final class BrowserFare {
        currentBody.put("id",active.get("X-YaTaxi-UserId"));
        Diagnostics.detail("yandex_browser","request_context","requestId",diagnosticId,"ready",ready,"contextReady",contextReady,"sessionAgeMs",Math.max(0,System.currentTimeMillis()-context.getSharedPreferences("radar",0).getLong("yandexSessionAt",0)));
        fareInFlight=true;
-       owner.evaluateJavascript(FareScript.start(key,currentBody,active),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
+       owner.evaluateJavascript(FareScript.start(key,currentBody,active,(int)Math.min(15000,Math.max(1,deadline-SystemClock.elapsedRealtime()))),value->{if(!"true".equals(value))finish(null,new IOException("Недоступна страница Яндекса"));else main.postDelayed(this,200);});
        return;
       }
       owner.evaluateJavascript(FareScript.poll(key),value->{
@@ -143,7 +147,7 @@ final class BrowserFare {
         String detail=java.util.Arrays.asList("ok","verification","refused","timeout","network","invalid_json","schema","too_large","empty","invalid_response").contains(kind)?kind:"invalid_response";
         Diagnostics.record("yandex_browser","fare_"+("ok".equals(kind)?"received":detail),http==200?"info":"error",null,http,-1,-1,null);
         if(http==401||http==403)YandexSession.rejected(context,used);
-        if(recovery.begin(http,kind,retried,SystemClock.elapsedRealtime())&&!context.getSharedPreferences("radar",0).getBoolean("yandexRemoved",false)){
+        if(budgetMs>5000&&recovery.begin(http,kind,retried,SystemClock.elapsedRealtime())&&!context.getSharedPreferences("radar",0).getBoolean("yandexRemoved",false)){
          retried=true;fareInFlight=false;owner.evaluateJavascript(FareScript.clear(key),null);
          started=false;attemptDeadline=SystemClock.elapsedRealtime()+35000;
          Diagnostics.info("yandex_browser","session_recovery_started");
@@ -162,7 +166,7 @@ final class BrowserFare {
     }
    });
    try{
-    if(!done.await(72,TimeUnit.SECONDS)){done.countDown();main.post(()->fareInFlight=false);throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
+    if(!done.await(budgetMs+2000,TimeUnit.MILLISECONDS)){done.countDown();main.post(()->fareInFlight=false);throw new java.net.SocketTimeoutException("Время ожидания Яндекса истекло");}
    }catch(InterruptedException e){done.countDown();main.post(()->fareInFlight=false);Thread.currentThread().interrupt();throw e;}
    if(failure[0]!=null)throw failure[0];
    if(result[0]==null)throw new IOException("Нет данных Яндекса");
