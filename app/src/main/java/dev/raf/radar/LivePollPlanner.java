@@ -2,7 +2,7 @@ package dev.raf.radar;
 import java.util.*;
 /** Foreground map requests fill gaps; the own-location deadline always wins. */
 final class LivePollPlanner {
- static final long INTERVAL=10000, MAP_BUDGET=7000, GAP=1000;
+ static final long INTERVAL=10000, MAP_BUDGET=5000, GAP=1000;
  private long ownDue, mapDue, nextRequest; private int cursor;
  synchronized String nextMinute(List<String> ids,long now,String own){
   if(now<nextRequest||ids.isEmpty())return null;
