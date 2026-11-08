@@ -1,0 +1,33 @@
+name: Verify existing release signing
+on:
+  push:
+    branches: ['codex/verify-release-signing-1108']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify existing keystore and certificate without publishing
+        env:
+          RADAR_KEYSTORE_B64: ${{ secrets.RADAR_KEYSTORE_B64 }}
+          RADAR_STORE_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          test -n "$RADAR_KEYSTORE_B64"
+          test -n "$RADAR_STORE_PASSWORD"
+          printf '%s' "$RADAR_KEYSTORE_B64" | base64 --decode > "$workdir/release.p12"
+          keytool -exportcert -keystore "$workdir/release.p12" -storetype PKCS12 -storepass:env RADAR_STORE_PASSWORD -alias radar -file "$workdir/certificate.der"
+          expected=7baf77afc2f4b5c570c9b08d6092f55ad3ec10a2d798649c846bf2a1429bbd89
+          actual="$(sha256sum "$workdir/certificate.der" | cut -d ' ' -f 1)"
+          test "$actual" = "$expected"
+          echo "Existing release signing key and password verified against APK 0.1.67."
