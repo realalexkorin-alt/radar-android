@@ -69,7 +69,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk radar.apk
           sha256sum radar.apk > SHA256SUMS
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs radar.apk
-          gh release create "$RELEASE_TAG" radar.apk SHA256SUMS --target "$(git rev-parse HEAD)" --prerelease --latest --title "$RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+          gh release create "$RELEASE_TAG" radar.apk SHA256SUMS --target "$(git rev-parse HEAD)" --latest --title "$RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/radar-release.p12"
