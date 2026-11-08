@@ -40,7 +40,7 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.PriceLevelTest --tests dev.raf.radar.TariffSelectionTest --tests dev.raf.radar.WidgetGestureTest --tests dev.raf.radar.PollPlannerTest --tests dev.raf.radar.AlertPolicyTest --tests dev.raf.radar.UpdateCatalogTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+      - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --tests dev.raf.radar.PriceLevelTest --tests dev.raf.radar.TariffSelectionTest --tests dev.raf.radar.WidgetGestureTest --tests dev.raf.radar.PollPlannerTest --tests dev.raf.radar.LivePollPlannerTest --tests dev.raf.radar.FareScriptTest --tests dev.raf.radar.AuthRecoveryTest --tests dev.raf.radar.AlertPolicyTest --tests dev.raf.radar.UpdateCatalogTest :app:lintDebug :app:assembleDebug :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: radar-debug

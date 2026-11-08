@@ -44,7 +44,7 @@ public final class MonitorService extends Service implements LocationListener {
     if(key!=null&&java.util.Arrays.asList(Appearance.KEY,"scale","textScale","opacity","widgetUpdateTime","showTariff","dark","overlay","points","overlayPoint","widgetTariffs").contains(key))
       new Handler(Looper.getMainLooper()).post(()->{if(overlay!=null)overlay.refresh();});
     if(key!=null&&java.util.Arrays.asList("points","widgetTariffs","overlayPoint","overlay").contains(key)&&queue!=null)
-      queue.execute(()->{tick();});
+      if(!queue.isShutdown())queue.execute(()->{tick();});
   };
   private long lastGpsSubscribe,lastQueueDiagnostic;
   private final Runnable gpsWatchdog=new Runnable(){public void run(){if(!running||stopping)return;if(!LocationState.fresh(store)){requestFreshGps();if(SystemClock.elapsedRealtime()-lastGpsSubscribe>=120000)subscribeGps();}cueHandler.postDelayed(this,30000);}};
@@ -193,9 +193,10 @@ public final class MonitorService extends Service implements LocationListener {
       List<String> stillNeeded=TariffSelection.requested(current,store.widgetTariffs(),store.prefs.getBoolean("overlay",false)&&current.id.equals(store.widgetPoint().id));
       if(!request.tariffs.containsAll(stillNeeded)){Diagnostics.detail(Diagnostics.pointArea(p.id),"result_discarded","reason","tariffs_changed");planner.expedite(p.id);return;}
       p.notify = current.notify; p.threshold = current.threshold;
-      store.readings(p.id, readings);
+      if(stopping||Thread.currentThread().isInterrupted())return;
+      store.readings(p.id, readings,Double.doubleToLongBits(request.lat),Double.doubleToLongBits(request.lon));
       // Observation capture/upload is suspended until multi-account collection is designed.
-      if(p.dynamic)store.prefs.edit().putLong("readQueryLat",Double.doubleToLongBits(request.lat)).putLong("readQueryLon",Double.doubleToLongBits(request.lon)).apply();
+      
       store.prefs.edit().putString("status", "Обновлено · " + p.name).apply();
       planner.succeeded(p.id);
       Store.Reading best = null;

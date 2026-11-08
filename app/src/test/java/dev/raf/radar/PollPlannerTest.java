@@ -217,4 +217,15 @@ public class PollPlannerTest {
   p.failed("me",401,120000);p.transportRestored(121000);assertNull(p.nextMinute(Collections.singletonList("me"),200000,"me"));
   PollPlanner q=new PollPlanner();q.failed("me",429,100000);q.transportRestored(101000);assertNull(q.nextMinute(Collections.singletonList("me"),999999,"me"));
  }
+
+ @Test public void currentWidgetPlannerRegression()throws Exception{
+  LivePollPlannerTest suite=new LivePollPlannerTest();
+  suite.backgroundOnlyOwnAtTenSeconds();
+  suite.mapFillsGapsWithoutStealingOwnDeadline();
+  suite.repeatedTransportFailuresBackOffOnlyBrokenPointAndResetAfterSuccess();
+  suite.retryDelayIsBoundedAndNetworkRecoveryKeepsNormalCadence();
+  suite.manualRefreshCannotAccelerateOwn();
+  suite.hiddenMapExcludesSavedEvenWhenWidgetOrNotifySelectsIt();
+  suite.hidingMapDropsCycleWithoutResettingOwn();
+ }
 }

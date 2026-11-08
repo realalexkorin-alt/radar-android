@@ -52,13 +52,13 @@ public final class TaxiClient {
     zoneTimeoutMs=mapOnly?1000:2000;
     Map<String,String> session=YandexSession.headers(context);
     JSONObject body=request(p);if(session.containsKey("X-YaTaxi-UserId"))body.put("id",session.get("X-YaTaxi-UserId"));
-    JSONObject response = BrowserFare.fetch(context, body, session,mapOnly?3000:70000,mapOnly?()->!MapVisibility.visible(new Store(context)):()->false);
+    JSONObject response = BrowserFare.fetch(context, body, session,mapOnly?3000:25000,mapOnly?()->!MapVisibility.visible(new Store(context)):()->false);
     if(mapOnly&&!MapVisibility.visible(new Store(context)))throw new java.util.concurrent.CancellationException("Map hidden");
     String zone = "";
     try {
       String key = "zone:" + p.id;
       android.content.SharedPreferences prefs = context.getSharedPreferences("radar", 0);
-      zone=prefs.getString(key, "");
+      zone="";
       long now = System.currentTimeMillis();
       double oldLat = Double.longBitsToDouble(prefs.getLong(key + ":lat", 0));
       double oldLon = Double.longBitsToDouble(prefs.getLong(key + ":lon", 0));
