@@ -10,7 +10,7 @@ final class MapGps implements LocationListener {
   private LocationManager manager;private boolean listening;
   MapGps(Context context,Store store,Runnable changed){this.context=context;this.store=store;this.changed=changed;}
   void start(){
-    if(!Access.location(context)){stop();return;}if(listening)return;
+    if(MonitorService.running||!Access.location(context)){stop();return;}if(listening)return;
     manager=context.getSystemService(LocationManager.class);
     try{listening=true;for(String provider:manager.getProviders(true)){
       Location last=manager.getLastKnownLocation(provider);if(last!=null)onLocationChanged(last);

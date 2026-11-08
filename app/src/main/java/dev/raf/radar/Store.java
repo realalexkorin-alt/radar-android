@@ -119,6 +119,10 @@ public final class Store {
   }
 
   public void readings(String id, List<Reading> a) {
+    readings(id,a,prefs.getLong("lat",0),prefs.getLong("lon",0));
+  }
+
+  public void readings(String id,List<Reading> a,long queryLat,long queryLon) {
     long successful=lastSuccessfulReading(id);
     for(Reading reading:a)if("econom".equals(reading.tariff)&&reading.rub!=null&&reading.time>prefs.getLong("trendAt:"+id,0)){
       int direction=prefs.contains("trendValue:"+id)?Integer.compare(reading.rub,prefs.getInt("trendValue:"+id,0)):0;
@@ -138,7 +142,7 @@ public final class Store {
     } catch (Exception ignored) {
     }
     android.content.SharedPreferences.Editor edit=prefs.edit().putString("read:" + id, j.toString()).putLong("readSuccess:"+id,successful);
-    if("me".equals(id)&&a.stream().anyMatch(r->"econom".equals(r.tariff)&&r.rub!=null&&r.time>0))edit.putLong("readQueryLat",prefs.getLong("lat",0)).putLong("readQueryLon",prefs.getLong("lon",0));
+    if("me".equals(id)&&a.stream().anyMatch(r->"econom".equals(r.tariff)&&r.rub!=null&&r.time>0))edit.putLong("readQueryLat",queryLat).putLong("readQueryLon",queryLon);
     if("me".equals(id))for(Reading r:a)if("econom".equals(r.tariff)&&r.rub!=null&&r.time>0)try{
       edit.putString("widgetLast:"+prefs.getInt("accountId",0),new JSONObject().put("rub",r.rub).put("time",r.time).toString());
     }catch(JSONException ignored){}

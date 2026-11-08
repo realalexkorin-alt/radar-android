@@ -1,5 +1,9 @@
 name: Signed release
 on:
+  workflow_run:
+    workflows: ['Android checks']
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -10,10 +14,13 @@ permissions:
   contents: write
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -23,27 +30,46 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
+      - name: Validate release candidate
+        id: candidate
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n "s/.*versionName '\\([^']*\\)'.*/\\1/p" app/build.gradle)
+          tag="v$version"
+          test -z "$REQUESTED_TAG" || test "$REQUESTED_TAG" = "$tag"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            test "$tag" = "v0.1.68-alpha"
+            test "$(gh api repos/$GITHUB_REPOSITORY/commits/main --jq .sha)" = "$(git rev-parse HEAD)"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then echo "publish=false" >> "$GITHUB_OUTPUT"; else echo "publish=true" >> "$GITHUB_OUTPUT"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Restore signing key
+        if: steps.candidate.outputs.publish == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.RADAR_KEYSTORE_B64 }}
         run: |
           test -n "$KEYSTORE_B64"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/radar-release.p12"
       - name: Verify and build
+        if: steps.candidate.outputs.publish == 'true'
         env:
           RADAR_KEYSTORE: ${{ runner.temp }}/radar-release.p12
           RADAR_STORE_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
           RADAR_KEY_ALIAS: radar
           RADAR_KEY_PASSWORD: ${{ secrets.RADAR_STORE_PASSWORD }}
         run: chmod +x gradlew && ./gradlew testDebugUnitTest lintRelease assembleRelease
-      - name: Publish draft release
+      - name: Publish signed release
+        if: steps.candidate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ steps.candidate.outputs.tag }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk radar.apk
           sha256sum radar.apk > SHA256SUMS
-          gh release create "$RELEASE_TAG" radar.apk SHA256SUMS --draft --title "$RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs radar.apk
+          gh release create "$RELEASE_TAG" radar.apk SHA256SUMS --target "$(git rev-parse HEAD)" --latest --title "$RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/radar-release.p12"
